@@ -1,205 +1,69 @@
-# Flutter Starter App
+# 克莱蒙英语学生端
 
-A modern, production-ready Flutter starter template with best practices, clean architecture, and essential features pre-configured. Perfect for quickly bootstrapping new Flutter projects with a solid foundation.
+面向学生和平板学习场景的 Flutter 应用，基于 `Flutter + Riverpod + GoRouter + Supabase` 构建。
 
-## 🌐 Live Demo
+## 当前范围
 
-Check out the live demo: [https://flutter-material3-starter.web.app](https://flutter-material3-starter.web.app)
+- 邮箱登录与会话保持
+- 学生端门户首页
+- 打卡活动列表与任务详情
+- 远程 Supabase 数据接入
+- 配套数据库迁移、种子数据、Edge Function 与 Storage 策略
+- GitHub Actions Android 构建
 
-## 🚀 Features
+## 技术栈
 
-### Core Architecture
-- **Clean Architecture**: Organized code structure with separation of concerns
-- **State Management**: Riverpod 2.0 with code generation support
-- **Routing**: GoRouter for declarative navigation
-- **Dependency Injection**: Built-in with Riverpod
-- **Error Handling**: Comprehensive error boundary and error widgets
+- `Flutter`
+- `Riverpod`
+- `GoRouter`
+- `Supabase`
 
-### UI/UX Features
-- **Responsive Design**: Adaptive layouts for mobile, tablet, and desktop
-- **Theme System**: Material 3 with light/dark mode support
-- **Internationalization**: Multi-language support (EN, ES, FR)
-- **Animations**: Smooth transitions with flutter_animate
-- **Loading States**: Skeleton screens and shimmer effects
-- **Custom Components**: Reusable UI components library
+## 本地开发
 
-### Built-in Pages
-- **Authentication**: Login and registration flows
-- **Dashboard**: Stats, charts, and activity feeds
-- **User Management**: CRUD operations with data tables
-- **Settings**: Theme and language preferences
-- **Onboarding**: First-time user experience
-- **Error Pages**: 404, error boundaries, and fallbacks
-
-### Development Features
-- **Mock API Service**: Development without backend
-- **Form Validation**: Comprehensive form handling
-- **File Upload**: Drag-and-drop file upload widget
-- **Search**: Integrated search functionality
-- **Notifications**: In-app notification system
-
-## 📋 Prerequisites
-
-- Flutter SDK (3.0 or higher)
-- Dart SDK (3.0 or higher)
-- IDE with Flutter support (VS Code, Android Studio, IntelliJ)
-
-## 🛠️ Installation
-
-1. **Clone the repository**
-```bash
-git clone https://github.com/momentous-developments/flutter-starter-app.git
-cd flutter-starter-app
-```
-
-2. **Install dependencies**
 ```bash
 flutter pub get
-```
-
-3. **Run build runner** (for code generation)
-```bash
-dart run build_runner build --delete-conflicting-outputs
-```
-
-4. **Run the app**
-```bash
 flutter run
 ```
 
-## 📱 Supported Platforms
+## 环境变量
 
-- ✅ iOS
-- ✅ Android
-- ✅ Web
-- ✅ macOS
-- ✅ Windows
-- ✅ Linux
+复制 `.env.example` 到 `.env`，并填写：
 
-## 🏗️ Project Structure
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
-```
-lib/
-├── core/                      # Core functionality
-│   ├── constants/            # App constants
-│   ├── error/               # Error handling
-│   ├── models/              # Core data models
-│   ├── providers/           # Global providers
-│   ├── router/              # Navigation setup
-│   ├── services/            # Core services
-│   └── theme/               # Theme configuration
-├── features/                 # Feature modules
-│   ├── auth/                # Authentication
-│   ├── dashboard/           # Dashboard
-│   ├── forms/               # Forms examples
-│   ├── home/                # Home & showcases
-│   ├── notifications/       # Notifications
-│   ├── onboarding/          # Onboarding flow
-│   ├── settings/            # App settings
-│   └── users/               # User management
-├── l10n/                     # Localization files
-├── shared/                   # Shared components
-│   ├── providers/           # Shared providers
-│   └── widgets/             # Reusable widgets
-└── main.dart                # App entry point
-```
+如果要显式指定数据模式，也可以配置：
 
-## 🎨 Customization
+- `APP_DATA_MODE=supabase`
 
-### Theming
-Edit `lib/core/theme/app_theme.dart` to customize:
-- Color schemes
-- Typography
-- Component themes
-- Light/dark mode settings
+## Supabase 目录
 
-### Adding New Features
-1. Create a new folder in `lib/features/`
-2. Follow the existing structure:
-   - `data/` - Repositories and data sources
-   - `presentation/` - UI components
-     - `pages/` - Screen widgets
-     - `widgets/` - Feature-specific widgets
-     - `providers/` - Feature state management
+仓库内的 `supabase/` 目录包含：
 
-### Localization
-1. Add translations to `lib/l10n/app_*.arb` files
-2. Run `flutter gen-l10n` to generate code
+- 数据库迁移
+- 演示种子数据
+- Edge Functions
+- Storage 对象策略
 
-## 🧪 Testing
+其中管理员安全建号函数位于：
 
-```bash
-# Run all tests
-flutter test
+- `supabase/functions/admin-create-user`
 
-# Run with coverage
-flutter test --coverage
+## GitHub Actions
 
-# Generate coverage report
-genhtml coverage/lcov.info -o coverage/html
-```
+工作流文件：
 
-## 📦 Building for Production
+- `.github/workflows/flutter-build.yml`
 
-### Web
-```bash
-flutter build web --release
-```
+仓库需要配置这些 Secrets：
 
-### Android
-```bash
-flutter build apk --release
-# or
-flutter build appbundle --release
-```
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
 
-### iOS
-```bash
-flutter build ios --release
-```
+如果后续要产出正式签名 Android 包，还需要额外配置签名相关 Secrets。
 
-### Desktop
-```bash
-flutter build macos --release
-flutter build windows --release
-flutter build linux --release
-```
+## 相关仓库
 
-## 🔧 Configuration
-
-### Environment Setup
-Create `.env` files for different environments:
-- `.env.development`
-- `.env.staging`
-- `.env.production`
-
-### API Configuration
-Update `lib/core/services/mock_api_service.dart` with your API endpoints.
-
-## 📚 Key Dependencies
-
-- **State Management**: flutter_riverpod, riverpod_annotation
-- **Navigation**: go_router
-- **UI/UX**: flutter_animate, flex_color_scheme
-- **Utilities**: intl, shared_preferences, cached_network_image
-- **Development**: freezed, json_serializable, build_runner
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- Flutter team for the amazing framework
-- Riverpod for powerful state management
-- The Flutter community for inspiration and packages
+- 学生端：[claremont-english-student-app](https://github.com/xiaoguan521/claremont-english-student-app)
+- 教师端：[claremont-english-teacher-app](https://github.com/xiaoguan521/claremont-english-teacher-app)
+- 管理端：[claremont-english-management-app](https://github.com/xiaoguan521/claremont-english-management-app)

@@ -28,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      HAS_ANDROID_SIGNING: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && 'true' || 'false' }}
 
     steps:
       - name: Checkout repository
@@ -61,7 +63,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Decode Android keystore
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.HAS_ANDROID_SIGNING == 'true'
         shell: bash
         run: |
           echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/app/upload-keystore.jks
@@ -69,7 +71,7 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
 
       - name: Write Android signing properties
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.HAS_ANDROID_SIGNING == 'true'
         shell: bash
         run: |
           cat > android/key.properties <<EOF

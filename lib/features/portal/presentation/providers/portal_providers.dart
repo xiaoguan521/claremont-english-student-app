@@ -36,14 +36,17 @@ final portalSummaryProvider = FutureProvider<PortalSummary>((ref) async {
   final inProgressActivities = activities
       .where((item) => item.status != ActivityStatus.completed)
       .length;
-  final pendingTasks = activities.fold<int>(
-    0,
-    (sum, item) =>
-        sum +
-        item.tasks
-            .where((task) => task.reviewStatus != TaskReviewStatus.checked)
-            .length,
-  );
+  final pendingTasks = activities.fold<int>(0, (sum, item) {
+    switch (item.submissionFlowStatus) {
+      case SubmissionFlowStatus.notStarted:
+      case SubmissionFlowStatus.failed:
+        return sum + item.tasks.length;
+      case SubmissionFlowStatus.queued:
+      case SubmissionFlowStatus.processing:
+      case SubmissionFlowStatus.completed:
+        return sum;
+    }
+  });
 
   return PortalSummary(
     activeClasses: totalClasses,

@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,6 +22,34 @@ class TaskDetailPage extends ConsumerStatefulWidget {
 
 class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   bool _isSubmitting = false;
+  _PendingAudioFile? _selectedAudio;
+
+  Future<void> _pickAudioFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['mp3', 'm4a', 'mp4', 'wav', 'aac'],
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    final file = result.files.single;
+    if (file.bytes == null) {
+      _showMessage('这次没有拿到音频内容，请重新选择。');
+      return;
+    }
+
+    setState(() {
+      _selectedAudio = _PendingAudioFile(
+        name: file.name,
+        bytes: file.bytes!,
+        sizeBytes: file.size,
+        mimeType: _guessMimeType(file.extension),
+      );
+    });
+  }
 
   Future<void> _handlePrimaryAction(PortalActivity activity) async {
     if (activity.submissionFlowStatus == SubmissionFlowStatus.queued ||
@@ -32,6 +63,12 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return;
     }
 
+    final selectedAudio = _selectedAudio;
+    if (selectedAudio == null) {
+      _showMessage('先选择一段朗读音频，再提交给老师。');
+      return;
+    }
+
     setState(() {
       _isSubmitting = true;
     });
@@ -39,13 +76,22 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     try {
       await ref
           .read(portalRepositoryProvider)
-          .submitActivity(widget.activityId);
+          .uploadAudioSubmission(
+            activityId: widget.activityId,
+            fileBytes: selectedAudio.bytes,
+            fileName: selectedAudio.name,
+            sizeBytes: selectedAudio.sizeBytes,
+            mimeType: selectedAudio.mimeType,
+          );
       ref.invalidate(portalActivitiesProvider);
       ref.invalidate(portalSummaryProvider);
       ref.invalidate(portalActivityByIdProvider(widget.activityId));
       if (!mounted) {
         return;
       }
+      setState(() {
+        _selectedAudio = null;
+      });
       _showMessage('已经提交给老师了，记得晚点回来查看点评。');
     } catch (error) {
       if (!mounted) {
@@ -161,6 +207,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                   return _SubmissionPanel(
                     activity: activity,
                     isSubmitting: _isSubmitting,
+                    selectedAudio: _selectedAudio,
+                    onPickAudio: _pickAudioFile,
                     onPrimaryAction: () => _handlePrimaryAction(activity),
                   );
                 }
@@ -305,11 +353,15 @@ class _SubmissionPanel extends StatelessWidget {
   const _SubmissionPanel({
     required this.activity,
     required this.isSubmitting,
+    required this.selectedAudio,
+    required this.onPickAudio,
     required this.onPrimaryAction,
   });
 
   final PortalActivity activity;
   final bool isSubmitting;
+  final _PendingAudioFile? selectedAudio;
+  final VoidCallback onPickAudio;
   final VoidCallback onPrimaryAction;
 
   @override
@@ -321,6 +373,9 @@ class _SubmissionPanel extends StatelessWidget {
           subtitle: '提交后老师才能看到你的练习，也才能给你点评。',
           badgeLabel: '还没有提交',
           badgeColor: const Color(0xFF2563EB),
+          selectedAudioLabel: selectedAudio?.name,
+          existingAudioLabel: activity.submissionAudioName,
+          onPickAudio: onPickAudio,
           actionLabel: isSubmitting ? '提交中' : '提交本次练习',
           actionIcon: isSubmitting
               ? null
@@ -335,6 +390,7 @@ class _SubmissionPanel extends StatelessWidget {
               : '你已在 ${_formatDateTime(activity.submittedAt!)} 提交，老师会尽快给你反馈。',
           badgeLabel: '等待老师点评',
           badgeColor: const Color(0xFFF97316),
+          existingAudioLabel: activity.submissionAudioName,
         );
       case SubmissionFlowStatus.processing:
         return _MessagePanel(
@@ -342,6 +398,7 @@ class _SubmissionPanel extends StatelessWidget {
           subtitle: '这份练习已经进入处理流程，稍后就能看到分数和鼓励语。',
           badgeLabel: '评分处理中',
           badgeColor: const Color(0xFF7C3AED),
+          existingAudioLabel: activity.submissionAudioName,
         );
       case SubmissionFlowStatus.failed:
         return _MessagePanel(
@@ -349,6 +406,9 @@ class _SubmissionPanel extends StatelessWidget {
           subtitle: '可以再提交一次，老师看到后就会继续帮你检查。',
           badgeLabel: '需要重新提交',
           badgeColor: const Color(0xFFDC2626),
+          selectedAudioLabel: selectedAudio?.name,
+          existingAudioLabel: activity.submissionAudioName,
+          onPickAudio: onPickAudio,
           actionLabel: isSubmitting ? '重新提交中' : '重新提交',
           actionIcon: isSubmitting ? null : const Icon(Icons.refresh_rounded),
           onAction: isSubmitting ? null : onPrimaryAction,
@@ -365,6 +425,9 @@ class _MessagePanel extends StatelessWidget {
     required this.subtitle,
     required this.badgeLabel,
     required this.badgeColor,
+    this.selectedAudioLabel,
+    this.existingAudioLabel,
+    this.onPickAudio,
     this.actionLabel,
     this.actionIcon,
     this.onAction,
@@ -374,6 +437,9 @@ class _MessagePanel extends StatelessWidget {
   final String subtitle;
   final String badgeLabel;
   final Color badgeColor;
+  final String? selectedAudioLabel;
+  final String? existingAudioLabel;
+  final VoidCallback? onPickAudio;
   final String? actionLabel;
   final Widget? actionIcon;
   final VoidCallback? onAction;
@@ -425,17 +491,82 @@ class _MessagePanel extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+                if (selectedAudioLabel != null ||
+                    existingAudioLabel != null) ...[
+                  const SizedBox(height: 14),
+                  _AudioInfoCard(
+                    title: selectedAudioLabel != null ? '准备提交的音频' : '已上传的音频',
+                    fileName: selectedAudioLabel ?? existingAudioLabel!,
+                  ),
+                ],
               ],
             ),
           ),
-          if (actionLabel != null) ...[
-            const SizedBox(width: 18),
-            FilledButton.icon(
-              onPressed: onAction,
-              icon: actionIcon ?? const SizedBox.shrink(),
-              label: Text(actionLabel!),
-            ),
-          ],
+          const SizedBox(width: 18),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (onPickAudio != null)
+                OutlinedButton.icon(
+                  onPressed: onPickAudio,
+                  icon: const Icon(Icons.library_music_rounded),
+                  label: Text(selectedAudioLabel == null ? '选择音频' : '重新选择'),
+                ),
+              if (actionLabel != null) ...[
+                if (onPickAudio != null) const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: onAction,
+                  icon: actionIcon ?? const SizedBox.shrink(),
+                  label: Text(actionLabel!),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AudioInfoCard extends StatelessWidget {
+  const _AudioInfoCard({required this.title, required this.fileName});
+
+  final String title;
+  final String fileName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.audio_file_rounded, color: Color(0xFF2F67F6)),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                fileName,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: const Color(0xFF1E293B),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -911,4 +1042,33 @@ String _formatDateTime(DateTime value) {
   final local = value.toLocal();
   final minute = local.minute.toString().padLeft(2, '0');
   return '${local.month}.${local.day} ${local.hour}:$minute';
+}
+
+String _guessMimeType(String? extension) {
+  switch ((extension ?? '').toLowerCase()) {
+    case 'wav':
+      return 'audio/wav';
+    case 'aac':
+      return 'audio/aac';
+    case 'm4a':
+    case 'mp4':
+      return 'audio/mp4';
+    case 'mp3':
+    default:
+      return 'audio/mpeg';
+  }
+}
+
+class _PendingAudioFile {
+  const _PendingAudioFile({
+    required this.name,
+    required this.bytes,
+    required this.sizeBytes,
+    required this.mimeType,
+  });
+
+  final String name;
+  final Uint8List bytes;
+  final int sizeBytes;
+  final String mimeType;
 }

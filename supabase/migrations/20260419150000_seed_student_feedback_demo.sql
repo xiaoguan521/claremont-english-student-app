@@ -55,6 +55,28 @@ begin
     limit 1;
   end if;
 
+  insert into public.submission_assets (
+    submission_id,
+    asset_type,
+    storage_bucket,
+    storage_path,
+    mime_type,
+    size_bytes
+  )
+  select
+    v_submission_id,
+    'audio',
+    'submission-audio',
+    v_submission_id::text || '/demo-reading.m4a',
+    'audio/mp4',
+    1048576
+  where not exists (
+    select 1
+    from public.submission_assets
+    where submission_id = v_submission_id
+      and asset_type = 'audio'
+  );
+
   insert into public.evaluation_results (
     submission_id,
     provider,

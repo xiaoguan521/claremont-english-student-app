@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -8,6 +10,14 @@ abstract class PortalRepository {
   Future<List<PortalActivity>> fetchActivities({String? schoolId});
 
   Future<void> submitActivity(String activityId);
+
+  Future<void> uploadAudioSubmission({
+    required String activityId,
+    required Uint8List fileBytes,
+    required String fileName,
+    required int sizeBytes,
+    String? mimeType,
+  });
 }
 
 class MockPortalRepository implements PortalRepository {
@@ -21,6 +31,17 @@ class MockPortalRepository implements PortalRepository {
 
   @override
   Future<void> submitActivity(String activityId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+  }
+
+  @override
+  Future<void> uploadAudioSubmission({
+    required String activityId,
+    required Uint8List fileBytes,
+    required String fileName,
+    required int sizeBytes,
+    String? mimeType,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
   }
 }
@@ -162,6 +183,26 @@ class SupabasePortalRepository implements PortalRepository {
       }
     }
 
+    final audioAssetBySubmissionId = <String, Map<String, dynamic>>{};
+    if (submissionIds.isNotEmpty) {
+      final submissionAssetsResponse = await _client
+          .from('submission_assets')
+          .select('submission_id, storage_path, created_at')
+          .eq('asset_type', 'audio')
+          .inFilter('submission_id', submissionIds)
+          .order('created_at', ascending: false);
+
+      for (final row in List<Map<String, dynamic>>.from(
+        submissionAssetsResponse,
+      )) {
+        final submissionId = row['submission_id'] as String?;
+        if (submissionId != null &&
+            !audioAssetBySubmissionId.containsKey(submissionId)) {
+          audioAssetBySubmissionId[submissionId] = row;
+        }
+      }
+    }
+
     final itemsByAssignmentId = <String, List<Map<String, dynamic>>>{};
     for (final item in itemRows) {
       final assignmentId = item['assignment_id'] as String?;
@@ -183,6 +224,9 @@ class SupabasePortalRepository implements PortalRepository {
       final evaluationRow = submissionId == null
           ? null
           : evaluationBySubmissionId[submissionId];
+      final audioAssetRow = submissionId == null
+          ? null
+          : audioAssetBySubmissionId[submissionId];
       final latestFeedback =
           submissionFlowStatus == SubmissionFlowStatus.completed
           ? (submissionRow?['latest_feedback'] as String?)
@@ -237,6 +281,10 @@ class SupabasePortalRepository implements PortalRepository {
         encouragement: encouragement,
         strengths: strengths,
         improvementPoints: improvementPoints,
+        submissionAudioName: _fileNameFromPath(
+          audioAssetRow?['storage_path'] as String?,
+        ),
+        submissionAudioPath: audioAssetRow?['storage_path'] as String?,
       );
     }).toList();
   }
@@ -259,6 +307,67 @@ class SupabasePortalRepository implements PortalRepository {
       'latest_feedback': null,
       'updated_at': now,
     }, onConflict: 'assignment_id,student_id');
+  }
+
+  @override
+  Future<void> uploadAudioSubmission({
+    required String activityId,
+    required Uint8List fileBytes,
+    required String fileName,
+    required int sizeBytes,
+    String? mimeType,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('当前还没有登录账号。');
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    final submissionResponse = await _client
+        .from('submissions')
+        .upsert({
+          'assignment_id': activityId,
+          'student_id': userId,
+          'status': 'uploaded',
+          'submitted_at': now,
+          'latest_score': null,
+          'latest_feedback': null,
+          'updated_at': now,
+        }, onConflict: 'assignment_id,student_id')
+        .select('id')
+        .single();
+
+    final submissionId = submissionResponse['id'] as String?;
+    if (submissionId == null) {
+      throw StateError('提交记录创建失败。');
+    }
+
+    final safeName = _sanitizeFileName(fileName);
+    final storagePath =
+        '$submissionId/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+    final resolvedMimeType = mimeType ?? _inferMimeType(fileName);
+
+    await _client.storage
+        .from('submission-audio')
+        .uploadBinary(
+          storagePath,
+          fileBytes,
+          fileOptions: FileOptions(contentType: resolvedMimeType, upsert: true),
+        );
+
+    await _client.from('submission_assets').insert({
+      'submission_id': submissionId,
+      'asset_type': 'audio',
+      'storage_bucket': 'submission-audio',
+      'storage_path': storagePath,
+      'mime_type': resolvedMimeType,
+      'size_bytes': sizeBytes,
+    });
+
+    await _client
+        .from('submissions')
+        .update({'status': 'queued', 'submitted_at': now, 'updated_at': now})
+        .eq('id', submissionId);
   }
 
   PortalTask _mapTask(
@@ -390,6 +499,36 @@ class SupabasePortalRepository implements PortalRepository {
       return value.map((item) => item.toString()).toList();
     }
     return const [];
+  }
+
+  String? _fileNameFromPath(String? path) {
+    if (path == null || path.isEmpty) {
+      return null;
+    }
+    final segments = path.split('/');
+    return segments.isEmpty ? null : segments.last;
+  }
+
+  String _sanitizeFileName(String value) {
+    final sanitized = value.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    return sanitized.isEmpty ? 'audio.m4a' : sanitized;
+  }
+
+  String _inferMimeType(String fileName) {
+    final normalized = fileName.toLowerCase();
+    if (normalized.endsWith('.mp3')) {
+      return 'audio/mpeg';
+    }
+    if (normalized.endsWith('.wav')) {
+      return 'audio/wav';
+    }
+    if (normalized.endsWith('.aac')) {
+      return 'audio/aac';
+    }
+    if (normalized.endsWith('.mp4') || normalized.endsWith('.m4a')) {
+      return 'audio/mp4';
+    }
+    return 'audio/mpeg';
   }
 }
 

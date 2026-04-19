@@ -42,6 +42,8 @@ class PortalActivity {
     this.encouragement,
     this.strengths = const [],
     this.improvementPoints = const [],
+    this.submissionAudioName,
+    this.submissionAudioPath,
   });
 
   final String id;
@@ -62,6 +64,8 @@ class PortalActivity {
   final String? encouragement;
   final List<String> strengths;
   final List<String> improvementPoints;
+  final String? submissionAudioName;
+  final String? submissionAudioPath;
 
   bool get hasTeacherFeedback =>
       submissionFlowStatus == SubmissionFlowStatus.completed &&
@@ -90,6 +94,8 @@ final mockPortalActivities = [
     encouragement: '继续保持这个节奏，下一次把句尾再收紧一点会更棒。',
     strengths: ['开头发音清晰', '整体节奏稳定'],
     improvementPoints: ['句尾收音再干净一点'],
+    submissionAudioName: 'module7-reading.m4a',
+    submissionAudioPath: 'demo-submission/module7-reading.m4a',
     tasks: [
       PortalTask(
         id: 'h-1',
@@ -168,6 +174,8 @@ final mockPortalActivities = [
     completionRate: 0.72,
     submissionFlowStatus: SubmissionFlowStatus.queued,
     submittedAt: DateTime(2026, 4, 19, 9, 15),
+    submissionAudioName: 'module3-reading.wav',
+    submissionAudioPath: 'demo-submission/module3-reading.wav',
     tasks: [
       PortalTask(
         id: 't-1',

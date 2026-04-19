@@ -7,6 +7,7 @@ import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/portal/presentation/pages/activities_page.dart';
 import '../../features/portal/presentation/pages/explore_page.dart';
 import '../../features/portal/presentation/pages/task_detail_page.dart';
+import '../../features/school/presentation/pages/school_entry_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/users/presentation/pages/users_page.dart';
 import '../../features/users/presentation/pages/user_detail_page.dart';
@@ -55,13 +56,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
       final isOnboardingRoute = state.matchedLocation == '/onboarding';
+      final isSchoolEntryRoute = state.matchedLocation.startsWith('/s/');
 
       // Check onboarding first for new users
-      if (!onboardingCompleted && !isOnboardingRoute) {
+      if (!onboardingCompleted && !isOnboardingRoute && !isSchoolEntryRoute) {
         return '/onboarding';
       }
 
-      if (onboardingCompleted && !isAuthenticated && !isAuthRoute) {
+      if (onboardingCompleted &&
+          !isAuthenticated &&
+          !isAuthRoute &&
+          !isSchoolEntryRoute) {
         return '/login';
       }
 
@@ -78,6 +83,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingPage(),
+      ),
+      GoRoute(
+        path: '/s/:schoolCode',
+        builder: (context, state) {
+          final schoolCode = state.pathParameters['schoolCode']!;
+          return SchoolEntryPage(schoolCode: schoolCode);
+        },
       ),
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
       GoRoute(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/portal_models.dart';
+import '../../../school/presentation/providers/school_context_provider.dart';
 import '../providers/portal_providers.dart';
 import '../widgets/tablet_shell.dart';
 
@@ -13,10 +14,14 @@ class ActivitiesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final activitiesAsync = ref.watch(portalActivitiesProvider);
     final summaryAsync = ref.watch(portalSummaryProvider);
+    final schoolContext =
+        ref.watch(schoolContextProvider).valueOrNull ??
+        SchoolContext.fallback();
 
     final subtitle = summaryAsync.maybeWhen(
-      data: (summary) => '待点评 ${summary.reviewPending} 个 | 待督促 ${summary.studentsToUrge} 人',
-      orElse: () => '正在同步远程作业数据',
+      data: (summary) =>
+          '共 ${summary.totalActivities} 份作业 | 已完成 ${summary.completedActivities} 份',
+      orElse: () => '正在同步老师布置的作业',
     );
 
     Widget content;
@@ -24,24 +29,22 @@ class ActivitiesPage extends ConsumerWidget {
       content = const Center(child: CircularProgressIndicator());
     } else if (activitiesAsync.hasError) {
       content = const _ActivitiesStateMessage(
-        title: '活动加载失败',
-        message: '请稍后重试，或检查当前账号是否已绑定班级。',
+        title: '作业还没有加载出来',
+        message: '请稍后重试，或者联系老师确认班级是否已绑定。',
       );
     } else {
-      final activities = activitiesAsync.valueOrNull ?? const <PortalActivity>[];
+      final activities =
+          activitiesAsync.valueOrNull ?? const <PortalActivity>[];
       content = Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 220,
-            child: _ActionRail(summaryAsync: summaryAsync),
-          ),
+          SizedBox(width: 248, child: _ActionRail(summaryAsync: summaryAsync)),
           const SizedBox(width: 20),
           Expanded(
             child: activities.isEmpty
                 ? const _ActivitiesStateMessage(
-                    title: '暂无打卡活动',
-                    message: '当前账号下还没有已发布的活动。',
+                    title: '还没有新的作业',
+                    message: '老师发布新的英语任务后，这里会马上出现。',
                   )
                 : ListView.separated(
                     itemCount: activities.length,
@@ -58,18 +61,24 @@ class ActivitiesPage extends ConsumerWidget {
 
     return TabletShell(
       activeSection: TabletSection.teaching,
-      title: '打卡活动',
+      brandName: schoolContext.displayName,
+      brandSubtitle: '学校学习入口',
+      title: '我的作业',
       subtitle: subtitle,
       actions: [
+        _TopToolButton(
+          icon: Icons.home_rounded,
+          label: '回首页',
+          onTap: () => context.go('/home'),
+        ),
+        const SizedBox(width: 12),
         _TopToolButton(icon: Icons.tune_rounded, label: '筛选', onTap: () {}),
         const SizedBox(width: 12),
-        _TopToolButton(icon: Icons.search_rounded, label: '搜索', onTap: () {}),
-        const SizedBox(width: 12),
         _TopToolButton(
-          icon: Icons.add_circle_outline_rounded,
-          label: '布置',
+          icon: Icons.refresh_rounded,
+          label: '刷新',
           isPrimary: true,
-          onTap: () {},
+          onTap: () => ref.invalidate(portalActivitiesProvider),
         ),
       ],
       child: content,
@@ -85,8 +94,15 @@ class _ActionRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summary = summaryAsync.valueOrNull;
-    final classLabel = summary == null ? '同步中' : '${summary.activeClasses}个班级';
-    final urgeLabel = summary == null ? '正在统计' : '${summary.studentsToUrge}人待跟进';
+    final taskLabel = summary == null
+        ? '同步中'
+        : '${summary.totalActivities} 份作业';
+    final pendingLabel = summary == null
+        ? '正在统计'
+        : '${summary.pendingTasks} 项待完成';
+    final completedLabel = summary == null
+        ? '加载中'
+        : '${summary.completedActivities} 份已完成';
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -98,32 +114,32 @@ class _ActionRail extends StatelessWidget {
         children: [
           _RailAction(
             icon: Icons.fact_check_outlined,
-            label: '一键检查',
-            value: classLabel,
+            label: '今日作业',
+            value: taskLabel,
           ),
           const SizedBox(height: 14),
           _RailAction(
-            icon: Icons.notifications_active_outlined,
-            label: '一键督促',
-            value: urgeLabel,
+            icon: Icons.pending_actions_outlined,
+            label: '待完成',
+            value: pendingLabel,
+          ),
+          const SizedBox(height: 14),
+          _RailAction(
+            icon: Icons.workspace_premium_outlined,
+            label: '已完成',
+            value: completedLabel,
           ),
           const SizedBox(height: 14),
           const _PromoTile(
-            title: 'AI点评',
-            subtitle: '自动生成点评草稿',
-            colors: [Color(0xFF1FB5FF), Color(0xFF8A49F8)],
+            title: '学习提醒',
+            subtitle: '优先完成等待老师查看的任务',
+            colors: [Color(0xFF1FB5FF), Color(0xFF5B8BFF)],
           ),
           const SizedBox(height: 14),
           const _PromoTile(
-            title: '活动模板库',
-            subtitle: '复制常用打卡模板',
-            colors: [Color(0xFF55C5FF), Color(0xFF2F67F6)],
-          ),
-          const SizedBox(height: 14),
-          const _PromoTile(
-            title: '我的模板库',
-            subtitle: '机构专属任务模板',
-            colors: [Color(0xFF3348FF), Color(0xFF00B7FF)],
+            title: '老师反馈',
+            subtitle: '完成后记得回来查看点评',
+            colors: [Color(0xFF8B5CF6), Color(0xFFE879F9)],
           ),
         ],
       ),
@@ -132,10 +148,7 @@ class _ActionRail extends StatelessWidget {
 }
 
 class _ActivitiesStateMessage extends StatelessWidget {
-  const _ActivitiesStateMessage({
-    required this.title,
-    required this.message,
-  });
+  const _ActivitiesStateMessage({required this.title, required this.message});
 
   final String title;
   final String message;
@@ -156,6 +169,7 @@ class _ActivitiesStateMessage extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             message,
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: const Color(0xFF64748B),
               fontWeight: FontWeight.w700,
@@ -168,15 +182,15 @@ class _ActivitiesStateMessage extends StatelessWidget {
 }
 
 class _RailAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
   const _RailAction({
     required this.icon,
     required this.label,
     required this.value,
   });
+
+  final IconData icon;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
@@ -221,19 +235,20 @@ class _RailAction extends StatelessWidget {
 }
 
 class _PromoTile extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final List<Color> colors;
-
   const _PromoTile({
     required this.title,
     required this.subtitle,
     required this.colors,
   });
 
+  final String title;
+  final String subtitle;
+  final List<Color> colors;
+
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: colors),
@@ -264,12 +279,15 @@ class _PromoTile extends StatelessWidget {
 }
 
 class _ActivityRow extends StatelessWidget {
-  final PortalActivity activity;
-
   const _ActivityRow({required this.activity});
+
+  final PortalActivity activity;
 
   @override
   Widget build(BuildContext context) {
+    final progress = '${(activity.completionRate * 100).round()}%';
+    final nextStep = _nextStepLabel(activity.status);
+
     return InkWell(
       onTap: () => context.go('/activities/${activity.id}'),
       borderRadius: BorderRadius.circular(30),
@@ -310,63 +328,37 @@ class _ActivityRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    activity.className,
+                    '${activity.className} · ${activity.dateLabel}',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: const Color(0xFF64748B),
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _statusBg(activity.status),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Text(
-                          _statusLabel(activity.status),
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: _statusFg(activity.status),
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        activity.dateLabel,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: const Color(0xFF64748B),
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
+                      _InfoChip(label: '任务 ${activity.tasks.length} 项'),
+                      _InfoChip(label: '完成 $progress'),
+                      _InfoChip(label: '老师反馈 ${activity.reviewCount} 条'),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _CountMetric(
-                    value: '${activity.reviewCount}个',
-                    label: '待点评任务',
-                  ),
-                  _CountMetric(
-                    value: '${activity.inspectCount}个',
-                    label: '待检查任务',
-                  ),
-                  _CountMetric(value: '${activity.urgeCount}人', label: '待督促学员'),
-                ],
-              ),
+            const SizedBox(width: 22),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _StatusBadge(status: activity.status),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: () => context.go('/activities/${activity.id}'),
+                  icon: const Icon(Icons.play_circle_fill_rounded),
+                  label: Text(nextStep),
+                ),
+              ],
             ),
           ],
         ),
@@ -374,76 +366,73 @@ class _ActivityRow extends StatelessWidget {
     );
   }
 
-  Color _statusBg(ActivityStatus status) {
+  String _nextStepLabel(ActivityStatus status) {
     switch (status) {
-      case ActivityStatus.active:
-        return const Color(0xFFDBEAFE);
-      case ActivityStatus.reviewPending:
-        return const Color(0xFFFFEDD5);
       case ActivityStatus.completed:
-        return const Color(0xFFDCFCE7);
-    }
-  }
-
-  Color _statusFg(ActivityStatus status) {
-    switch (status) {
-      case ActivityStatus.active:
-        return const Color(0xFF2563EB);
+        return '查看反馈';
       case ActivityStatus.reviewPending:
-        return const Color(0xFFF97316);
-      case ActivityStatus.completed:
-        return const Color(0xFF16A34A);
-    }
-  }
-
-  String _statusLabel(ActivityStatus status) {
-    switch (status) {
+        return '等待点评';
       case ActivityStatus.active:
-        return '进行中';
-      case ActivityStatus.reviewPending:
-        return '待点评';
-      case ActivityStatus.completed:
-        return '已完成';
+        return '继续学习';
     }
   }
 }
 
-class _CountMetric extends StatelessWidget {
-  final String value;
-  final String label;
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.label});
 
-  const _CountMetric({required this.value, required this.label});
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            color: const Color(0xFFF97316),
-            fontWeight: FontWeight.w900,
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: const Color(0xFF475569),
+          fontWeight: FontWeight.w700,
         ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: const Color(0xFF334155),
-            fontWeight: FontWeight.w700,
-          ),
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status});
+
+  final ActivityStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      ActivityStatus.completed => ('已完成', const Color(0xFF16A34A)),
+      ActivityStatus.reviewPending => ('等待老师点评', const Color(0xFFF97316)),
+      ActivityStatus.active => ('学习中', const Color(0xFF2563EB)),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w800,
         ),
-      ],
+      ),
     );
   }
 }
 
 class _TopToolButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isPrimary;
-  final VoidCallback onTap;
-
   const _TopToolButton({
     required this.icon,
     required this.label,
@@ -451,24 +440,40 @@ class _TopToolButton extends StatelessWidget {
     this.isPrimary = false,
   });
 
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isPrimary;
+
   @override
   Widget build(BuildContext context) {
-    return FilledButton.tonal(
-      onPressed: onTap,
-      style: FilledButton.styleFrom(
-        backgroundColor: isPrimary
-            ? const Color(0xFF2F67F6)
-            : Colors.white.withValues(alpha: 0.9),
-        foregroundColor: isPrimary ? Colors.white : const Color(0xFF1E293B),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
-        ],
+    final backgroundColor = isPrimary
+        ? const Color(0xFF2F67F6)
+        : Colors.white.withValues(alpha: 0.18);
+    final foregroundColor = Colors.white;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: foregroundColor, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: foregroundColor,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

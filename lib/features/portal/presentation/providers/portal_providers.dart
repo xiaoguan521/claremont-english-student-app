@@ -16,43 +16,53 @@ final highlightedActivityProvider = FutureProvider<PortalActivity>((ref) async {
   return activities.first;
 });
 
-final portalActivityByIdProvider = FutureProvider.family<PortalActivity?, String>((
-  ref,
-  activityId,
-) async {
-  for (final activity in await ref.watch(portalActivitiesProvider.future)) {
-    if (activity.id == activityId) return activity;
-  }
-  return null;
-});
+final portalActivityByIdProvider =
+    FutureProvider.family<PortalActivity?, String>((ref, activityId) async {
+      for (final activity in await ref.watch(portalActivitiesProvider.future)) {
+        if (activity.id == activityId) return activity;
+      }
+      return null;
+    });
 
 final portalSummaryProvider = FutureProvider<PortalSummary>((ref) async {
   final activities = await ref.watch(portalActivitiesProvider.future);
-  final totalReview = activities.fold<int>(
-    0,
-    (sum, item) => sum + item.reviewCount,
-  );
-  final totalUrge = activities.fold<int>(
-    0,
-    (sum, item) => sum + item.urgeCount,
-  );
   final totalClasses = activities.length;
+  final completedActivities = activities
+      .where((item) => item.status == ActivityStatus.completed)
+      .length;
+  final inProgressActivities = activities
+      .where((item) => item.status != ActivityStatus.completed)
+      .length;
+  final pendingTasks = activities.fold<int>(
+    0,
+    (sum, item) =>
+        sum +
+        item.tasks
+            .where((task) => task.reviewStatus != TaskReviewStatus.checked)
+            .length,
+  );
 
   return PortalSummary(
     activeClasses: totalClasses,
-    reviewPending: totalReview,
-    studentsToUrge: totalUrge,
+    totalActivities: activities.length,
+    completedActivities: completedActivities,
+    inProgressActivities: inProgressActivities,
+    pendingTasks: pendingTasks,
   );
 });
 
 class PortalSummary {
   const PortalSummary({
     required this.activeClasses,
-    required this.reviewPending,
-    required this.studentsToUrge,
+    required this.totalActivities,
+    required this.completedActivities,
+    required this.inProgressActivities,
+    required this.pendingTasks,
   });
 
   final int activeClasses;
-  final int reviewPending;
-  final int studentsToUrge;
+  final int totalActivities;
+  final int completedActivities;
+  final int inProgressActivities;
+  final int pendingTasks;
 }

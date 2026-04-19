@@ -7,6 +7,8 @@ class TabletShell extends StatelessWidget {
   final TabletSection activeSection;
   final String title;
   final String? subtitle;
+  final String brandName;
+  final String? brandSubtitle;
   final Widget child;
   final List<Widget>? actions;
 
@@ -15,6 +17,8 @@ class TabletShell extends StatelessWidget {
     required this.title,
     required this.child,
     this.subtitle,
+    this.brandName = '英语打卡',
+    this.brandSubtitle,
     this.actions,
     super.key,
   });
@@ -39,7 +43,13 @@ class TabletShell extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(28, 22, 28, 18),
                 child: Column(
                   children: [
-                    _TopBar(title: title, subtitle: subtitle, actions: actions),
+                    _TopBar(
+                      title: title,
+                      subtitle: subtitle,
+                      brandName: brandName,
+                      brandSubtitle: brandSubtitle,
+                      actions: actions,
+                    ),
                     const SizedBox(height: 20),
                     Expanded(child: child),
                     const SizedBox(height: 18),
@@ -58,9 +68,17 @@ class TabletShell extends StatelessWidget {
 class _TopBar extends StatelessWidget {
   final String title;
   final String? subtitle;
+  final String brandName;
+  final String? brandSubtitle;
   final List<Widget>? actions;
 
-  const _TopBar({required this.title, this.subtitle, this.actions});
+  const _TopBar({
+    required this.title,
+    required this.brandName,
+    this.subtitle,
+    this.brandSubtitle,
+    this.actions,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -98,15 +116,15 @@ class _TopBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '克莱蒙英语',
+                    brandName,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  if (subtitle != null)
+                  if (brandSubtitle != null)
                     Text(
-                      subtitle!,
+                      brandSubtitle!,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Colors.white.withValues(alpha: 0.85),
                         fontWeight: FontWeight.w600,
@@ -165,21 +183,21 @@ class _BottomSectionNav extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _NavChip(
-              label: '教学',
+              label: '作业',
               icon: Icons.menu_book_rounded,
               selected: activeSection == TabletSection.teaching,
               onTap: () => context.go('/activities'),
             ),
             const SizedBox(width: 12),
             _NavChip(
-              label: '管理',
+              label: '首页',
               icon: Icons.dashboard_customize_rounded,
               selected: activeSection == TabletSection.management,
               onTap: () => context.go('/home'),
             ),
             const SizedBox(width: 12),
             _NavChip(
-              label: '拓展',
+              label: '我的',
               icon: Icons.extension_rounded,
               selected: activeSection == TabletSection.explore,
               onTap: () => context.go('/explore'),

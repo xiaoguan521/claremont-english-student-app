@@ -236,6 +236,14 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return;
     }
 
+    await _audioPlayer.stop();
+    if (mounted) {
+      setState(() {
+        _playingAudioKey = null;
+        _loadingAudioKey = null;
+      });
+    }
+
     if (_speakingTaskId == task.id) {
       await _tts.stop();
       if (!mounted) {
@@ -265,6 +273,27 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       });
       _showMessage('示范朗读暂时没有播放成功，请稍后重试。');
     }
+  }
+
+  Future<void> _toggleReferenceAudioPlayback(PortalTask task) async {
+    final storagePath = task.referenceAudioPath;
+    if (storagePath == null || storagePath.trim().isEmpty) {
+      _showMessage('这项任务还没有参考音频。');
+      return;
+    }
+
+    await _tts.stop();
+    if (mounted && _speakingTaskId != null) {
+      setState(() {
+        _speakingTaskId = null;
+      });
+    }
+
+    await _toggleAudioPlayback(
+      audioKey: _referenceAudioKey(storagePath),
+      resolvePath: () =>
+          _resolveStorageAudioPath(storagePath, defaultBucket: 'materials'),
+    );
   }
 
   Future<void> _openReadingPage(
@@ -305,7 +334,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 
     await _toggleAudioPlayback(
       audioKey: _storedAudioKey(storagePath),
-      resolvePath: () => _resolveStoredAudioPath(storagePath),
+      resolvePath: () => _resolveStorageAudioPath(
+        storagePath,
+        defaultBucket: 'submission-audio',
+      ),
     );
   }
 
@@ -372,20 +404,29 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     return path;
   }
 
-  Future<String> _resolveStoredAudioPath(String storagePath) async {
-    final cachedPath = _storedAudioCache[storagePath];
+  Future<String> _resolveStorageAudioPath(
+    String storageReference, {
+    required String defaultBucket,
+  }) async {
+    final resolvedReference = _resolveStorageReference(
+      storageReference,
+      defaultBucket: defaultBucket,
+    );
+    final cacheKey = '${resolvedReference.bucketId}:${resolvedReference.path}';
+    final cachedPath = _storedAudioCache[cacheKey];
     if (cachedPath != null && await File(cachedPath).exists()) {
       return cachedPath;
     }
 
     final bytes = await Supabase.instance.client.storage
-        .from('submission-audio')
-        .download(storagePath);
+        .from(resolvedReference.bucketId)
+        .download(resolvedReference.path);
     final tempDir = await getTemporaryDirectory();
-    final fileName = storagePath.split('/').last;
-    final targetPath = '${tempDir.path}/$fileName';
+    final fileName = resolvedReference.path.split('/').last;
+    final targetPath =
+        '${tempDir.path}/${resolvedReference.bucketId.replaceAll(RegExp(r"[^a-zA-Z0-9_-]"), "_")}-$fileName';
     await File(targetPath).writeAsBytes(bytes, flush: true);
-    _storedAudioCache[storagePath] = targetPath;
+    _storedAudioCache[cacheKey] = targetPath;
     return targetPath;
   }
 
@@ -581,15 +622,26 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                 }
 
                 final task = activity.tasks[index - 1];
+                final referenceAudioKey = task.hasReferenceAudio
+                    ? _referenceAudioKey(task.referenceAudioPath!)
+                    : null;
                 return _TaskCard(
                   index: index,
                   task: task,
                   isSpeaking: _speakingTaskId == task.id,
+                  isSamplePlaying: task.hasReferenceAudio
+                      ? referenceAudioKey == _playingAudioKey
+                      : _speakingTaskId == task.id,
+                  isSampleLoading: task.hasReferenceAudio
+                      ? referenceAudioKey == _loadingAudioKey
+                      : false,
                   onAction: () => _handleTaskAction(activity, task),
                   onOpenReading: activity.materialPdfPath == null
                       ? null
                       : () => _openReadingPage(activity, task: task),
-                  onSpeakSample: _sampleTextFor(task) == null
+                  onSpeakSample: task.hasReferenceAudio
+                      ? () => _toggleReferenceAudioPlayback(task)
+                      : _sampleTextFor(task) == null
                       ? null
                       : () => _speakSample(task),
                 );
@@ -1321,6 +1373,8 @@ class _TaskCard extends StatelessWidget {
     required this.index,
     required this.task,
     required this.isSpeaking,
+    required this.isSamplePlaying,
+    required this.isSampleLoading,
     required this.onAction,
     this.onOpenReading,
     this.onSpeakSample,
@@ -1329,6 +1383,8 @@ class _TaskCard extends StatelessWidget {
   final int index;
   final PortalTask task;
   final bool isSpeaking;
+  final bool isSamplePlaying;
+  final bool isSampleLoading;
   final VoidCallback onAction;
   final VoidCallback? onOpenReading;
   final VoidCallback? onSpeakSample;
@@ -1460,10 +1516,14 @@ class _TaskCard extends StatelessWidget {
                           ),
                         if (sampleText != null)
                           _TaskInfoChip(
-                            icon: isSpeaking
+                            icon: isSamplePlaying
                                 ? Icons.pause_circle_filled_rounded
+                                : task.hasReferenceAudio
+                                ? Icons.audiotrack_rounded
                                 : Icons.volume_up_rounded,
-                            label: isSpeaking ? '示范朗读播放中' : '可播放示范朗读',
+                            label: task.hasReferenceAudio
+                                ? (isSamplePlaying ? '示范音频播放中' : '可播放示范音频')
+                                : (isSpeaking ? '示范朗读播放中' : '可播放示范朗读'),
                           ),
                       ],
                     ),
@@ -1486,11 +1546,21 @@ class _TaskCard extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: onSpeakSample,
                   icon: Icon(
-                    isSpeaking
+                    isSamplePlaying
                         ? Icons.stop_circle_rounded
+                        : task.hasReferenceAudio
+                        ? Icons.play_circle_outline_rounded
                         : Icons.record_voice_over_rounded,
                   ),
-                  label: Text(isSpeaking ? '停止示范' : '听示范'),
+                  label: Text(
+                    isSampleLoading
+                        ? '加载中'
+                        : isSamplePlaying
+                        ? '停止示范'
+                        : task.hasReferenceAudio
+                        ? '听音频'
+                        : '听示范',
+                  ),
                 ),
               ],
               const Spacer(),
@@ -1725,6 +1795,23 @@ String? _sampleTextFor(PortalTask task) {
   return null;
 }
 
+_StorageAudioReference _resolveStorageReference(
+  String rawReference, {
+  required String defaultBucket,
+}) {
+  final trimmed = rawReference.trim();
+  if (trimmed.contains(':')) {
+    final index = trimmed.indexOf(':');
+    final bucketId = trimmed.substring(0, index).trim();
+    final path = trimmed.substring(index + 1).trim();
+    if (bucketId.isNotEmpty && path.isNotEmpty) {
+      return _StorageAudioReference(bucketId: bucketId, path: path);
+    }
+  }
+
+  return _StorageAudioReference(bucketId: defaultBucket, path: trimmed);
+}
+
 String _pageRangeLabel(PortalTask task) {
   final start = task.startPage;
   final end = task.endPage;
@@ -1759,10 +1846,21 @@ String _storedAudioKey(String storagePath) {
   return 'stored:$storagePath';
 }
 
+String _referenceAudioKey(String storagePath) {
+  return 'reference:$storagePath';
+}
+
 String? _fileExtension(String fileName) {
   final index = fileName.lastIndexOf('.');
   if (index == -1 || index == fileName.length - 1) {
     return null;
   }
   return fileName.substring(index + 1).toLowerCase();
+}
+
+class _StorageAudioReference {
+  const _StorageAudioReference({required this.bucketId, required this.path});
+
+  final String bucketId;
+  final String path;
 }

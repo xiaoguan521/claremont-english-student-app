@@ -18,6 +18,7 @@ class PortalTask {
     this.expectedText,
     this.startPage,
     this.endPage,
+    this.referenceAudioPath,
   });
 
   final String id;
@@ -30,9 +31,11 @@ class PortalTask {
   final String? expectedText;
   final int? startPage;
   final int? endPage;
+  final String? referenceAudioPath;
 
   bool get hasTtsText => (ttsText ?? '').trim().isNotEmpty;
   bool get hasPageRange => startPage != null || endPage != null;
+  bool get hasReferenceAudio => (referenceAudioPath ?? '').trim().isNotEmpty;
 }
 
 class PortalActivity {

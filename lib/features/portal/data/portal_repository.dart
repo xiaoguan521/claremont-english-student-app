@@ -148,7 +148,7 @@ class SupabasePortalRepository implements PortalRepository {
     final assignmentItemsResponse = await _client
         .from('assignment_items')
         .select(
-          'id, assignment_id, title, item_type, prompt_text, tts_text, expected_text, start_page, end_page, sort_order',
+          'id, assignment_id, title, item_type, prompt_text, tts_text, expected_text, start_page, end_page, reference_audio_path, sort_order',
         )
         .inFilter('assignment_id', assignmentIds)
         .order('sort_order', ascending: true);
@@ -417,6 +417,7 @@ class SupabasePortalRepository implements PortalRepository {
       expectedText: row['expected_text'] as String?,
       startPage: _asInt(row['start_page']),
       endPage: _asInt(row['end_page']),
+      referenceAudioPath: row['reference_audio_path'] as String?,
     );
   }
 

@@ -1,0 +1,982 @@
+import { createClient } from 'npm:@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+type ReviewSubmissionPayload = {
+  action: 'review_submission'
+  submissionId: string
+}
+
+type PreviewTextReviewPayload = {
+  action: 'preview_text_review'
+  schoolId: string
+  transcript: string
+  expectedText?: string
+  promptText?: string
+}
+
+type AiReviewPayload = ReviewSubmissionPayload | PreviewTextReviewPayload
+
+type SchoolAiConfigRecord = {
+  school_id: string
+  provider_type: string
+  provider_label: string
+  base_url: string
+  model: string
+  api_key_ciphertext: string
+  enabled: boolean
+}
+
+type SubmissionRecord = {
+  id: string
+  assignment_id: string
+  student_id: string
+  status: string
+}
+
+type AssignmentRecord = {
+  id: string
+  school_id: string
+  title: string
+  description: string | null
+}
+
+type AssignmentItemRecord = {
+  id: string
+  title: string | null
+  prompt_text: string
+  expected_text: string | null
+  tts_text: string | null
+  sort_order: number
+}
+
+type SubmissionAudioAsset = {
+  storage_bucket: string
+  storage_path: string
+  mime_type: string | null
+}
+
+type EvaluationJobRecord = {
+  id: string
+  submission_id: string
+  attempt_count: number
+  status: string
+}
+
+type ReviewNarrative = {
+  summaryFeedback: string
+  strengths: string[]
+  improvementPoints: string[]
+  encouragement: string
+}
+
+type ReviewOutcome = {
+  transcript: string
+  summaryFeedback: string
+  strengths: string[]
+  improvementPoints: string[]
+  encouragement: string
+  overallScore: number
+  pronunciationScore: number
+  fluencyScore: number
+  completenessScore: number
+  similarity: {
+    charSimilarity: number
+    tokenRecall: number
+    tokenBalance: number
+  }
+  transcriptionModel: string
+  transcriptionRaw: unknown
+  generationRaw: unknown
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
+function decodeBase64(value: string) {
+  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0))
+}
+
+async function deriveEncryptionKey(secret: string) {
+  const secretBytes = new TextEncoder().encode(secret)
+  const digest = await crypto.subtle.digest('SHA-256', secretBytes)
+
+  return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, [
+    'encrypt',
+    'decrypt',
+  ])
+}
+
+async function decryptApiKey(secret: string, ciphertext: string) {
+  const [ivBase64, payloadBase64] = ciphertext.split(':')
+  if (!ivBase64 || !payloadBase64) {
+    throw new Error('Stored API key ciphertext is invalid.')
+  }
+
+  const cryptoKey = await deriveEncryptionKey(secret)
+  const decrypted = await crypto.subtle.decrypt(
+    {
+      name: 'AES-GCM',
+      iv: decodeBase64(ivBase64),
+    },
+    cryptoKey,
+    decodeBase64(payloadBase64),
+  )
+
+  return new TextDecoder().decode(decrypted)
+}
+
+function normalizeBaseUrl(value: string) {
+  return value.trim().replace(/\/+$/, '')
+}
+
+function normalizeForComparison(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function tokenize(value: string) {
+  const normalized = normalizeForComparison(value)
+  return normalized === '' ? [] : normalized.split(' ')
+}
+
+function clampScore(value: number, minimum = 0, maximum = 100) {
+  return Math.min(maximum, Math.max(minimum, Math.round(value)))
+}
+
+function levenshteinDistance(source: string, target: string) {
+  if (source === target) return 0
+  if (source.length === 0) return target.length
+  if (target.length === 0) return source.length
+
+  const rows = Array.from({ length: source.length + 1 }, (_, index) => index)
+  for (let column = 1; column <= target.length; column += 1) {
+    let previous = column - 1
+    rows[0] = column
+    for (let row = 1; row <= source.length; row += 1) {
+      const temp = rows[row]
+      rows[row] = Math.min(
+        rows[row] + 1,
+        rows[row - 1] + 1,
+        previous + (source[row - 1] === target[column - 1] ? 0 : 1),
+      )
+      previous = temp
+    }
+  }
+
+  return rows[source.length]
+}
+
+function buildExpectedText(items: AssignmentItemRecord[]) {
+  const parts = items
+    .flatMap((item) => [item.expected_text, item.tts_text, item.prompt_text])
+    .map((part) => (part ?? '').trim())
+    .filter((part) => part !== '')
+
+  return parts.join(' ')
+}
+
+function computeSimilarity(transcript: string, expectedText: string) {
+  const normalizedTranscript = normalizeForComparison(transcript)
+  const normalizedExpected = normalizeForComparison(expectedText)
+
+  if (!normalizedTranscript || !normalizedExpected) {
+    return {
+      charSimilarity: 0,
+      tokenRecall: 0,
+      tokenBalance: 0,
+    }
+  }
+
+  const maxLength = Math.max(normalizedTranscript.length, normalizedExpected.length)
+  const charSimilarity =
+    maxLength === 0
+      ? 0
+      : 1 - levenshteinDistance(normalizedTranscript, normalizedExpected) / maxLength
+
+  const transcriptTokens = tokenize(transcript)
+  const expectedTokens = tokenize(expectedText)
+  const transcriptCounts = new Map<string, number>()
+  for (const token of transcriptTokens) {
+    transcriptCounts.set(token, (transcriptCounts.get(token) ?? 0) + 1)
+  }
+
+  let overlap = 0
+  for (const token of expectedTokens) {
+    const count = transcriptCounts.get(token) ?? 0
+    if (count > 0) {
+      overlap += 1
+      transcriptCounts.set(token, count - 1)
+    }
+  }
+
+  const tokenRecall = expectedTokens.length === 0 ? 0 : overlap / expectedTokens.length
+  const transcriptLength = transcriptTokens.length
+  const expectedLength = expectedTokens.length
+  const tokenBalance =
+    transcriptLength === 0 || expectedLength === 0
+      ? 0
+      : Math.min(transcriptLength, expectedLength) / Math.max(transcriptLength, expectedLength)
+
+  return {
+    charSimilarity: Math.max(0, Math.min(1, charSimilarity)),
+    tokenRecall: Math.max(0, Math.min(1, tokenRecall)),
+    tokenBalance: Math.max(0, Math.min(1, tokenBalance)),
+  }
+}
+
+function buildScores(transcript: string, expectedText: string) {
+  const similarity = computeSimilarity(transcript, expectedText)
+  const blended =
+    similarity.charSimilarity * 0.52 +
+    similarity.tokenRecall * 0.33 +
+    similarity.tokenBalance * 0.15
+
+  const overallScore = clampScore(blended * 100, 42, 98)
+  const completenessScore = clampScore(
+    similarity.tokenRecall * 100 * 0.82 + overallScore * 0.18,
+    40,
+    99,
+  )
+  const fluencyScore = clampScore(
+    overallScore + (similarity.tokenBalance >= 0.92 ? 3 : -5),
+    35,
+    99,
+  )
+  const pronunciationScore = clampScore(
+    overallScore + (similarity.charSimilarity >= 0.92 ? 2 : -3),
+    35,
+    99,
+  )
+
+  return {
+    similarity,
+    overallScore,
+    completenessScore,
+    fluencyScore,
+    pronunciationScore,
+  }
+}
+
+function extractMessageText(content: unknown): string {
+  if (typeof content === 'string') {
+    return content.trim()
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object' && 'text' in item) {
+          return typeof item.text === 'string' ? item.text : ''
+        }
+        return ''
+      })
+      .join('\n')
+      .trim()
+  }
+
+  return ''
+}
+
+function parseJsonFromText(content: string) {
+  const trimmed = content.trim()
+  if (!trimmed) {
+    throw new Error('AI response content is empty.')
+  }
+
+  try {
+    return JSON.parse(trimmed) as Record<string, unknown>
+  } catch {
+    const start = trimmed.indexOf('{')
+    const end = trimmed.lastIndexOf('}')
+    if (start >= 0 && end > start) {
+      return JSON.parse(trimmed.slice(start, end + 1)) as Record<string, unknown>
+    }
+    throw new Error('AI response is not valid JSON.')
+  }
+}
+
+function ensureStringArray(value: unknown, fallback: string[]) {
+  if (!Array.isArray(value)) {
+    return fallback
+  }
+
+  const next = value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((item) => item !== '')
+
+  return next.length > 0 ? next.slice(0, 3) : fallback
+}
+
+function fallbackNarrative(expectedText: string, transcript: string, overallScore: number): ReviewNarrative {
+  const expectedWords = tokenize(expectedText).length
+  const actualWords = tokenize(transcript).length
+  const lengthHint =
+    actualWords >= expectedWords
+      ? '整体内容基本覆盖到了老师要求的句子。'
+      : '有一部分内容没有完整说出来，建议再跟着示范多读一遍。'
+
+  return {
+    summaryFeedback: `本次 AI 初评得分约 ${overallScore} 分。${lengthHint}`,
+    strengths: ['敢于完整开口朗读', '能根据教材内容完成本次提交'],
+    improvementPoints: ['对照示范音频，把句子读得更完整一点', '注意停顿和句尾收音'],
+    encouragement: '已经很接近了，再跟着示范音频多练一遍会更稳定。',
+  }
+}
+
+async function fetchSchoolAiConfig(
+  adminClient: ReturnType<typeof createClient>,
+  schoolId: string,
+) {
+  const { data, error } = await adminClient
+    .from('school_ai_configs')
+    .select(
+      'school_id, provider_type, provider_label, base_url, model, api_key_ciphertext, enabled',
+    )
+    .eq('school_id', schoolId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data as SchoolAiConfigRecord | null) ?? null
+}
+
+async function transcribeAudio(options: {
+  baseUrl: string
+  apiKey: string
+  audioBlob: Blob
+  fileName: string
+  mimeType: string
+}) {
+  const transcriptionModels = (Deno.env.get('AI_TRANSCRIPTION_MODELS') ??
+    'gpt-4o-mini-transcribe,gpt-4o-transcribe,whisper-1')
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item !== '')
+
+  const errors: string[] = []
+  for (const model of transcriptionModels) {
+    const formData = new FormData()
+    formData.append('model', model)
+    formData.append('file', new File([options.audioBlob], options.fileName, { type: options.mimeType }))
+
+    const response = await fetch(`${options.baseUrl}/audio/transcriptions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${options.apiKey}`,
+      },
+      body: formData,
+      signal: AbortSignal.timeout(45000),
+    })
+
+    if (!response.ok) {
+      errors.push(`${model}: ${response.status} ${await response.text()}`)
+      continue
+    }
+
+    const data = (await response.json()) as Record<string, unknown>
+    const transcript =
+      typeof data.text === 'string'
+        ? data.text.trim()
+        : typeof data.transcript === 'string'
+          ? data.transcript.trim()
+          : ''
+
+    if (!transcript) {
+      errors.push(`${model}: empty transcript`)
+      continue
+    }
+
+    return {
+      transcript,
+      transcriptionModel: model,
+      transcriptionRaw: data,
+    }
+  }
+
+  throw new Error(`Audio transcription failed. ${errors.join(' | ')}`)
+}
+
+async function generateReviewNarrative(options: {
+  baseUrl: string
+  apiKey: string
+  model: string
+  providerLabel: string
+  assignmentTitle: string
+  assignmentDescription: string | null
+  promptText: string
+  expectedText: string
+  transcript: string
+  overallScore: number
+  completenessScore: number
+  fluencyScore: number
+  pronunciationScore: number
+}) {
+  const response = await fetch(`${options.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${options.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: options.model,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are an English homework review assistant for K12 students. Return JSON only with keys: summaryFeedback, strengths, improvementPoints, encouragement. strengths and improvementPoints must be arrays of 1-3 short Chinese strings. summaryFeedback and encouragement must be concise Chinese sentences.',
+        },
+        {
+          role: 'user',
+          content: [
+            `provider: ${options.providerLabel}`,
+            `assignment title: ${options.assignmentTitle}`,
+            `assignment description: ${options.assignmentDescription ?? ''}`,
+            `prompt text: ${options.promptText}`,
+            `expected text: ${options.expectedText}`,
+            `student transcript: ${options.transcript}`,
+            `heuristic overall score: ${options.overallScore}`,
+            `heuristic pronunciation score: ${options.pronunciationScore}`,
+            `heuristic fluency score: ${options.fluencyScore}`,
+            `heuristic completeness score: ${options.completenessScore}`,
+            'Write feedback for a primary school student. Keep the tone warm, encouraging, and concrete.',
+          ].join('\n'),
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(45000),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Review generation failed. ${response.status} ${await response.text()}`)
+  }
+
+  const data = (await response.json()) as Record<string, unknown>
+  const choices = Array.isArray(data.choices) ? data.choices : []
+  const firstChoice = choices[0] as Record<string, unknown> | undefined
+  const message = (firstChoice?.message as Record<string, unknown> | undefined) ?? {}
+  const content = extractMessageText(message.content)
+  const parsed = parseJsonFromText(content)
+
+  return {
+    narrative: {
+      summaryFeedback:
+        typeof parsed.summaryFeedback === 'string'
+          ? parsed.summaryFeedback.trim()
+          : fallbackNarrative(options.expectedText, options.transcript, options.overallScore)
+              .summaryFeedback,
+      strengths: ensureStringArray(parsed.strengths, fallbackNarrative(
+        options.expectedText,
+        options.transcript,
+        options.overallScore,
+      ).strengths),
+      improvementPoints: ensureStringArray(parsed.improvementPoints, fallbackNarrative(
+        options.expectedText,
+        options.transcript,
+        options.overallScore,
+      ).improvementPoints),
+      encouragement:
+        typeof parsed.encouragement === 'string'
+          ? parsed.encouragement.trim()
+          : fallbackNarrative(options.expectedText, options.transcript, options.overallScore)
+              .encouragement,
+    } satisfies ReviewNarrative,
+    generationRaw: data,
+  }
+}
+
+async function buildReviewOutcome(options: {
+  config: SchoolAiConfigRecord
+  apiKey: string
+  assignment: AssignmentRecord
+  items: AssignmentItemRecord[]
+  audioBlob: Blob
+  audioFileName: string
+  audioMimeType: string
+}) {
+  const promptText = options.items
+    .map((item) =>
+      [item.title, item.prompt_text]
+        .map((part) => (part ?? '').trim())
+        .filter((part) => part !== '')
+        .join('：'),
+    )
+    .join('\n')
+  const expectedText = buildExpectedText(options.items)
+
+  const { transcript, transcriptionModel, transcriptionRaw } = await transcribeAudio({
+    baseUrl: normalizeBaseUrl(options.config.base_url),
+    apiKey: options.apiKey,
+    audioBlob: options.audioBlob,
+    fileName: options.audioFileName,
+    mimeType: options.audioMimeType,
+  })
+
+  if (!transcript.trim()) {
+    throw new Error('Audio transcription returned empty content.')
+  }
+
+  const scores = buildScores(transcript, expectedText)
+  const { narrative, generationRaw } = await generateReviewNarrative({
+    baseUrl: normalizeBaseUrl(options.config.base_url),
+    apiKey: options.apiKey,
+    model: options.config.model,
+    providerLabel: options.config.provider_label,
+    assignmentTitle: options.assignment.title,
+    assignmentDescription: options.assignment.description,
+    promptText,
+    expectedText,
+    transcript,
+    overallScore: scores.overallScore,
+    completenessScore: scores.completenessScore,
+    fluencyScore: scores.fluencyScore,
+    pronunciationScore: scores.pronunciationScore,
+  })
+
+  return {
+    transcript,
+    summaryFeedback: narrative.summaryFeedback,
+    strengths: narrative.strengths,
+    improvementPoints: narrative.improvementPoints,
+    encouragement: narrative.encouragement,
+    overallScore: scores.overallScore,
+    pronunciationScore: scores.pronunciationScore,
+    fluencyScore: scores.fluencyScore,
+    completenessScore: scores.completenessScore,
+    similarity: scores.similarity,
+    transcriptionModel,
+    transcriptionRaw,
+    generationRaw,
+  } satisfies ReviewOutcome
+}
+
+async function markJobFailed(options: {
+  adminClient: ReturnType<typeof createClient>
+  jobId: string
+  submissionId: string
+  error: string
+}) {
+  await options.adminClient
+    .from('evaluation_jobs')
+    .update({
+      status: 'failed',
+      last_error: options.error,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', options.jobId)
+
+  await options.adminClient
+    .from('submissions')
+    .update({
+      status: 'failed',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', options.submissionId)
+}
+
+async function processSubmissionReview(options: {
+  adminClient: ReturnType<typeof createClient>
+  schoolConfig: SchoolAiConfigRecord
+  encryptionSecret: string
+  submission: SubmissionRecord
+  assignment: AssignmentRecord
+  items: AssignmentItemRecord[]
+  audioAsset: SubmissionAudioAsset
+  existingJob: EvaluationJobRecord | null
+  requestedBy: string
+}) {
+  const now = new Date().toISOString()
+  const attemptCount = (options.existingJob?.attempt_count ?? 0) + 1
+  const provider = `ai-review:${options.schoolConfig.provider_type}:${options.schoolConfig.model}`
+
+  const { data: job, error: jobError } = await options.adminClient
+    .from('evaluation_jobs')
+    .upsert(
+      {
+        submission_id: options.submission.id,
+        provider,
+        status: 'processing',
+        attempt_count: attemptCount,
+        last_error: null,
+        request_payload: {
+          schoolId: options.assignment.school_id,
+          assignmentId: options.assignment.id,
+          requestedBy: options.requestedBy,
+          model: options.schoolConfig.model,
+          baseUrl: options.schoolConfig.base_url,
+        },
+        requested_at: options.existingJob ? undefined : now,
+        started_at: now,
+        completed_at: null,
+        updated_at: now,
+      },
+      { onConflict: 'submission_id' },
+    )
+    .select('id, submission_id, attempt_count, status')
+    .single()
+
+  if (jobError || !job) {
+    throw new Error(jobError?.message ?? 'Unable to create evaluation job.')
+  }
+
+  await options.adminClient
+    .from('submissions')
+    .update({
+      status: 'processing',
+      updated_at: now,
+    })
+    .eq('id', options.submission.id)
+
+  try {
+    const apiKey = await decryptApiKey(
+      options.encryptionSecret,
+      options.schoolConfig.api_key_ciphertext,
+    )
+    const { data: audioBlob, error: audioError } = await options.adminClient.storage
+      .from(options.audioAsset.storage_bucket)
+      .download(options.audioAsset.storage_path)
+
+    if (audioError || !audioBlob) {
+      throw new Error(audioError?.message ?? 'Unable to download submission audio.')
+    }
+
+    const reviewOutcome = await buildReviewOutcome({
+      config: options.schoolConfig,
+      apiKey,
+      assignment: options.assignment,
+      items: options.items,
+      audioBlob,
+      audioFileName: options.audioAsset.storage_path.split('/').pop() ?? 'submission-audio.m4a',
+      audioMimeType: options.audioAsset.mime_type ?? 'audio/mp4',
+    })
+
+    const completedAt = new Date().toISOString()
+
+    const { error: resultError } = await options.adminClient
+      .from('evaluation_results')
+      .upsert(
+        {
+          submission_id: options.submission.id,
+          job_id: job.id,
+          provider,
+          overall_score: reviewOutcome.overallScore,
+          pronunciation_score: reviewOutcome.pronunciationScore,
+          fluency_score: reviewOutcome.fluencyScore,
+          completeness_score: reviewOutcome.completenessScore,
+          strengths: reviewOutcome.strengths,
+          improvement_points: reviewOutcome.improvementPoints,
+          encouragement: reviewOutcome.encouragement,
+          raw_result: {
+            transcript: reviewOutcome.transcript,
+            similarity: reviewOutcome.similarity,
+            transcriptionModel: reviewOutcome.transcriptionModel,
+            transcriptionRaw: reviewOutcome.transcriptionRaw,
+            generationRaw: reviewOutcome.generationRaw,
+          },
+          evaluated_at: completedAt,
+          updated_at: completedAt,
+        },
+        { onConflict: 'submission_id' },
+      )
+
+    if (resultError) {
+      throw new Error(resultError.message)
+    }
+
+    await options.adminClient
+      .from('submissions')
+      .update({
+        status: 'completed',
+        latest_score: reviewOutcome.overallScore,
+        latest_feedback: reviewOutcome.summaryFeedback,
+        updated_at: completedAt,
+      })
+      .eq('id', options.submission.id)
+
+    await options.adminClient
+      .from('evaluation_jobs')
+      .update({
+        status: 'completed',
+        completed_at: completedAt,
+        updated_at: completedAt,
+        request_payload: {
+          schoolId: options.assignment.school_id,
+          assignmentId: options.assignment.id,
+          requestedBy: options.requestedBy,
+          model: options.schoolConfig.model,
+          baseUrl: options.schoolConfig.base_url,
+          transcriptModel: reviewOutcome.transcriptionModel,
+        },
+      })
+      .eq('id', job.id)
+
+    return {
+      status: 'completed',
+      message: 'AI 初评已经完成，学生端刷新后就能看到。',
+      overallScore: reviewOutcome.overallScore,
+      transcript: reviewOutcome.transcript,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'AI review failed.'
+    await markJobFailed({
+      adminClient: options.adminClient,
+      jobId: job.id,
+      submissionId: options.submission.id,
+      error: message,
+    })
+    return {
+      status: 'failed',
+      message: `AI 初评失败：${message}`,
+    }
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  if (req.method !== 'POST') {
+    return json({ error: 'Method not allowed.' }, 405)
+  }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  const encryptionSecret = Deno.env.get('AI_CONFIG_ENCRYPTION_KEY') ?? ''
+  const authHeader = req.headers.get('Authorization')
+
+  if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+    return json({ error: 'Supabase function secrets are not configured.' }, 500)
+  }
+
+  if (!encryptionSecret.trim()) {
+    return json({ error: 'AI encryption secret is not configured.' }, 500)
+  }
+
+  if (!authHeader) {
+    return json({ error: 'Missing authorization header.' }, 401)
+  }
+
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: authHeader,
+      },
+    },
+  })
+
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  })
+
+  const {
+    data: { user },
+    error: userError,
+  } = await userClient.auth.getUser()
+
+  if (userError || !user) {
+    return json({ error: 'Unable to validate current user.' }, 401)
+  }
+
+  const payload = (await req.json()) as AiReviewPayload
+
+  if (payload.action === 'preview_text_review') {
+    if (!payload.schoolId?.trim() || !payload.transcript?.trim()) {
+      return json({ error: 'schoolId and transcript are required.' }, 400)
+    }
+
+    const { data: operatorMembership, error: membershipError } = await userClient
+      .from('memberships')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('school_id', payload.schoolId)
+      .eq('role', 'school_admin')
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (membershipError || !operatorMembership) {
+      return json({ error: 'Current user is not allowed to preview this school config.' }, 403)
+    }
+
+    const config = await fetchSchoolAiConfig(adminClient, payload.schoolId)
+    if (!config || !config.enabled) {
+      return json({ error: 'School AI config is missing or disabled.' }, 400)
+    }
+
+    const apiKey = await decryptApiKey(encryptionSecret, config.api_key_ciphertext)
+    const expectedText = payload.expectedText?.trim() || payload.transcript.trim()
+    const scores = buildScores(payload.transcript, expectedText)
+    const { narrative } = await generateReviewNarrative({
+      baseUrl: normalizeBaseUrl(config.base_url),
+      apiKey,
+      model: config.model,
+      providerLabel: config.provider_label,
+      assignmentTitle: 'Preview',
+      assignmentDescription: null,
+      promptText: payload.promptText?.trim() || 'Preview text review',
+      expectedText,
+      transcript: payload.transcript.trim(),
+      overallScore: scores.overallScore,
+      completenessScore: scores.completenessScore,
+      fluencyScore: scores.fluencyScore,
+      pronunciationScore: scores.pronunciationScore,
+    })
+
+    return json({
+      status: 'completed',
+      preview: {
+        overallScore: scores.overallScore,
+        pronunciationScore: scores.pronunciationScore,
+        fluencyScore: scores.fluencyScore,
+        completenessScore: scores.completenessScore,
+        summaryFeedback: narrative.summaryFeedback,
+        strengths: narrative.strengths,
+        improvementPoints: narrative.improvementPoints,
+        encouragement: narrative.encouragement,
+      },
+    })
+  }
+
+  if (!payload.submissionId?.trim()) {
+    return json({ error: 'submissionId is required.' }, 400)
+  }
+
+  const { data: visibleSubmission, error: visibleSubmissionError } = await userClient
+    .from('submissions')
+    .select('id, student_id, assignment_id')
+    .eq('id', payload.submissionId)
+    .maybeSingle()
+
+  if (visibleSubmissionError || !visibleSubmission) {
+    return json({ error: 'Current user cannot access this submission.' }, 403)
+  }
+
+  const submission = visibleSubmission as SubmissionRecord
+
+  const { data: assignment, error: assignmentError } = await adminClient
+    .from('assignments')
+    .select('id, school_id, title, description')
+    .eq('id', submission.assignment_id)
+    .single()
+
+  if (assignmentError || !assignment) {
+    return json({ error: assignmentError?.message ?? 'Assignment not found.' }, 400)
+  }
+
+  const { data: activeMembership, error: activeMembershipError } = await userClient
+    .from('memberships')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('school_id', (assignment as AssignmentRecord).school_id)
+    .eq('status', 'active')
+    .maybeSingle()
+
+  const canTriggerReview =
+    submission.student_id === user.id || Boolean(activeMembership && !activeMembershipError)
+
+  if (!canTriggerReview) {
+    return json({ error: 'Current user is not allowed to trigger this review.' }, 403)
+  }
+
+  const schoolConfig = await fetchSchoolAiConfig(
+    adminClient,
+    (assignment as AssignmentRecord).school_id,
+  )
+
+  if (!schoolConfig || !schoolConfig.enabled) {
+    return json({ error: 'School AI config is missing or disabled.' }, 400)
+  }
+
+  const { data: existingResult, error: existingResultError } = await adminClient
+    .from('evaluation_results')
+    .select('provider')
+    .eq('submission_id', submission.id)
+    .maybeSingle()
+
+  if (existingResultError) {
+    return json({ error: existingResultError.message }, 400)
+  }
+
+  if (
+    existingResult &&
+    typeof existingResult.provider === 'string' &&
+    existingResult.provider === 'teacher-review'
+  ) {
+    return json({
+      status: 'completed',
+      message: '老师已经完成最终点评，这条提交不会再被 AI 覆盖。',
+    })
+  }
+
+  const { data: items, error: itemsError } = await adminClient
+    .from('assignment_items')
+    .select('id, title, prompt_text, expected_text, tts_text, sort_order')
+    .eq('assignment_id', submission.assignment_id)
+    .order('sort_order', { ascending: true })
+
+  if (itemsError) {
+    return json({ error: itemsError.message }, 400)
+  }
+
+  const { data: audioAsset, error: audioAssetError } = await adminClient
+    .from('submission_assets')
+    .select('storage_bucket, storage_path, mime_type')
+    .eq('submission_id', submission.id)
+    .eq('asset_type', 'audio')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (audioAssetError) {
+    return json({ error: audioAssetError.message }, 400)
+  }
+
+  if (!audioAsset) {
+    return json({
+      status: 'failed',
+      message: '这条提交还没有音频附件，暂时无法发起 AI 初评。',
+    })
+  }
+
+  const { data: existingJob, error: existingJobError } = await adminClient
+    .from('evaluation_jobs')
+    .select('id, submission_id, attempt_count, status')
+    .eq('submission_id', submission.id)
+    .maybeSingle()
+
+  if (existingJobError) {
+    return json({ error: existingJobError.message }, 400)
+  }
+
+  const reviewResponse = await processSubmissionReview({
+    adminClient,
+    schoolConfig,
+    encryptionSecret,
+    submission,
+    assignment: assignment as AssignmentRecord,
+    items: ((items ?? []) as AssignmentItemRecord[]),
+    audioAsset: audioAsset as SubmissionAudioAsset,
+    existingJob: (existingJob as EvaluationJobRecord | null) ?? null,
+    requestedBy: user.id,
+  })
+
+  return json(reviewResponse)
+})

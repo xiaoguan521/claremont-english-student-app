@@ -458,7 +458,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     });
 
     try {
-      await ref
+      final reviewResult = await ref
           .read(portalRepositoryProvider)
           .uploadAudioSubmission(
             activityId: widget.activityId,
@@ -476,7 +476,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       setState(() {
         _selectedAudio = null;
       });
-      _showMessage('已经提交给老师了，记得晚点回来查看点评。');
+      _showMessage(reviewResult.message ?? '已经提交给老师了，AI 初评和老师点评会在稍后同步回来。');
     } catch (_) {
       if (!mounted) {
         return;

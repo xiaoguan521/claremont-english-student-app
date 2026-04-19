@@ -11,13 +11,22 @@ abstract class PortalRepository {
 
   Future<void> submitActivity(String activityId);
 
-  Future<void> uploadAudioSubmission({
+  Future<AiReviewDispatchResult> uploadAudioSubmission({
     required String activityId,
     required Uint8List fileBytes,
     required String fileName,
     required int sizeBytes,
     String? mimeType,
   });
+}
+
+enum AiReviewDispatchStatus { queued, processing, completed, failed }
+
+class AiReviewDispatchResult {
+  const AiReviewDispatchResult({required this.status, this.message});
+
+  final AiReviewDispatchStatus status;
+  final String? message;
 }
 
 class MockPortalRepository implements PortalRepository {
@@ -35,7 +44,7 @@ class MockPortalRepository implements PortalRepository {
   }
 
   @override
-  Future<void> uploadAudioSubmission({
+  Future<AiReviewDispatchResult> uploadAudioSubmission({
     required String activityId,
     required Uint8List fileBytes,
     required String fileName,
@@ -43,6 +52,10 @@ class MockPortalRepository implements PortalRepository {
     String? mimeType,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
+    return const AiReviewDispatchResult(
+      status: AiReviewDispatchStatus.completed,
+      message: 'Mock 模式下已完成演示点评。',
+    );
   }
 }
 
@@ -337,7 +350,7 @@ class SupabasePortalRepository implements PortalRepository {
   }
 
   @override
-  Future<void> uploadAudioSubmission({
+  Future<AiReviewDispatchResult> uploadAudioSubmission({
     required String activityId,
     required Uint8List fileBytes,
     required String fileName,
@@ -395,6 +408,39 @@ class SupabasePortalRepository implements PortalRepository {
         .from('submissions')
         .update({'status': 'queued', 'submitted_at': now, 'updated_at': now})
         .eq('id', submissionId);
+
+    try {
+      final response = await _client.functions.invoke(
+        'ai-review-submission',
+        body: {'action': 'review_submission', 'submissionId': submissionId},
+      );
+
+      if (response.data is Map<String, dynamic>) {
+        final data = response.data as Map<String, dynamic>;
+        final statusValue = (data['status'] as String?)?.trim() ?? '';
+        final message = data['message'] as String?;
+        return AiReviewDispatchResult(
+          status: _mapAiReviewDispatchStatus(statusValue),
+          message: message,
+        );
+      }
+
+      return const AiReviewDispatchResult(
+        status: AiReviewDispatchStatus.processing,
+        message: '录音已经提交，AI 初评正在处理中。',
+      );
+    } catch (error) {
+      final failureNow = DateTime.now().toUtc().toIso8601String();
+      await _client
+          .from('submissions')
+          .update({'status': 'failed', 'updated_at': failureNow})
+          .eq('id', submissionId);
+
+      return const AiReviewDispatchResult(
+        status: AiReviewDispatchStatus.failed,
+        message: '录音已经收到，但 AI 初评暂时失败了，老师仍然可以手动查看。',
+      );
+    }
   }
 
   PortalTask _mapTask(
@@ -525,6 +571,21 @@ class SupabasePortalRepository implements PortalRepository {
       return double.tryParse(value);
     }
     return null;
+  }
+
+  AiReviewDispatchStatus _mapAiReviewDispatchStatus(String value) {
+    switch (value) {
+      case 'queued':
+        return AiReviewDispatchStatus.queued;
+      case 'processing':
+        return AiReviewDispatchStatus.processing;
+      case 'completed':
+        return AiReviewDispatchStatus.completed;
+      case 'failed':
+        return AiReviewDispatchStatus.failed;
+      default:
+        return AiReviewDispatchStatus.processing;
+    }
   }
 
   int? _asInt(dynamic value) {

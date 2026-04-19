@@ -1,15 +1,20 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
+import '../../../school/presentation/providers/school_context_provider.dart';
 import '../../data/portal_models.dart';
 import '../../data/portal_repository.dart';
-import '../../../school/presentation/providers/school_context_provider.dart';
 import '../providers/portal_providers.dart';
 import '../widgets/tablet_shell.dart';
+import 'reading_page.dart';
 
 class TaskDetailPage extends ConsumerStatefulWidget {
   const TaskDetailPage({required this.activityId, super.key});
@@ -21,10 +26,65 @@ class TaskDetailPage extends ConsumerStatefulWidget {
 }
 
 class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
+  final FlutterTts _tts = FlutterTts();
+  final AudioRecorder _recorder = AudioRecorder();
+
   bool _isSubmitting = false;
+  bool _isRecording = false;
+  String? _recordingPath;
+  String? _speakingTaskId;
   _PendingAudioFile? _selectedAudio;
 
+  @override
+  void initState() {
+    super.initState();
+    _configureTts();
+  }
+
+  Future<void> _configureTts() async {
+    await _tts.setLanguage('en-US');
+    await _tts.setSpeechRate(0.42);
+    await _tts.setPitch(1.0);
+    await _tts.awaitSpeakCompletion(true);
+    _tts.setCompletionHandler(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _speakingTaskId = null;
+      });
+    });
+    _tts.setCancelHandler(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _speakingTaskId = null;
+      });
+    });
+    _tts.setErrorHandler((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _speakingTaskId = null;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    _recorder.dispose();
+    super.dispose();
+  }
+
   Future<void> _pickAudioFile() async {
+    if (_isRecording) {
+      _showMessage('请先结束当前录音，再选择已有音频。');
+      return;
+    }
+
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['mp3', 'm4a', 'mp4', 'wav', 'aac'],
@@ -51,7 +111,155 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     });
   }
 
+  Future<void> _toggleRecording() async {
+    if (_isRecording) {
+      await _stopRecording();
+      return;
+    }
+
+    final hasPermission = await _recorder.hasPermission();
+    if (!hasPermission) {
+      _showMessage('需要先允许麦克风权限，才能开始录音。');
+      return;
+    }
+
+    final tempDir = await getTemporaryDirectory();
+    final path =
+        '${tempDir.path}/student-reading-${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+    try {
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+        ),
+        path: path,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isRecording = true;
+        _recordingPath = path;
+      });
+      _showMessage('已经开始录音了，读完后点“结束录音并保存”。');
+    } catch (_) {
+      _showMessage('录音启动失败，请稍后重试。');
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    try {
+      final stoppedPath = await _recorder.stop();
+      final resolvedPath = stoppedPath ?? _recordingPath;
+
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _recordingPath = null;
+        });
+      }
+
+      if (resolvedPath == null) {
+        _showMessage('这次录音没有保存成功，请再试一次。');
+        return;
+      }
+
+      final file = File(resolvedPath);
+      if (!await file.exists()) {
+        _showMessage('没有找到刚才录下来的音频文件。');
+        return;
+      }
+
+      final bytes = await file.readAsBytes();
+      final sizeBytes = await file.length();
+      final fileName = resolvedPath.split(Platform.pathSeparator).last;
+
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _selectedAudio = _PendingAudioFile(
+          name: fileName,
+          bytes: bytes,
+          sizeBytes: sizeBytes,
+          mimeType: 'audio/mp4',
+        );
+      });
+      _showMessage('录音已经保存好了，可以直接提交给老师。');
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isRecording = false;
+        _recordingPath = null;
+      });
+      _showMessage('结束录音时出了点问题，请重新试一次。');
+    }
+  }
+
+  Future<void> _speakSample(PortalTask task) async {
+    final text = _sampleTextFor(task);
+    if (text == null) {
+      _showMessage('这项任务还没有配置示范朗读内容。');
+      return;
+    }
+
+    if (_speakingTaskId == task.id) {
+      await _tts.stop();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _speakingTaskId = null;
+      });
+      return;
+    }
+
+    await _tts.stop();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _speakingTaskId = task.id;
+    });
+
+    final result = await _tts.speak(text);
+    if (!mounted) {
+      return;
+    }
+    if (result != 1) {
+      setState(() {
+        _speakingTaskId = null;
+      });
+      _showMessage('示范朗读暂时没有播放成功，请稍后重试。');
+    }
+  }
+
+  Future<void> _openReadingPage(
+    PortalActivity activity, {
+    PortalTask? task,
+  }) async {
+    if ((activity.materialPdfPath ?? '').trim().isEmpty) {
+      _showMessage('老师还没有上传教材 PDF。');
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ReadingPage(activity: activity, task: task),
+      ),
+    );
+  }
+
   Future<void> _handlePrimaryAction(PortalActivity activity) async {
+    if (_isRecording) {
+      _showMessage('请先结束录音并保存，再提交给老师。');
+      return;
+    }
+
     if (activity.submissionFlowStatus == SubmissionFlowStatus.queued ||
         activity.submissionFlowStatus == SubmissionFlowStatus.processing) {
       _showMessage('老师已经收到你的练习，正在处理中。');
@@ -65,7 +273,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 
     final selectedAudio = _selectedAudio;
     if (selectedAudio == null) {
-      _showMessage('先选择一段朗读音频，再提交给老师。');
+      _showMessage('先录一段音频或选择已有音频，再提交给老师。');
       return;
     }
 
@@ -93,7 +301,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         _selectedAudio = null;
       });
       _showMessage('已经提交给老师了，记得晚点回来查看点评。');
-    } catch (error) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
@@ -108,6 +316,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   }
 
   void _showMessage(String message) {
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
@@ -196,6 +407,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             completedTasks: completedTasks,
             isSubmitting: _isSubmitting,
             onPrimaryAction: () => _handlePrimaryAction(activity),
+            onOpenMaterial: () => _openReadingPage(activity),
           ),
           const SizedBox(height: 18),
           Expanded(
@@ -207,8 +419,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                   return _SubmissionPanel(
                     activity: activity,
                     isSubmitting: _isSubmitting,
+                    isRecording: _isRecording,
                     selectedAudio: _selectedAudio,
                     onPickAudio: _pickAudioFile,
+                    onRecordAudio: _toggleRecording,
                     onPrimaryAction: () => _handlePrimaryAction(activity),
                   );
                 }
@@ -217,7 +431,14 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                 return _TaskCard(
                   index: index,
                   task: task,
+                  isSpeaking: _speakingTaskId == task.id,
                   onAction: () => _handleTaskAction(activity, task),
+                  onOpenReading: activity.materialPdfPath == null
+                      ? null
+                      : () => _openReadingPage(activity, task: task),
+                  onSpeakSample: _sampleTextFor(task) == null
+                      ? null
+                      : () => _speakSample(task),
                 );
               },
             ),
@@ -248,12 +469,14 @@ class _OverviewCard extends StatelessWidget {
     required this.completedTasks,
     required this.isSubmitting,
     required this.onPrimaryAction,
+    required this.onOpenMaterial,
   });
 
   final PortalActivity activity;
   final int completedTasks;
   final bool isSubmitting;
   final VoidCallback onPrimaryAction;
+  final VoidCallback onOpenMaterial;
 
   @override
   Widget build(BuildContext context) {
@@ -309,6 +532,16 @@ class _OverviewCard extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
+                if ((activity.description ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    activity.description!,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF64748B),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Wrap(
                   spacing: 12,
@@ -326,22 +559,40 @@ class _OverviewCard extends StatelessWidget {
                       icon: Icons.mark_chat_read_rounded,
                       label: scoreLabel,
                     ),
+                    if ((activity.materialTitle ?? '').trim().isNotEmpty)
+                      _OverviewChip(
+                        icon: Icons.picture_as_pdf_rounded,
+                        label: activity.materialTitle!,
+                      ),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(width: 20),
-          FilledButton.icon(
-            onPressed: buttonEnabled && !isSubmitting ? onPrimaryAction : null,
-            icon: isSubmitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(_primaryActionIcon(activity.submissionFlowStatus)),
-            label: Text(isSubmitting ? '提交中' : buttonLabel),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: onOpenMaterial,
+                icon: const Icon(Icons.menu_book_rounded),
+                label: const Text('打开教材'),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: buttonEnabled && !isSubmitting
+                    ? onPrimaryAction
+                    : null,
+                icon: isSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(_primaryActionIcon(activity.submissionFlowStatus)),
+                label: Text(isSubmitting ? '提交中' : buttonLabel),
+              ),
+            ],
           ),
         ],
       ),
@@ -353,15 +604,19 @@ class _SubmissionPanel extends StatelessWidget {
   const _SubmissionPanel({
     required this.activity,
     required this.isSubmitting,
+    required this.isRecording,
     required this.selectedAudio,
     required this.onPickAudio,
+    required this.onRecordAudio,
     required this.onPrimaryAction,
   });
 
   final PortalActivity activity;
   final bool isSubmitting;
+  final bool isRecording;
   final _PendingAudioFile? selectedAudio;
   final VoidCallback onPickAudio;
+  final VoidCallback onRecordAudio;
   final VoidCallback onPrimaryAction;
 
   @override
@@ -369,18 +624,24 @@ class _SubmissionPanel extends StatelessWidget {
     switch (activity.submissionFlowStatus) {
       case SubmissionFlowStatus.notStarted:
         return _MessagePanel(
-          title: '完成朗读后记得提交',
-          subtitle: '提交后老师才能看到你的练习，也才能给你点评。',
-          badgeLabel: '还没有提交',
-          badgeColor: const Color(0xFF2563EB),
+          title: isRecording ? '正在录音中' : '完成朗读后记得提交',
+          subtitle: isRecording
+              ? '读完后点击“结束录音并保存”，然后再把音频提交给老师。'
+              : '可以先打开教材、听示范，再用原生录音完成本次练习。',
+          badgeLabel: isRecording ? '录音进行中' : '还没有提交',
+          badgeColor: isRecording
+              ? const Color(0xFFDC2626)
+              : const Color(0xFF2563EB),
           selectedAudioLabel: selectedAudio?.name,
           existingAudioLabel: activity.submissionAudioName,
-          onPickAudio: onPickAudio,
+          onPickAudio: isRecording ? null : onPickAudio,
+          onRecordAudio: onRecordAudio,
+          recordActionLabel: isRecording ? '结束录音并保存' : '开始录音',
           actionLabel: isSubmitting ? '提交中' : '提交本次练习',
           actionIcon: isSubmitting
               ? null
               : const Icon(Icons.cloud_upload_rounded),
-          onAction: isSubmitting ? null : onPrimaryAction,
+          onAction: isSubmitting || isRecording ? null : onPrimaryAction,
         );
       case SubmissionFlowStatus.queued:
         return _MessagePanel(
@@ -402,16 +663,22 @@ class _SubmissionPanel extends StatelessWidget {
         );
       case SubmissionFlowStatus.failed:
         return _MessagePanel(
-          title: '这次提交没有成功',
-          subtitle: '可以再提交一次，老师看到后就会继续帮你检查。',
-          badgeLabel: '需要重新提交',
-          badgeColor: const Color(0xFFDC2626),
+          title: isRecording ? '正在重新录音' : '这次提交没有成功',
+          subtitle: isRecording
+              ? '读完后点击“结束录音并保存”，再重新提交给老师。'
+              : '你可以重新录一段音频，或者换一个文件再提交。',
+          badgeLabel: isRecording ? '录音进行中' : '需要重新提交',
+          badgeColor: isRecording
+              ? const Color(0xFFDC2626)
+              : const Color(0xFFDC2626),
           selectedAudioLabel: selectedAudio?.name,
           existingAudioLabel: activity.submissionAudioName,
-          onPickAudio: onPickAudio,
+          onPickAudio: isRecording ? null : onPickAudio,
+          onRecordAudio: onRecordAudio,
+          recordActionLabel: isRecording ? '结束录音并保存' : '重新录音',
           actionLabel: isSubmitting ? '重新提交中' : '重新提交',
           actionIcon: isSubmitting ? null : const Icon(Icons.refresh_rounded),
-          onAction: isSubmitting ? null : onPrimaryAction,
+          onAction: isSubmitting || isRecording ? null : onPrimaryAction,
         );
       case SubmissionFlowStatus.completed:
         return _FeedbackPanel(activity: activity);
@@ -428,6 +695,8 @@ class _MessagePanel extends StatelessWidget {
     this.selectedAudioLabel,
     this.existingAudioLabel,
     this.onPickAudio,
+    this.onRecordAudio,
+    this.recordActionLabel,
     this.actionLabel,
     this.actionIcon,
     this.onAction,
@@ -440,6 +709,8 @@ class _MessagePanel extends StatelessWidget {
   final String? selectedAudioLabel;
   final String? existingAudioLabel;
   final VoidCallback? onPickAudio;
+  final VoidCallback? onRecordAudio;
+  final String? recordActionLabel;
   final String? actionLabel;
   final Widget? actionIcon;
   final VoidCallback? onAction;
@@ -506,14 +777,22 @@ class _MessagePanel extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              if (onPickAudio != null)
+              if (onRecordAudio != null)
+                FilledButton.tonalIcon(
+                  onPressed: onRecordAudio,
+                  icon: const Icon(Icons.mic_rounded),
+                  label: Text(recordActionLabel ?? '开始录音'),
+                ),
+              if (onPickAudio != null) ...[
+                const SizedBox(height: 12),
                 OutlinedButton.icon(
                   onPressed: onPickAudio,
                   icon: const Icon(Icons.library_music_rounded),
                   label: Text(selectedAudioLabel == null ? '选择音频' : '重新选择'),
                 ),
+              ],
               if (actionLabel != null) ...[
-                if (onPickAudio != null) const SizedBox(height: 12),
+                const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: onAction,
                   icon: actionIcon ?? const SizedBox.shrink(),
@@ -784,18 +1063,25 @@ class _TaskCard extends StatelessWidget {
   const _TaskCard({
     required this.index,
     required this.task,
+    required this.isSpeaking,
     required this.onAction,
+    this.onOpenReading,
+    this.onSpeakSample,
   });
 
   final int index;
   final PortalTask task;
+  final bool isSpeaking;
   final VoidCallback onAction;
+  final VoidCallback? onOpenReading;
+  final VoidCallback? onSpeakSample;
 
   @override
   Widget build(BuildContext context) {
     final statusLabel = _statusLabel(task.reviewStatus);
     final statusColor = _statusColor(task.reviewStatus);
     final actionLabel = _actionLabel(task.reviewStatus);
+    final sampleText = _sampleTextFor(task);
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -803,80 +1089,160 @@ class _TaskCard extends StatelessWidget {
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(28),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEAF2FF),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '$index',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: const Color(0xFF2F67F6),
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 18),
-          Container(
-            width: 92,
-            height: 74,
-            decoration: BoxDecoration(
-              gradient: _previewGradient(task.kind),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Icon(_previewIcon(task.kind), color: Colors.white, size: 36),
-          ),
-          const SizedBox(width: 18),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: const Color(0xFF1E293B),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF2FF),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$index',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: const Color(0xFF2F67F6),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '学习方式：${task.previewAsset}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: const Color(0xFF64748B),
-                    fontWeight: FontWeight.w700,
-                  ),
+              ),
+              const SizedBox(width: 18),
+              Container(
+                width: 92,
+                height: 74,
+                decoration: BoxDecoration(
+                  gradient: _previewGradient(task.kind),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    statusLabel,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: statusColor,
-                      fontWeight: FontWeight.w800,
+                child: Icon(
+                  _previewIcon(task.kind),
+                  color: Colors.white,
+                  size: 36,
+                ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: const Color(0xFF1E293B),
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '学习方式：${task.previewAsset}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if ((task.promptText ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        task.promptText!,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: const Color(0xFF475569),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                    if (sampleText != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          sampleText,
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
+                                color: const Color(0xFF1E293B),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(
+                            statusLabel,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                        ),
+                        if (task.hasPageRange)
+                          _TaskInfoChip(
+                            icon: Icons.menu_book_rounded,
+                            label: _pageRangeLabel(task),
+                          ),
+                        if (sampleText != null)
+                          _TaskInfoChip(
+                            icon: isSpeaking
+                                ? Icons.pause_circle_filled_rounded
+                                : Icons.volume_up_rounded,
+                            label: isSpeaking ? '示范朗读播放中' : '可播放示范朗读',
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              if (onOpenReading != null)
+                OutlinedButton.icon(
+                  onPressed: onOpenReading,
+                  icon: const Icon(Icons.menu_book_rounded),
+                  label: const Text('打开教材'),
+                ),
+              if (onSpeakSample != null) ...[
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: onSpeakSample,
+                  icon: Icon(
+                    isSpeaking
+                        ? Icons.stop_circle_rounded
+                        : Icons.record_voice_over_rounded,
                   ),
+                  label: Text(isSpeaking ? '停止示范' : '听示范'),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(width: 18),
-          FilledButton.tonalIcon(
-            onPressed: onAction,
-            icon: Icon(_actionIcon(task.reviewStatus)),
-            label: Text(actionLabel),
+              const Spacer(),
+              FilledButton.tonalIcon(
+                onPressed: onAction,
+                icon: Icon(_actionIcon(task.reviewStatus)),
+                label: Text(actionLabel),
+              ),
+            ],
           ),
         ],
       ),
@@ -953,6 +1319,38 @@ class _TaskCard extends StatelessWidget {
       case TaskKind.phonics:
         return Icons.spellcheck_rounded;
     }
+  }
+}
+
+class _TaskInfoChip extends StatelessWidget {
+  const _TaskInfoChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF2F67F6)),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF475569),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1057,6 +1455,27 @@ String _guessMimeType(String? extension) {
     default:
       return 'audio/mpeg';
   }
+}
+
+String? _sampleTextFor(PortalTask task) {
+  final candidates = [task.ttsText, task.expectedText, task.promptText];
+  for (final candidate in candidates) {
+    final trimmed = candidate?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) {
+      return trimmed;
+    }
+  }
+  return null;
+}
+
+String _pageRangeLabel(PortalTask task) {
+  final start = task.startPage;
+  final end = task.endPage;
+  if (start != null && end != null && start != end) {
+    return '第 $start - $end 页';
+  }
+  final target = start ?? end;
+  return target == null ? '教材页码' : '第 $target 页';
 }
 
 class _PendingAudioFile {

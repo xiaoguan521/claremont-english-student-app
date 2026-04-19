@@ -13,6 +13,11 @@ class PortalTask {
     required this.kind,
     required this.reviewStatus,
     required this.previewAsset,
+    this.promptText,
+    this.ttsText,
+    this.expectedText,
+    this.startPage,
+    this.endPage,
   });
 
   final String id;
@@ -20,6 +25,14 @@ class PortalTask {
   final TaskKind kind;
   final TaskReviewStatus reviewStatus;
   final String previewAsset;
+  final String? promptText;
+  final String? ttsText;
+  final String? expectedText;
+  final int? startPage;
+  final int? endPage;
+
+  bool get hasTtsText => (ttsText ?? '').trim().isNotEmpty;
+  bool get hasPageRange => startPage != null || endPage != null;
 }
 
 class PortalActivity {
@@ -44,6 +57,10 @@ class PortalActivity {
     this.improvementPoints = const [],
     this.submissionAudioName,
     this.submissionAudioPath,
+    this.description,
+    this.materialTitle,
+    this.materialPdfPath,
+    this.materialPageCount,
   });
 
   final String id;
@@ -66,6 +83,10 @@ class PortalActivity {
   final List<String> improvementPoints;
   final String? submissionAudioName;
   final String? submissionAudioPath;
+  final String? description;
+  final String? materialTitle;
+  final String? materialPdfPath;
+  final int? materialPageCount;
 
   bool get hasTeacherFeedback =>
       submissionFlowStatus == SubmissionFlowStatus.completed &&
@@ -96,6 +117,10 @@ final mockPortalActivities = [
     improvementPoints: ['句尾收音再干净一点'],
     submissionAudioName: 'module7-reading.m4a',
     submissionAudioPath: 'demo-submission/module7-reading.m4a',
+    description: '完成 Module 7 的示范朗读与录音提交。',
+    materialTitle: 'Module 7 阅读教材',
+    materialPdfPath: 'demo-materials/module-7.pdf',
+    materialPageCount: 8,
     tasks: [
       PortalTask(
         id: 'h-1',
@@ -103,6 +128,11 @@ final mockPortalActivities = [
         kind: TaskKind.dubbing,
         reviewStatus: TaskReviewStatus.checked,
         previewAsset: '视频配音',
+        promptText: 'Read the sentence about things you can and cannot do.',
+        ttsText: 'I can swim, but I cannot dive.',
+        expectedText: 'I can swim, but I cannot dive.',
+        startPage: 1,
+        endPage: 1,
       ),
       PortalTask(
         id: 'h-2',
@@ -110,6 +140,11 @@ final mockPortalActivities = [
         kind: TaskKind.recording,
         reviewStatus: TaskReviewStatus.checked,
         previewAsset: '录音',
+        promptText: 'Read the second sentence clearly and confidently.',
+        ttsText: 'He can sing well, but he cannot skate.',
+        expectedText: 'He can sing well, but he cannot skate.',
+        startPage: 2,
+        endPage: 2,
       ),
       PortalTask(
         id: 'h-3',
@@ -117,6 +152,11 @@ final mockPortalActivities = [
         kind: TaskKind.recording,
         reviewStatus: TaskReviewStatus.checked,
         previewAsset: '录音',
+        promptText: 'Finish the short sentence practice.',
+        ttsText: 'We can jump high, but we cannot fly.',
+        expectedText: 'We can jump high, but we cannot fly.',
+        startPage: 3,
+        endPage: 3,
       ),
       PortalTask(
         id: 'h-4',
@@ -124,6 +164,12 @@ final mockPortalActivities = [
         kind: TaskKind.phonics,
         reviewStatus: TaskReviewStatus.pendingReview,
         previewAsset: '自然拼读',
+        promptText:
+            'Read the phonics line and pay attention to the vowel sound.',
+        ttsText: 'Cake, make, take.',
+        expectedText: 'Cake, make, take.',
+        startPage: 4,
+        endPage: 4,
       ),
     ],
   ),
@@ -138,6 +184,10 @@ final mockPortalActivities = [
     urgeCount: 5,
     completionRate: 0.86,
     submissionFlowStatus: SubmissionFlowStatus.notStarted,
+    description: '完成 Module 5 朗读并提交音频。',
+    materialTitle: 'Module 5 阅读教材',
+    materialPdfPath: 'demo-materials/module-5.pdf',
+    materialPageCount: 10,
     tasks: [
       PortalTask(
         id: 'z-1',
@@ -145,6 +195,11 @@ final mockPortalActivities = [
         kind: TaskKind.recording,
         reviewStatus: TaskReviewStatus.inProgress,
         previewAsset: '录音',
+        promptText: 'Read the first sentence aloud.',
+        ttsText: 'She can ride a bike quickly.',
+        expectedText: 'She can ride a bike quickly.',
+        startPage: 1,
+        endPage: 1,
       ),
       PortalTask(
         id: 'z-2',
@@ -152,6 +207,11 @@ final mockPortalActivities = [
         kind: TaskKind.recording,
         reviewStatus: TaskReviewStatus.checked,
         previewAsset: '录音',
+        promptText: 'Read the next sentence slowly and clearly.',
+        ttsText: 'They cannot open the heavy door.',
+        expectedText: 'They cannot open the heavy door.',
+        startPage: 2,
+        endPage: 2,
       ),
       PortalTask(
         id: 'z-3',
@@ -159,6 +219,11 @@ final mockPortalActivities = [
         kind: TaskKind.dubbing,
         reviewStatus: TaskReviewStatus.pendingReview,
         previewAsset: '视频配音',
+        promptText: 'Practice the short dialogue.',
+        ttsText: 'Can you help me? Yes, I can.',
+        expectedText: 'Can you help me? Yes, I can.',
+        startPage: 3,
+        endPage: 4,
       ),
     ],
   ),
@@ -176,6 +241,10 @@ final mockPortalActivities = [
     submittedAt: DateTime(2026, 4, 19, 9, 15),
     submissionAudioName: 'module3-reading.wav',
     submissionAudioPath: 'demo-submission/module3-reading.wav',
+    description: '完成 Module 3 课后朗读并等待老师点评。',
+    materialTitle: 'Module 3 阅读教材',
+    materialPdfPath: 'demo-materials/module-3.pdf',
+    materialPageCount: 6,
     tasks: [
       PortalTask(
         id: 't-1',
@@ -183,6 +252,11 @@ final mockPortalActivities = [
         kind: TaskKind.recording,
         reviewStatus: TaskReviewStatus.pendingReview,
         previewAsset: '录音',
+        promptText: 'Read the sentence with a smooth rhythm.',
+        ttsText: 'I can read, but I cannot write fast.',
+        expectedText: 'I can read, but I cannot write fast.',
+        startPage: 1,
+        endPage: 1,
       ),
       PortalTask(
         id: 't-2',
@@ -190,6 +264,11 @@ final mockPortalActivities = [
         kind: TaskKind.recording,
         reviewStatus: TaskReviewStatus.pendingReview,
         previewAsset: '录音',
+        promptText: 'Repeat the next sentence after the model voice.',
+        ttsText: 'He can run fast, but he cannot swim.',
+        expectedText: 'He can run fast, but he cannot swim.',
+        startPage: 2,
+        endPage: 2,
       ),
       PortalTask(
         id: 't-3',
@@ -197,6 +276,11 @@ final mockPortalActivities = [
         kind: TaskKind.phonics,
         reviewStatus: TaskReviewStatus.checked,
         previewAsset: '自然拼读',
+        promptText: 'Read the phonics line clearly.',
+        ttsText: 'Bike, like, kite.',
+        expectedText: 'Bike, like, kite.',
+        startPage: 3,
+        endPage: 3,
       ),
     ],
   ),

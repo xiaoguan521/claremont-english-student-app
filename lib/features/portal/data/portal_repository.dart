@@ -125,7 +125,7 @@ class SupabasePortalRepository implements PortalRepository {
 
     final assignmentsResponse = await _client
         .from('assignments')
-        .select('id, class_id, title, due_at, status')
+        .select('id, class_id, material_id, title, description, due_at, status')
         .inFilter('class_id', classIds.toList())
         .neq('status', 'archived')
         .order('created_at', ascending: false);
@@ -139,13 +139,35 @@ class SupabasePortalRepository implements PortalRepository {
         .map((row) => row['id'] as String?)
         .whereType<String>()
         .toList();
+    final materialIds = assignmentRows
+        .map((row) => row['material_id'] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList();
 
     final assignmentItemsResponse = await _client
         .from('assignment_items')
-        .select('id, assignment_id, title, item_type, prompt_text, sort_order')
+        .select(
+          'id, assignment_id, title, item_type, prompt_text, tts_text, expected_text, start_page, end_page, sort_order',
+        )
         .inFilter('assignment_id', assignmentIds)
         .order('sort_order', ascending: true);
     final itemRows = List<Map<String, dynamic>>.from(assignmentItemsResponse);
+
+    final materialById = <String, Map<String, dynamic>>{};
+    if (materialIds.isNotEmpty) {
+      final materialsResponse = await _client
+          .from('materials')
+          .select('id, title, pdf_path, page_count')
+          .inFilter('id', materialIds);
+
+      for (final row in List<Map<String, dynamic>>.from(materialsResponse)) {
+        final id = row['id'] as String?;
+        if (id != null) {
+          materialById[id] = row;
+        }
+      }
+    }
 
     final submissionsResponse = await _client
         .from('submissions')
@@ -251,6 +273,7 @@ class SupabasePortalRepository implements PortalRepository {
       final tasks = (itemsByAssignmentId[assignmentId] ?? const [])
           .map((item) => _mapTask(item, submissionFlowStatus))
           .toList();
+      final materialRow = materialById[row['material_id'] as String? ?? ''];
       final reviewCount =
           latestFeedback != null ||
               latestScore != null ||
@@ -285,6 +308,10 @@ class SupabasePortalRepository implements PortalRepository {
           audioAssetRow?['storage_path'] as String?,
         ),
         submissionAudioPath: audioAssetRow?['storage_path'] as String?,
+        description: row['description'] as String?,
+        materialTitle: materialRow?['title'] as String?,
+        materialPdfPath: materialRow?['pdf_path'] as String?,
+        materialPageCount: _asInt(materialRow?['page_count']),
       );
     }).toList();
   }
@@ -385,6 +412,11 @@ class SupabasePortalRepository implements PortalRepository {
       kind: _mapTaskKind(itemType),
       reviewStatus: _mapTaskReviewStatus(submissionFlowStatus),
       previewAsset: _previewAsset(itemType),
+      promptText: row['prompt_text'] as String?,
+      ttsText: row['tts_text'] as String?,
+      expectedText: row['expected_text'] as String?,
+      startPage: _asInt(row['start_page']),
+      endPage: _asInt(row['end_page']),
     );
   }
 
@@ -490,6 +522,19 @@ class SupabasePortalRepository implements PortalRepository {
     }
     if (value is String) {
       return double.tryParse(value);
+    }
+    return null;
+  }
+
+  int? _asInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value);
     }
     return null;
   }

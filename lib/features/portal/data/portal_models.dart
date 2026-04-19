@@ -4,6 +4,8 @@ enum TaskKind { dubbing, recording, phonics }
 
 enum TaskReviewStatus { checked, pendingReview, inProgress }
 
+enum SubmissionFlowStatus { notStarted, queued, processing, completed, failed }
+
 class PortalTask {
   const PortalTask({
     required this.id,
@@ -32,6 +34,14 @@ class PortalActivity {
     required this.urgeCount,
     required this.completionRate,
     required this.tasks,
+    required this.submissionFlowStatus,
+    this.submissionId,
+    this.submittedAt,
+    this.latestScore,
+    this.latestFeedback,
+    this.encouragement,
+    this.strengths = const [],
+    this.improvementPoints = const [],
   });
 
   final String id;
@@ -44,9 +54,25 @@ class PortalActivity {
   final int urgeCount;
   final double completionRate;
   final List<PortalTask> tasks;
+  final SubmissionFlowStatus submissionFlowStatus;
+  final String? submissionId;
+  final DateTime? submittedAt;
+  final double? latestScore;
+  final String? latestFeedback;
+  final String? encouragement;
+  final List<String> strengths;
+  final List<String> improvementPoints;
+
+  bool get hasTeacherFeedback =>
+      submissionFlowStatus == SubmissionFlowStatus.completed &&
+      (latestScore != null ||
+          latestFeedback != null ||
+          encouragement != null ||
+          strengths.isNotEmpty ||
+          improvementPoints.isNotEmpty);
 }
 
-const mockPortalActivities = [
+final mockPortalActivities = [
   PortalActivity(
     id: 'h-7day',
     title: '7天打卡活动',
@@ -57,6 +83,13 @@ const mockPortalActivities = [
     inspectCount: 0,
     urgeCount: 5,
     completionRate: 1,
+    submissionFlowStatus: SubmissionFlowStatus.completed,
+    submittedAt: DateTime(2026, 4, 18, 19, 30),
+    latestScore: 95,
+    latestFeedback: '你这次的朗读很稳定，句子衔接自然，老师已经听得很清楚了。',
+    encouragement: '继续保持这个节奏，下一次把句尾再收紧一点会更棒。',
+    strengths: ['开头发音清晰', '整体节奏稳定'],
+    improvementPoints: ['句尾收音再干净一点'],
     tasks: [
       PortalTask(
         id: 'h-1',
@@ -98,6 +131,7 @@ const mockPortalActivities = [
     inspectCount: 0,
     urgeCount: 5,
     completionRate: 0.86,
+    submissionFlowStatus: SubmissionFlowStatus.notStarted,
     tasks: [
       PortalTask(
         id: 'z-1',
@@ -132,6 +166,8 @@ const mockPortalActivities = [
     inspectCount: 0,
     urgeCount: 6,
     completionRate: 0.72,
+    submissionFlowStatus: SubmissionFlowStatus.queued,
+    submittedAt: DateTime(2026, 4, 19, 9, 15),
     tasks: [
       PortalTask(
         id: 't-1',

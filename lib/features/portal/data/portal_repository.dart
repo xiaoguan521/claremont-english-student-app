@@ -6,6 +6,8 @@ import 'portal_models.dart';
 
 abstract class PortalRepository {
   Future<List<PortalActivity>> fetchActivities({String? schoolId});
+
+  Future<void> submitActivity(String activityId);
 }
 
 class MockPortalRepository implements PortalRepository {
@@ -15,6 +17,11 @@ class MockPortalRepository implements PortalRepository {
   Future<List<PortalActivity>> fetchActivities({String? schoolId}) async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     return mockPortalActivities;
+  }
+
+  @override
+  Future<void> submitActivity(String activityId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 150));
   }
 }
 
@@ -119,6 +126,42 @@ class SupabasePortalRepository implements PortalRepository {
         .order('sort_order', ascending: true);
     final itemRows = List<Map<String, dynamic>>.from(assignmentItemsResponse);
 
+    final submissionsResponse = await _client
+        .from('submissions')
+        .select(
+          'id, assignment_id, status, submitted_at, latest_score, latest_feedback',
+        )
+        .eq('student_id', userId)
+        .inFilter('assignment_id', assignmentIds);
+    final submissionRows = List<Map<String, dynamic>>.from(submissionsResponse);
+
+    final submissionByAssignmentId = <String, Map<String, dynamic>>{
+      for (final row in submissionRows)
+        if (row['assignment_id'] is String) row['assignment_id'] as String: row,
+    };
+
+    final submissionIds = submissionRows
+        .map((row) => row['id'] as String?)
+        .whereType<String>()
+        .toList();
+
+    final evaluationBySubmissionId = <String, Map<String, dynamic>>{};
+    if (submissionIds.isNotEmpty) {
+      final evaluationsResponse = await _client
+          .from('evaluation_results')
+          .select(
+            'submission_id, overall_score, strengths, improvement_points, encouragement',
+          )
+          .inFilter('submission_id', submissionIds);
+
+      for (final row in List<Map<String, dynamic>>.from(evaluationsResponse)) {
+        final submissionId = row['submission_id'] as String?;
+        if (submissionId != null) {
+          evaluationBySubmissionId[submissionId] = row;
+        }
+      }
+    }
+
     final itemsByAssignmentId = <String, List<Map<String, dynamic>>>{};
     for (final item in itemRows) {
       final assignmentId = item['assignment_id'] as String?;
@@ -130,32 +173,98 @@ class SupabasePortalRepository implements PortalRepository {
 
     return assignmentRows.map((row) {
       final assignmentId = row['id'] as String;
-      final statusValue = (row['status'] as String?) ?? 'published';
+      final assignmentStatus = (row['status'] as String?) ?? 'published';
       final dueAt = DateTime.tryParse((row['due_at'] as String?) ?? '');
+      final submissionRow = submissionByAssignmentId[assignmentId];
+      final submissionId = submissionRow?['id'] as String?;
+      final submissionFlowStatus = _mapSubmissionFlowStatus(
+        submissionRow?['status'] as String?,
+      );
+      final evaluationRow = submissionId == null
+          ? null
+          : evaluationBySubmissionId[submissionId];
+      final latestFeedback =
+          submissionFlowStatus == SubmissionFlowStatus.completed
+          ? (submissionRow?['latest_feedback'] as String?)
+          : null;
+      final latestScore = submissionFlowStatus == SubmissionFlowStatus.completed
+          ? _asDouble(
+              submissionRow?['latest_score'] ?? evaluationRow?['overall_score'],
+            )
+          : null;
+      final encouragement =
+          submissionFlowStatus == SubmissionFlowStatus.completed
+          ? (evaluationRow?['encouragement'] as String?)
+          : null;
+      final strengths = submissionFlowStatus == SubmissionFlowStatus.completed
+          ? _asStringList(evaluationRow?['strengths'])
+          : const <String>[];
+      final improvementPoints =
+          submissionFlowStatus == SubmissionFlowStatus.completed
+          ? _asStringList(evaluationRow?['improvement_points'])
+          : const <String>[];
+
       final tasks = (itemsByAssignmentId[assignmentId] ?? const [])
-          .map((item) => _mapTask(item, statusValue))
+          .map((item) => _mapTask(item, submissionFlowStatus))
           .toList();
+      final reviewCount =
+          latestFeedback != null ||
+              latestScore != null ||
+              encouragement != null ||
+              strengths.isNotEmpty ||
+              improvementPoints.isNotEmpty
+          ? 1
+          : 0;
 
       return PortalActivity(
         id: assignmentId,
         title: (row['title'] as String?) ?? '未命名活动',
         className: classNameById[(row['class_id'] as String?) ?? ''] ?? '未命名班级',
         dateLabel: _buildDateLabel(dueAt),
-        status: _mapActivityStatus(statusValue),
-        reviewCount: tasks
-            .where(
-              (task) => task.reviewStatus == TaskReviewStatus.pendingReview,
-            )
-            .length,
+        status: _mapActivityStatus(submissionFlowStatus, assignmentStatus),
+        reviewCount: reviewCount,
         inspectCount: 0,
         urgeCount: 0,
-        completionRate: _completionRateFor(statusValue),
+        completionRate: _completionRateFor(submissionFlowStatus),
         tasks: tasks,
+        submissionFlowStatus: submissionFlowStatus,
+        submissionId: submissionId,
+        submittedAt: DateTime.tryParse(
+          (submissionRow?['submitted_at'] as String?) ?? '',
+        ),
+        latestScore: latestScore,
+        latestFeedback: latestFeedback,
+        encouragement: encouragement,
+        strengths: strengths,
+        improvementPoints: improvementPoints,
       );
     }).toList();
   }
 
-  PortalTask _mapTask(Map<String, dynamic> row, String assignmentStatus) {
+  @override
+  Future<void> submitActivity(String activityId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('当前还没有登录账号。');
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    await _client.from('submissions').upsert({
+      'assignment_id': activityId,
+      'student_id': userId,
+      'status': 'queued',
+      'submitted_at': now,
+      'latest_score': null,
+      'latest_feedback': null,
+      'updated_at': now,
+    }, onConflict: 'assignment_id,student_id');
+  }
+
+  PortalTask _mapTask(
+    Map<String, dynamic> row,
+    SubmissionFlowStatus submissionFlowStatus,
+  ) {
     final itemType = (row['item_type'] as String?) ?? 'sentence';
 
     return PortalTask(
@@ -165,7 +274,7 @@ class SupabasePortalRepository implements PortalRepository {
           (row['prompt_text'] as String?) ??
           '未命名任务',
       kind: _mapTaskKind(itemType),
-      reviewStatus: _mapTaskReviewStatus(assignmentStatus),
+      reviewStatus: _mapTaskReviewStatus(submissionFlowStatus),
       previewAsset: _previewAsset(itemType),
     );
   }
@@ -182,27 +291,36 @@ class SupabasePortalRepository implements PortalRepository {
     }
   }
 
-  TaskReviewStatus _mapTaskReviewStatus(String assignmentStatus) {
-    switch (assignmentStatus) {
-      case 'closed':
+  TaskReviewStatus _mapTaskReviewStatus(SubmissionFlowStatus submissionStatus) {
+    switch (submissionStatus) {
+      case SubmissionFlowStatus.completed:
         return TaskReviewStatus.checked;
-      case 'draft':
-        return TaskReviewStatus.inProgress;
-      case 'published':
-      default:
+      case SubmissionFlowStatus.queued:
+      case SubmissionFlowStatus.processing:
         return TaskReviewStatus.pendingReview;
+      case SubmissionFlowStatus.notStarted:
+      case SubmissionFlowStatus.failed:
+        return TaskReviewStatus.inProgress;
     }
   }
 
-  ActivityStatus _mapActivityStatus(String assignmentStatus) {
-    switch (assignmentStatus) {
-      case 'closed':
+  ActivityStatus _mapActivityStatus(
+    SubmissionFlowStatus submissionStatus,
+    String assignmentStatus,
+  ) {
+    if (assignmentStatus == 'closed') {
+      return ActivityStatus.completed;
+    }
+
+    switch (submissionStatus) {
+      case SubmissionFlowStatus.completed:
         return ActivityStatus.completed;
-      case 'draft':
-        return ActivityStatus.active;
-      case 'published':
-      default:
+      case SubmissionFlowStatus.queued:
+      case SubmissionFlowStatus.processing:
         return ActivityStatus.reviewPending;
+      case SubmissionFlowStatus.notStarted:
+      case SubmissionFlowStatus.failed:
+        return ActivityStatus.active;
     }
   }
 
@@ -218,15 +336,17 @@ class SupabasePortalRepository implements PortalRepository {
     }
   }
 
-  double _completionRateFor(String assignmentStatus) {
-    switch (assignmentStatus) {
-      case 'closed':
+  double _completionRateFor(SubmissionFlowStatus submissionStatus) {
+    switch (submissionStatus) {
+      case SubmissionFlowStatus.completed:
         return 1;
-      case 'draft':
-        return 0.35;
-      case 'published':
-      default:
-        return 0.82;
+      case SubmissionFlowStatus.queued:
+      case SubmissionFlowStatus.processing:
+        return 1;
+      case SubmissionFlowStatus.failed:
+        return 0.65;
+      case SubmissionFlowStatus.notStarted:
+        return 0.32;
     }
   }
 
@@ -236,6 +356,40 @@ class SupabasePortalRepository implements PortalRepository {
     }
     final start = dueAt.subtract(const Duration(days: 6));
     return '${start.month}.${start.day} - ${dueAt.month}.${dueAt.day}';
+  }
+
+  SubmissionFlowStatus _mapSubmissionFlowStatus(String? status) {
+    switch (status) {
+      case 'uploaded':
+      case 'queued':
+        return SubmissionFlowStatus.queued;
+      case 'processing':
+        return SubmissionFlowStatus.processing;
+      case 'completed':
+        return SubmissionFlowStatus.completed;
+      case 'failed':
+        return SubmissionFlowStatus.failed;
+      case 'draft':
+      default:
+        return SubmissionFlowStatus.notStarted;
+    }
+  }
+
+  double? _asDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value);
+    }
+    return null;
+  }
+
+  List<String> _asStringList(dynamic value) {
+    if (value is List) {
+      return value.map((item) => item.toString()).toList();
+    }
+    return const [];
   }
 }
 

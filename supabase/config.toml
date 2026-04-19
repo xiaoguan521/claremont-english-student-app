@@ -238,6 +238,18 @@ otp_expiry = 3600
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
+
+[functions.admin-create-user]
+verify_jwt = false
+
+[functions.admin-ai-config]
+verify_jwt = false
+
+[functions.admin-manage-user]
+verify_jwt = false
+
+[functions.ai-review-submission]
+verify_jwt = false
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 

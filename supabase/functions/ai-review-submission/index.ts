@@ -796,187 +796,197 @@ Deno.serve(async (req) => {
     return json({ error: 'Unable to validate current user.' }, 401)
   }
 
-  const payload = (await req.json()) as AiReviewPayload
+  try {
+    const payload = (await req.json()) as AiReviewPayload
 
-  if (payload.action === 'preview_text_review') {
-    if (!payload.schoolId?.trim() || !payload.transcript?.trim()) {
-      return json({ error: 'schoolId and transcript are required.' }, 400)
+    if (payload.action === 'preview_text_review') {
+      if (!payload.schoolId?.trim() || !payload.transcript?.trim()) {
+        return json({ error: 'schoolId and transcript are required.' }, 400)
+      }
+
+      const { data: operatorMembership, error: membershipError } = await userClient
+        .from('memberships')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('school_id', payload.schoolId)
+        .eq('role', 'school_admin')
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (membershipError || !operatorMembership) {
+        return json({ error: 'Current user is not allowed to preview this school config.' }, 403)
+      }
+
+      const config = await fetchSchoolAiConfig(adminClient, payload.schoolId)
+      if (!config || !config.enabled) {
+        return json({ error: 'School AI config is missing or disabled.' }, 400)
+      }
+
+      const apiKey = await decryptApiKey(encryptionSecret, config.api_key_ciphertext)
+      const expectedText = payload.expectedText?.trim() || payload.transcript.trim()
+      const scores = buildScores(payload.transcript, expectedText)
+      const { narrative } = await generateReviewNarrative({
+        baseUrl: normalizeBaseUrl(config.base_url),
+        apiKey,
+        model: config.model,
+        providerLabel: config.provider_label,
+        assignmentTitle: 'Preview',
+        assignmentDescription: null,
+        promptText: payload.promptText?.trim() || 'Preview text review',
+        expectedText,
+        transcript: payload.transcript.trim(),
+        overallScore: scores.overallScore,
+        completenessScore: scores.completenessScore,
+        fluencyScore: scores.fluencyScore,
+        pronunciationScore: scores.pronunciationScore,
+      })
+
+      return json({
+        status: 'completed',
+        preview: {
+          overallScore: scores.overallScore,
+          pronunciationScore: scores.pronunciationScore,
+          fluencyScore: scores.fluencyScore,
+          completenessScore: scores.completenessScore,
+          summaryFeedback: narrative.summaryFeedback,
+          strengths: narrative.strengths,
+          improvementPoints: narrative.improvementPoints,
+          encouragement: narrative.encouragement,
+        },
+      })
     }
 
-    const { data: operatorMembership, error: membershipError } = await userClient
+    if (!payload.submissionId?.trim()) {
+      return json({ error: 'submissionId is required.' }, 400)
+    }
+
+    const { data: visibleSubmission, error: visibleSubmissionError } = await userClient
+      .from('submissions')
+      .select('id, student_id, assignment_id')
+      .eq('id', payload.submissionId)
+      .maybeSingle()
+
+    if (visibleSubmissionError || !visibleSubmission) {
+      return json({ error: 'Current user cannot access this submission.' }, 403)
+    }
+
+    const submission = visibleSubmission as SubmissionRecord
+
+    const { data: assignment, error: assignmentError } = await adminClient
+      .from('assignments')
+      .select('id, school_id, title, description')
+      .eq('id', submission.assignment_id)
+      .single()
+
+    if (assignmentError || !assignment) {
+      return json({ error: assignmentError?.message ?? 'Assignment not found.' }, 400)
+    }
+
+    const { data: activeMembership, error: activeMembershipError } = await userClient
       .from('memberships')
       .select('id')
       .eq('user_id', user.id)
-      .eq('school_id', payload.schoolId)
-      .eq('role', 'school_admin')
+      .eq('school_id', (assignment as AssignmentRecord).school_id)
       .eq('status', 'active')
       .maybeSingle()
 
-    if (membershipError || !operatorMembership) {
-      return json({ error: 'Current user is not allowed to preview this school config.' }, 403)
+    const canTriggerReview =
+      submission.student_id === user.id || Boolean(activeMembership && !activeMembershipError)
+
+    if (!canTriggerReview) {
+      return json({ error: 'Current user is not allowed to trigger this review.' }, 403)
     }
 
-    const config = await fetchSchoolAiConfig(adminClient, payload.schoolId)
-    if (!config || !config.enabled) {
+    const schoolConfig = await fetchSchoolAiConfig(
+      adminClient,
+      (assignment as AssignmentRecord).school_id,
+    )
+
+    if (!schoolConfig || !schoolConfig.enabled) {
       return json({ error: 'School AI config is missing or disabled.' }, 400)
     }
 
-    const apiKey = await decryptApiKey(encryptionSecret, config.api_key_ciphertext)
-    const expectedText = payload.expectedText?.trim() || payload.transcript.trim()
-    const scores = buildScores(payload.transcript, expectedText)
-    const { narrative } = await generateReviewNarrative({
-      baseUrl: normalizeBaseUrl(config.base_url),
-      apiKey,
-      model: config.model,
-      providerLabel: config.provider_label,
-      assignmentTitle: 'Preview',
-      assignmentDescription: null,
-      promptText: payload.promptText?.trim() || 'Preview text review',
-      expectedText,
-      transcript: payload.transcript.trim(),
-      overallScore: scores.overallScore,
-      completenessScore: scores.completenessScore,
-      fluencyScore: scores.fluencyScore,
-      pronunciationScore: scores.pronunciationScore,
+    const { data: existingResult, error: existingResultError } = await adminClient
+      .from('evaluation_results')
+      .select('provider')
+      .eq('submission_id', submission.id)
+      .maybeSingle()
+
+    if (existingResultError) {
+      return json({ error: existingResultError.message }, 400)
+    }
+
+    if (
+      existingResult &&
+      typeof existingResult.provider === 'string' &&
+      existingResult.provider === 'teacher-review'
+    ) {
+      return json({
+        status: 'completed',
+        message: '老师已经完成最终点评，这条提交不会再被 AI 覆盖。',
+      })
+    }
+
+    const { data: items, error: itemsError } = await adminClient
+      .from('assignment_items')
+      .select('id, title, prompt_text, expected_text, tts_text, sort_order')
+      .eq('assignment_id', submission.assignment_id)
+      .order('sort_order', { ascending: true })
+
+    if (itemsError) {
+      return json({ error: itemsError.message }, 400)
+    }
+
+    const { data: audioAsset, error: audioAssetError } = await adminClient
+      .from('submission_assets')
+      .select('storage_bucket, storage_path, mime_type')
+      .eq('submission_id', submission.id)
+      .eq('asset_type', 'audio')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (audioAssetError) {
+      return json({ error: audioAssetError.message }, 400)
+    }
+
+    if (!audioAsset) {
+      return json({
+        status: 'failed',
+        message: '这条提交还没有音频附件，暂时无法发起 AI 初评。',
+      })
+    }
+
+    const { data: existingJob, error: existingJobError } = await adminClient
+      .from('evaluation_jobs')
+      .select('id, submission_id, attempt_count, status')
+      .eq('submission_id', submission.id)
+      .maybeSingle()
+
+    if (existingJobError) {
+      return json({ error: existingJobError.message }, 400)
+    }
+
+    const reviewResponse = await processSubmissionReview({
+      adminClient,
+      schoolConfig,
+      encryptionSecret,
+      submission,
+      assignment: assignment as AssignmentRecord,
+      items: ((items ?? []) as AssignmentItemRecord[]),
+      audioAsset: audioAsset as SubmissionAudioAsset,
+      existingJob: (existingJob as EvaluationJobRecord | null) ?? null,
+      requestedBy: user.id,
     })
 
-    return json({
-      status: 'completed',
-      preview: {
-        overallScore: scores.overallScore,
-        pronunciationScore: scores.pronunciationScore,
-        fluencyScore: scores.fluencyScore,
-        completenessScore: scores.completenessScore,
-        summaryFeedback: narrative.summaryFeedback,
-        strengths: narrative.strengths,
-        improvementPoints: narrative.improvementPoints,
-        encouragement: narrative.encouragement,
+    return json(reviewResponse)
+  } catch (error) {
+    console.error('ai-review-submission failed', error)
+    return json(
+      {
+        error: error instanceof Error ? error.message : 'Unexpected AI review error.',
       },
-    })
+      500,
+    )
   }
-
-  if (!payload.submissionId?.trim()) {
-    return json({ error: 'submissionId is required.' }, 400)
-  }
-
-  const { data: visibleSubmission, error: visibleSubmissionError } = await userClient
-    .from('submissions')
-    .select('id, student_id, assignment_id')
-    .eq('id', payload.submissionId)
-    .maybeSingle()
-
-  if (visibleSubmissionError || !visibleSubmission) {
-    return json({ error: 'Current user cannot access this submission.' }, 403)
-  }
-
-  const submission = visibleSubmission as SubmissionRecord
-
-  const { data: assignment, error: assignmentError } = await adminClient
-    .from('assignments')
-    .select('id, school_id, title, description')
-    .eq('id', submission.assignment_id)
-    .single()
-
-  if (assignmentError || !assignment) {
-    return json({ error: assignmentError?.message ?? 'Assignment not found.' }, 400)
-  }
-
-  const { data: activeMembership, error: activeMembershipError } = await userClient
-    .from('memberships')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('school_id', (assignment as AssignmentRecord).school_id)
-    .eq('status', 'active')
-    .maybeSingle()
-
-  const canTriggerReview =
-    submission.student_id === user.id || Boolean(activeMembership && !activeMembershipError)
-
-  if (!canTriggerReview) {
-    return json({ error: 'Current user is not allowed to trigger this review.' }, 403)
-  }
-
-  const schoolConfig = await fetchSchoolAiConfig(
-    adminClient,
-    (assignment as AssignmentRecord).school_id,
-  )
-
-  if (!schoolConfig || !schoolConfig.enabled) {
-    return json({ error: 'School AI config is missing or disabled.' }, 400)
-  }
-
-  const { data: existingResult, error: existingResultError } = await adminClient
-    .from('evaluation_results')
-    .select('provider')
-    .eq('submission_id', submission.id)
-    .maybeSingle()
-
-  if (existingResultError) {
-    return json({ error: existingResultError.message }, 400)
-  }
-
-  if (
-    existingResult &&
-    typeof existingResult.provider === 'string' &&
-    existingResult.provider === 'teacher-review'
-  ) {
-    return json({
-      status: 'completed',
-      message: '老师已经完成最终点评，这条提交不会再被 AI 覆盖。',
-    })
-  }
-
-  const { data: items, error: itemsError } = await adminClient
-    .from('assignment_items')
-    .select('id, title, prompt_text, expected_text, tts_text, sort_order')
-    .eq('assignment_id', submission.assignment_id)
-    .order('sort_order', { ascending: true })
-
-  if (itemsError) {
-    return json({ error: itemsError.message }, 400)
-  }
-
-  const { data: audioAsset, error: audioAssetError } = await adminClient
-    .from('submission_assets')
-    .select('storage_bucket, storage_path, mime_type')
-    .eq('submission_id', submission.id)
-    .eq('asset_type', 'audio')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (audioAssetError) {
-    return json({ error: audioAssetError.message }, 400)
-  }
-
-  if (!audioAsset) {
-    return json({
-      status: 'failed',
-      message: '这条提交还没有音频附件，暂时无法发起 AI 初评。',
-    })
-  }
-
-  const { data: existingJob, error: existingJobError } = await adminClient
-    .from('evaluation_jobs')
-    .select('id, submission_id, attempt_count, status')
-    .eq('submission_id', submission.id)
-    .maybeSingle()
-
-  if (existingJobError) {
-    return json({ error: existingJobError.message }, 400)
-  }
-
-  const reviewResponse = await processSubmissionReview({
-    adminClient,
-    schoolConfig,
-    encryptionSecret,
-    submission,
-    assignment: assignment as AssignmentRecord,
-    items: ((items ?? []) as AssignmentItemRecord[]),
-    audioAsset: audioAsset as SubmissionAudioAsset,
-    existingJob: (existingJob as EvaluationJobRecord | null) ?? null,
-    requestedBy: user.id,
-  })
-
-  return json(reviewResponse)
 })

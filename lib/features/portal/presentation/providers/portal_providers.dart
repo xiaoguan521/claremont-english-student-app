@@ -2,10 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/portal_models.dart';
 import '../../data/portal_repository.dart';
+import '../../../school/presentation/providers/school_context_provider.dart';
 
 final portalActivitiesProvider = FutureProvider<List<PortalActivity>>((ref) {
   final repository = ref.watch(portalRepositoryProvider);
-  return repository.fetchActivities();
+  final schoolContext = ref.watch(schoolContextProvider);
+  final schoolId = schoolContext.valueOrNull?.schoolId;
+  return repository.fetchActivities(schoolId: schoolId);
 });
 
 final highlightedActivityProvider = FutureProvider<PortalActivity>((ref) async {

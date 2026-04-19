@@ -225,6 +225,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                       fontWeight: FontWeight.w600,
                                     ),
                               ),
+                              const SizedBox(height: 12),
+                              Text(
+                                '如果这个账号同时属于多个学校，登录后系统会自动提示你选择。',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: const Color(0xFF94A3B8),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
                             ],
                           ),
                         ),

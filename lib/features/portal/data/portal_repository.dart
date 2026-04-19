@@ -5,14 +5,14 @@ import '../../../core/config/app_config.dart';
 import 'portal_models.dart';
 
 abstract class PortalRepository {
-  Future<List<PortalActivity>> fetchActivities();
+  Future<List<PortalActivity>> fetchActivities({String? schoolId});
 }
 
 class MockPortalRepository implements PortalRepository {
   const MockPortalRepository();
 
   @override
-  Future<List<PortalActivity>> fetchActivities() async {
+  Future<List<PortalActivity>> fetchActivities({String? schoolId}) async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     return mockPortalActivities;
   }
@@ -24,7 +24,8 @@ class SupabasePortalRepository implements PortalRepository {
   final SupabaseClient _client;
 
   @override
-  Future<List<PortalActivity>> fetchActivities() async {
+  Future<List<PortalActivity>> fetchActivities({String? schoolId}) async {
+    final targetSchoolId = schoolId;
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
       return const [];
@@ -46,12 +47,16 @@ class SupabasePortalRepository implements PortalRepository {
     var canManageWholeSchool = false;
 
     for (final membership in memberships) {
-      final schoolId = membership['school_id'] as String?;
+      final membershipSchoolId = membership['school_id'] as String?;
       final classId = membership['class_id'] as String?;
       final role = membership['role'] as String?;
 
-      if (schoolId != null) {
-        schoolIds.add(schoolId);
+      if (targetSchoolId != null && membershipSchoolId != targetSchoolId) {
+        continue;
+      }
+
+      if (membershipSchoolId != null) {
+        schoolIds.add(membershipSchoolId);
       }
       if (classId != null) {
         classIds.add(classId);
@@ -137,7 +142,11 @@ class SupabasePortalRepository implements PortalRepository {
         className: classNameById[(row['class_id'] as String?) ?? ''] ?? '未命名班级',
         dateLabel: _buildDateLabel(dueAt),
         status: _mapActivityStatus(statusValue),
-        reviewCount: tasks.where((task) => task.reviewStatus == TaskReviewStatus.pendingReview).length,
+        reviewCount: tasks
+            .where(
+              (task) => task.reviewStatus == TaskReviewStatus.pendingReview,
+            )
+            .length,
         inspectCount: 0,
         urgeCount: 0,
         completionRate: _completionRateFor(statusValue),

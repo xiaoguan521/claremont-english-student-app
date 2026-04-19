@@ -8,6 +8,8 @@ import '../../features/portal/presentation/pages/activities_page.dart';
 import '../../features/portal/presentation/pages/explore_page.dart';
 import '../../features/portal/presentation/pages/task_detail_page.dart';
 import '../../features/school/presentation/pages/school_entry_page.dart';
+import '../../features/school/presentation/pages/school_selection_page.dart';
+import '../../features/school/presentation/providers/school_context_provider.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/users/presentation/pages/users_page.dart';
 import '../../features/users/presentation/pages/user_detail_page.dart';
@@ -42,6 +44,9 @@ final _onboardingInitProvider = FutureProvider<bool>((ref) async {
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
   final onboardingCompleted = ref.watch(onboardingCompletedProvider);
+  final schoolSelectionRequired = ref
+      .watch(schoolSelectionRequiredProvider)
+      .maybeWhen(data: (value) => value, orElse: () => false);
 
   // Initialize onboarding state from preferences
   ref.watch(_onboardingInitProvider);
@@ -57,6 +62,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           state.matchedLocation == '/register';
       final isOnboardingRoute = state.matchedLocation == '/onboarding';
       final isSchoolEntryRoute = state.matchedLocation.startsWith('/s/');
+      final isSchoolSelectionRoute = state.matchedLocation == '/school-select';
 
       // Check onboarding first for new users
       if (!onboardingCompleted && !isOnboardingRoute && !isSchoolEntryRoute) {
@@ -66,8 +72,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (onboardingCompleted &&
           !isAuthenticated &&
           !isAuthRoute &&
-          !isSchoolEntryRoute) {
+          !isSchoolEntryRoute &&
+          !isSchoolSelectionRoute) {
         return '/login';
+      }
+
+      if (isAuthenticated &&
+          schoolSelectionRequired &&
+          !isSchoolSelectionRoute &&
+          !isSchoolEntryRoute) {
+        return '/school-select';
+      }
+
+      if (isAuthenticated &&
+          !schoolSelectionRequired &&
+          isSchoolSelectionRoute) {
+        return '/home';
       }
 
       // Redirect authenticated users away from auth pages
@@ -80,6 +100,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/register', redirect: (context, state) => '/login'),
+      GoRoute(
+        path: '/school-select',
+        builder: (context, state) => const SchoolSelectionPage(),
+      ),
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingPage(),

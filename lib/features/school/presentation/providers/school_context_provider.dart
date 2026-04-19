@@ -63,6 +63,17 @@ class SchoolContext {
       themeKey: 'forest',
     );
   }
+
+  factory SchoolContext.selectionRequired() {
+    return const SchoolContext(
+      schoolId: null,
+      slug: 'select-school',
+      displayName: '英语打卡',
+      welcomeTitle: '请选择你的学校',
+      welcomeMessage: '这个账号已绑定多个学校，请先选择今天要进入的学校。',
+      themeKey: 'ocean',
+    );
+  }
 }
 
 class PreferredSchoolSlugNotifier extends StateNotifier<String?> {
@@ -93,6 +104,56 @@ final preferredSchoolSlugProvider =
       return PreferredSchoolSlugNotifier();
     });
 
+final availableSchoolContextsProvider = FutureProvider<List<SchoolContext>>((
+  ref,
+) async {
+  final config = ref.watch(appConfigProvider);
+  final preferredSlug = ref.watch(preferredSchoolSlugProvider);
+
+  if (!config.canUseSupabase) {
+    return [SchoolContext.fallback(preferredSlug)];
+  }
+
+  final client = Supabase.instance.client;
+  final userId = client.auth.currentUser?.id;
+  if (userId == null) {
+    return [];
+  }
+
+  final membershipsResponse = await client
+      .from('memberships')
+      .select('school_id')
+      .eq('user_id', userId)
+      .eq('status', 'active');
+
+  final schoolIds = List<Map<String, dynamic>>.from(membershipsResponse)
+      .map((row) => row['school_id'] as String?)
+      .whereType<String>()
+      .toSet()
+      .toList();
+
+  if (schoolIds.isEmpty) {
+    return [];
+  }
+
+  return _fetchAvailableSchools(client, schoolIds);
+});
+
+final schoolSelectionRequiredProvider = FutureProvider<bool>((ref) async {
+  final preferredSlug = ref.watch(preferredSchoolSlugProvider);
+  final options = await ref.watch(availableSchoolContextsProvider.future);
+
+  if (options.length <= 1) {
+    return false;
+  }
+
+  if (preferredSlug == null || preferredSlug.isEmpty) {
+    return true;
+  }
+
+  return !options.any((item) => item.slug == preferredSlug);
+});
+
 final schoolContextProvider = FutureProvider<SchoolContext>((ref) async {
   final config = ref.watch(appConfigProvider);
   final preferredSlug = ref.watch(preferredSchoolSlugProvider);
@@ -114,61 +175,29 @@ final schoolContextProvider = FutureProvider<SchoolContext>((ref) async {
   if (userId == null) {
     return SchoolContext.fallback(preferredSlug);
   }
-
-  final membershipsResponse = await client
-      .from('memberships')
-      .select('school_id')
-      .eq('user_id', userId)
-      .eq('status', 'active');
-
-  final schoolIds = List<Map<String, dynamic>>.from(membershipsResponse)
-      .map((row) => row['school_id'] as String?)
-      .whereType<String>()
-      .toSet()
-      .toList();
-
-  if (schoolIds.isEmpty) {
+  final options = await ref.watch(availableSchoolContextsProvider.future);
+  if (options.isEmpty) {
     return SchoolContext.fallback(preferredSlug);
   }
 
-  try {
-    final configResponse = await client
-        .from('school_configs')
-        .select(
-          'school_id, slug, app_display_name, welcome_title, welcome_message, theme_key',
-        )
-        .inFilter('school_id', schoolIds)
-        .limit(1)
-        .maybeSingle();
-
-    if (configResponse != null) {
-      final row = Map<String, dynamic>.from(configResponse);
-      return _mapSchoolContext(row);
+  if (preferredSlug != null && preferredSlug.isNotEmpty) {
+    SchoolContext? matched;
+    for (final item in options) {
+      if (item.slug == preferredSlug) {
+        matched = item;
+        break;
+      }
     }
-  } catch (_) {
-    // Allow the app to keep working before school_configs is migrated remotely.
+    if (matched != null) {
+      return matched;
+    }
   }
 
-  final schoolResponse = await client
-      .from('schools')
-      .select('id, code, name')
-      .inFilter('id', schoolIds)
-      .limit(1)
-      .maybeSingle();
-
-  if (schoolResponse == null) {
-    return SchoolContext.fallback(preferredSlug);
+  if (options.length == 1) {
+    return options.first;
   }
 
-  final row = Map<String, dynamic>.from(schoolResponse);
-  return SchoolContext(
-    schoolId: row['id'] as String?,
-    slug: (row['code'] as String?) ?? preferredSlug ?? 'school',
-    displayName: (row['name'] as String?) ?? '英语打卡',
-    welcomeTitle: '欢迎来到${(row['name'] as String?) ?? '英语打卡'}',
-    welcomeMessage: '今天也要认真完成英语学习任务。',
-    themeKey: 'forest',
-  );
+  return SchoolContext.selectionRequired();
 });
 
 Future<SchoolContext?> _fetchBySlug(SupabaseClient client, String slug) async {
@@ -200,4 +229,43 @@ SchoolContext _mapSchoolContext(Map<String, dynamic> row) {
     welcomeMessage: (row['welcome_message'] as String?) ?? '今天也要认真完成英语学习任务。',
     themeKey: (row['theme_key'] as String?) ?? 'forest',
   );
+}
+
+Future<List<SchoolContext>> _fetchAvailableSchools(
+  SupabaseClient client,
+  List<String> schoolIds,
+) async {
+  try {
+    final response = await client
+        .from('school_configs')
+        .select(
+          'school_id, slug, app_display_name, welcome_title, welcome_message, theme_key',
+        )
+        .inFilter('school_id', schoolIds);
+
+    final rows = List<Map<String, dynamic>>.from(response);
+    if (rows.isNotEmpty) {
+      return rows.map(_mapSchoolContext).toList();
+    }
+  } catch (_) {
+    // Allow the app to keep working before school_configs is migrated remotely.
+  }
+
+  final schoolResponse = await client
+      .from('schools')
+      .select('id, code, name')
+      .inFilter('id', schoolIds);
+
+  return List<Map<String, dynamic>>.from(schoolResponse).map((row) {
+    final schoolName = (row['name'] as String?) ?? '英语打卡';
+    final slug = (row['code'] as String?) ?? 'school';
+    return SchoolContext(
+      schoolId: row['id'] as String?,
+      slug: slug,
+      displayName: schoolName,
+      welcomeTitle: '欢迎来到$schoolName',
+      welcomeMessage: '今天也要认真完成英语学习任务。',
+      themeKey: 'forest',
+    );
+  }).toList();
 }

@@ -20,7 +20,17 @@ type SetMembershipStatusPayload = {
   nextStatus: 'active' | 'disabled'
 }
 
-type ManageUserPayload = ResetPasswordPayload | SetMembershipStatusPayload
+type ReassignMembershipClassPayload = {
+  action: 'reassign_membership_class'
+  schoolId: string
+  membershipId: string
+  classId: string | null
+}
+
+type ManageUserPayload =
+  | ResetPasswordPayload
+  | SetMembershipStatusPayload
+  | ReassignMembershipClassPayload
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -121,6 +131,59 @@ Deno.serve(async (req) => {
       action: payload.action,
       userId: payload.userId,
       temporaryPassword: payload.temporaryPassword,
+    })
+  }
+
+  if (payload.action === 'reassign_membership_class') {
+    if (!payload.membershipId?.trim()) {
+      return json({ error: 'Class assignment action requires membership id.' }, 400)
+    }
+
+    const { data: targetMembership, error: targetMembershipError } = await adminClient
+      .from('memberships')
+      .select('id, role, school_id, class_id')
+      .eq('id', payload.membershipId)
+      .eq('school_id', payload.schoolId)
+      .single()
+
+    if (targetMembershipError || !targetMembership) {
+      return json({ error: 'Target membership does not exist in the selected school.' }, 400)
+    }
+
+    if (!['teacher', 'student'].includes(targetMembership.role)) {
+      return json({ error: 'Only teacher and student memberships can be reassigned.' }, 400)
+    }
+
+    if (payload.classId) {
+      const { data: targetClass, error: targetClassError } = await adminClient
+        .from('classes')
+        .select('id')
+        .eq('id', payload.classId)
+        .eq('school_id', payload.schoolId)
+        .single()
+
+      if (targetClassError || !targetClass) {
+        return json({ error: 'Target class does not exist in the selected school.' }, 400)
+      }
+    }
+
+    const { data: updatedMembership, error: updateClassError } = await adminClient
+      .from('memberships')
+      .update({ class_id: payload.classId })
+      .eq('id', payload.membershipId)
+      .eq('school_id', payload.schoolId)
+      .select('id, class_id, role')
+      .single()
+
+    if (updateClassError) {
+      return json({ error: updateClassError.message }, 400)
+    }
+
+    return json({
+      action: payload.action,
+      membershipId: updatedMembership.id,
+      classId: updatedMembership.class_id,
+      role: updatedMembership.role,
     })
   }
 

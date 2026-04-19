@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../school/presentation/providers/school_context_provider.dart';
 import '../../data/portal_models.dart';
@@ -26,19 +29,39 @@ class TaskDetailPage extends ConsumerStatefulWidget {
 }
 
 class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
   final FlutterTts _tts = FlutterTts();
   final AudioRecorder _recorder = AudioRecorder();
+  final Map<String, String> _storedAudioCache = {};
+  final List<StreamSubscription<dynamic>> _playerSubscriptions = [];
 
   bool _isSubmitting = false;
   bool _isRecording = false;
   String? _recordingPath;
+  String? _loadingAudioKey;
+  String? _playingAudioKey;
   String? _speakingTaskId;
   _PendingAudioFile? _selectedAudio;
 
   @override
   void initState() {
     super.initState();
+    _bindAudioPlayer();
     _configureTts();
+  }
+
+  void _bindAudioPlayer() {
+    _playerSubscriptions.add(
+      _audioPlayer.onPlayerComplete.listen((_) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _playingAudioKey = null;
+          _loadingAudioKey = null;
+        });
+      }),
+    );
   }
 
   Future<void> _configureTts() async {
@@ -74,6 +97,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 
   @override
   void dispose() {
+    for (final subscription in _playerSubscriptions) {
+      subscription.cancel();
+    }
+    _audioPlayer.dispose();
     _tts.stop();
     _recorder.dispose();
     super.dispose();
@@ -107,6 +134,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         bytes: file.bytes!,
         sizeBytes: file.size,
         mimeType: _guessMimeType(file.extension),
+        localPath: file.path,
       );
     });
   }
@@ -185,6 +213,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           bytes: bytes,
           sizeBytes: sizeBytes,
           mimeType: 'audio/mp4',
+          localPath: resolvedPath,
         );
       });
       _showMessage('录音已经保存好了，可以直接提交给老师。');
@@ -252,6 +281,112 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         builder: (_) => ReadingPage(activity: activity, task: task),
       ),
     );
+  }
+
+  Future<void> _togglePendingAudioPlayback() async {
+    final selectedAudio = _selectedAudio;
+    if (selectedAudio == null) {
+      _showMessage('先录一段音频或选择已有音频，再试听。');
+      return;
+    }
+
+    await _toggleAudioPlayback(
+      audioKey: _pendingAudioKey(selectedAudio),
+      resolvePath: () => _resolvePendingAudioPath(selectedAudio),
+    );
+  }
+
+  Future<void> _toggleStoredAudioPlayback(PortalActivity activity) async {
+    final storagePath = activity.submissionAudioPath;
+    if (storagePath == null || storagePath.trim().isEmpty) {
+      _showMessage('当前还没有可回放的已提交音频。');
+      return;
+    }
+
+    await _toggleAudioPlayback(
+      audioKey: _storedAudioKey(storagePath),
+      resolvePath: () => _resolveStoredAudioPath(storagePath),
+    );
+  }
+
+  Future<void> _toggleAudioPlayback({
+    required String audioKey,
+    required Future<String> Function() resolvePath,
+  }) async {
+    if (_playingAudioKey == audioKey) {
+      await _audioPlayer.stop();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _playingAudioKey = null;
+        _loadingAudioKey = null;
+      });
+      return;
+    }
+
+    try {
+      await _audioPlayer.stop();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingAudioKey = audioKey;
+        _playingAudioKey = null;
+      });
+
+      final path = await resolvePath();
+      await _audioPlayer.play(DeviceFileSource(path));
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingAudioKey = null;
+        _playingAudioKey = audioKey;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingAudioKey = null;
+        if (_playingAudioKey == audioKey) {
+          _playingAudioKey = null;
+        }
+      });
+      _showMessage('音频回放失败，请稍后再试。');
+    }
+  }
+
+  Future<String> _resolvePendingAudioPath(_PendingAudioFile audio) async {
+    final localPath = audio.localPath;
+    if (localPath != null && await File(localPath).exists()) {
+      return localPath;
+    }
+
+    final tempDir = await getTemporaryDirectory();
+    final extension = _fileExtension(audio.name);
+    final path =
+        '${tempDir.path}/pending-audio-${DateTime.now().millisecondsSinceEpoch}${extension == null ? '' : '.$extension'}';
+    await File(path).writeAsBytes(audio.bytes, flush: true);
+    return path;
+  }
+
+  Future<String> _resolveStoredAudioPath(String storagePath) async {
+    final cachedPath = _storedAudioCache[storagePath];
+    if (cachedPath != null && await File(cachedPath).exists()) {
+      return cachedPath;
+    }
+
+    final bytes = await Supabase.instance.client.storage
+        .from('submission-audio')
+        .download(storagePath);
+    final tempDir = await getTemporaryDirectory();
+    final fileName = storagePath.split('/').last;
+    final targetPath = '${tempDir.path}/$fileName';
+    await File(targetPath).writeAsBytes(bytes, flush: true);
+    _storedAudioCache[storagePath] = targetPath;
+    return targetPath;
   }
 
   Future<void> _handlePrimaryAction(PortalActivity activity) async {
@@ -386,6 +521,12 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     final completedTasks = activity.tasks
         .where((task) => task.reviewStatus == TaskReviewStatus.checked)
         .length;
+    final selectedAudioKey = _selectedAudio == null
+        ? null
+        : _pendingAudioKey(_selectedAudio!);
+    final storedAudioKey = (activity.submissionAudioPath ?? '').trim().isEmpty
+        ? null
+        : _storedAudioKey(activity.submissionAudioPath!);
 
     return TabletShell(
       activeSection: TabletSection.teaching,
@@ -421,8 +562,20 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                     isSubmitting: _isSubmitting,
                     isRecording: _isRecording,
                     selectedAudio: _selectedAudio,
+                    isSelectedAudioPlaying:
+                        selectedAudioKey == _playingAudioKey,
+                    isSelectedAudioLoading:
+                        selectedAudioKey == _loadingAudioKey,
+                    isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
+                    isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
                     onPickAudio: _pickAudioFile,
                     onRecordAudio: _toggleRecording,
+                    onPlaySelectedAudio: _selectedAudio == null
+                        ? null
+                        : _togglePendingAudioPlayback,
+                    onPlayStoredAudio: storedAudioKey == null
+                        ? null
+                        : () => _toggleStoredAudioPlayback(activity),
                     onPrimaryAction: () => _handlePrimaryAction(activity),
                   );
                 }
@@ -606,8 +759,14 @@ class _SubmissionPanel extends StatelessWidget {
     required this.isSubmitting,
     required this.isRecording,
     required this.selectedAudio,
+    required this.isSelectedAudioPlaying,
+    required this.isSelectedAudioLoading,
+    required this.isStoredAudioPlaying,
+    required this.isStoredAudioLoading,
     required this.onPickAudio,
     required this.onRecordAudio,
+    this.onPlaySelectedAudio,
+    this.onPlayStoredAudio,
     required this.onPrimaryAction,
   });
 
@@ -615,8 +774,14 @@ class _SubmissionPanel extends StatelessWidget {
   final bool isSubmitting;
   final bool isRecording;
   final _PendingAudioFile? selectedAudio;
+  final bool isSelectedAudioPlaying;
+  final bool isSelectedAudioLoading;
+  final bool isStoredAudioPlaying;
+  final bool isStoredAudioLoading;
   final VoidCallback onPickAudio;
   final VoidCallback onRecordAudio;
+  final VoidCallback? onPlaySelectedAudio;
+  final VoidCallback? onPlayStoredAudio;
   final VoidCallback onPrimaryAction;
 
   @override
@@ -634,6 +799,12 @@ class _SubmissionPanel extends StatelessWidget {
               : const Color(0xFF2563EB),
           selectedAudioLabel: selectedAudio?.name,
           existingAudioLabel: activity.submissionAudioName,
+          onPlaySelectedAudio: onPlaySelectedAudio,
+          onPlayStoredAudio: onPlayStoredAudio,
+          isSelectedAudioPlaying: isSelectedAudioPlaying,
+          isSelectedAudioLoading: isSelectedAudioLoading,
+          isStoredAudioPlaying: isStoredAudioPlaying,
+          isStoredAudioLoading: isStoredAudioLoading,
           onPickAudio: isRecording ? null : onPickAudio,
           onRecordAudio: onRecordAudio,
           recordActionLabel: isRecording ? '结束录音并保存' : '开始录音',
@@ -652,6 +823,9 @@ class _SubmissionPanel extends StatelessWidget {
           badgeLabel: '等待老师点评',
           badgeColor: const Color(0xFFF97316),
           existingAudioLabel: activity.submissionAudioName,
+          onPlayStoredAudio: onPlayStoredAudio,
+          isStoredAudioPlaying: isStoredAudioPlaying,
+          isStoredAudioLoading: isStoredAudioLoading,
         );
       case SubmissionFlowStatus.processing:
         return _MessagePanel(
@@ -660,6 +834,9 @@ class _SubmissionPanel extends StatelessWidget {
           badgeLabel: '评分处理中',
           badgeColor: const Color(0xFF7C3AED),
           existingAudioLabel: activity.submissionAudioName,
+          onPlayStoredAudio: onPlayStoredAudio,
+          isStoredAudioPlaying: isStoredAudioPlaying,
+          isStoredAudioLoading: isStoredAudioLoading,
         );
       case SubmissionFlowStatus.failed:
         return _MessagePanel(
@@ -673,6 +850,12 @@ class _SubmissionPanel extends StatelessWidget {
               : const Color(0xFFDC2626),
           selectedAudioLabel: selectedAudio?.name,
           existingAudioLabel: activity.submissionAudioName,
+          onPlaySelectedAudio: onPlaySelectedAudio,
+          onPlayStoredAudio: onPlayStoredAudio,
+          isSelectedAudioPlaying: isSelectedAudioPlaying,
+          isSelectedAudioLoading: isSelectedAudioLoading,
+          isStoredAudioPlaying: isStoredAudioPlaying,
+          isStoredAudioLoading: isStoredAudioLoading,
           onPickAudio: isRecording ? null : onPickAudio,
           onRecordAudio: onRecordAudio,
           recordActionLabel: isRecording ? '结束录音并保存' : '重新录音',
@@ -681,7 +864,12 @@ class _SubmissionPanel extends StatelessWidget {
           onAction: isSubmitting || isRecording ? null : onPrimaryAction,
         );
       case SubmissionFlowStatus.completed:
-        return _FeedbackPanel(activity: activity);
+        return _FeedbackPanel(
+          activity: activity,
+          isStoredAudioPlaying: isStoredAudioPlaying,
+          isStoredAudioLoading: isStoredAudioLoading,
+          onPlayStoredAudio: onPlayStoredAudio,
+        );
     }
   }
 }
@@ -692,6 +880,12 @@ class _MessagePanel extends StatelessWidget {
     required this.subtitle,
     required this.badgeLabel,
     required this.badgeColor,
+    this.onPlaySelectedAudio,
+    this.onPlayStoredAudio,
+    this.isSelectedAudioPlaying = false,
+    this.isSelectedAudioLoading = false,
+    this.isStoredAudioPlaying = false,
+    this.isStoredAudioLoading = false,
     this.selectedAudioLabel,
     this.existingAudioLabel,
     this.onPickAudio,
@@ -706,6 +900,12 @@ class _MessagePanel extends StatelessWidget {
   final String subtitle;
   final String badgeLabel;
   final Color badgeColor;
+  final VoidCallback? onPlaySelectedAudio;
+  final VoidCallback? onPlayStoredAudio;
+  final bool isSelectedAudioPlaying;
+  final bool isSelectedAudioLoading;
+  final bool isStoredAudioPlaying;
+  final bool isStoredAudioLoading;
   final String? selectedAudioLabel;
   final String? existingAudioLabel;
   final VoidCallback? onPickAudio;
@@ -762,12 +962,24 @@ class _MessagePanel extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (selectedAudioLabel != null ||
-                    existingAudioLabel != null) ...[
+                if (selectedAudioLabel != null) ...[
                   const SizedBox(height: 14),
                   _AudioInfoCard(
-                    title: selectedAudioLabel != null ? '准备提交的音频' : '已上传的音频',
-                    fileName: selectedAudioLabel ?? existingAudioLabel!,
+                    title: '准备提交的音频',
+                    fileName: selectedAudioLabel!,
+                    onAction: onPlaySelectedAudio,
+                    isPlaying: isSelectedAudioPlaying,
+                    isLoading: isSelectedAudioLoading,
+                  ),
+                ],
+                if (existingAudioLabel != null) ...[
+                  const SizedBox(height: 14),
+                  _AudioInfoCard(
+                    title: '已上传的音频',
+                    fileName: existingAudioLabel!,
+                    onAction: onPlayStoredAudio,
+                    isPlaying: isStoredAudioPlaying,
+                    isLoading: isStoredAudioLoading,
                   ),
                 ],
               ],
@@ -808,10 +1020,19 @@ class _MessagePanel extends StatelessWidget {
 }
 
 class _AudioInfoCard extends StatelessWidget {
-  const _AudioInfoCard({required this.title, required this.fileName});
+  const _AudioInfoCard({
+    required this.title,
+    required this.fileName,
+    this.onAction,
+    this.isPlaying = false,
+    this.isLoading = false,
+  });
 
   final String title;
   final String fileName;
+  final VoidCallback? onAction;
+  final bool isPlaying;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -846,6 +1067,24 @@ class _AudioInfoCard extends StatelessWidget {
               ),
             ],
           ),
+          if (onAction != null) ...[
+            const SizedBox(width: 14),
+            OutlinedButton.icon(
+              onPressed: onAction,
+              icon: isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      isPlaying
+                          ? Icons.stop_circle_rounded
+                          : Icons.play_circle_outline_rounded,
+                    ),
+              label: Text(isLoading ? '加载中' : (isPlaying ? '停止' : '播放')),
+            ),
+          ],
         ],
       ),
     );
@@ -853,9 +1092,17 @@ class _AudioInfoCard extends StatelessWidget {
 }
 
 class _FeedbackPanel extends StatelessWidget {
-  const _FeedbackPanel({required this.activity});
+  const _FeedbackPanel({
+    required this.activity,
+    this.onPlayStoredAudio,
+    this.isStoredAudioPlaying = false,
+    this.isStoredAudioLoading = false,
+  });
 
   final PortalActivity activity;
+  final VoidCallback? onPlayStoredAudio;
+  final bool isStoredAudioPlaying;
+  final bool isStoredAudioLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -926,6 +1173,16 @@ class _FeedbackPanel extends StatelessWidget {
                 color: const Color(0xFF64748B),
                 fontWeight: FontWeight.w700,
               ),
+            ),
+          ],
+          if ((activity.submissionAudioName ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 18),
+            _AudioInfoCard(
+              title: '本次提交的音频',
+              fileName: activity.submissionAudioName!,
+              onAction: onPlayStoredAudio,
+              isPlaying: isStoredAudioPlaying,
+              isLoading: isStoredAudioLoading,
             ),
           ],
           if (activity.strengths.isNotEmpty ||
@@ -1484,10 +1741,28 @@ class _PendingAudioFile {
     required this.bytes,
     required this.sizeBytes,
     required this.mimeType,
+    this.localPath,
   });
 
   final String name;
   final Uint8List bytes;
   final int sizeBytes;
   final String mimeType;
+  final String? localPath;
+}
+
+String _pendingAudioKey(_PendingAudioFile audio) {
+  return 'pending:${audio.name}:${audio.sizeBytes}';
+}
+
+String _storedAudioKey(String storagePath) {
+  return 'stored:$storagePath';
+}
+
+String? _fileExtension(String fileName) {
+  final index = fileName.lastIndexOf('.');
+  if (index == -1 || index == fileName.length - 1) {
+    return null;
+  }
+  return fileName.substring(index + 1).toLowerCase();
 }

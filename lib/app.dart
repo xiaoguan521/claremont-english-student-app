@@ -23,7 +23,7 @@ class App extends ConsumerWidget {
       child: SchoolLinkListener(
         router: router,
         child: MaterialApp.router(
-          title: '克莱蒙英语',
+          title: '英语打卡',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme(
             ColorScheme.fromSeed(

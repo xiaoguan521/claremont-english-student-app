@@ -35,27 +35,51 @@ class ActivitiesPage extends ConsumerWidget {
     } else {
       final activities =
           activitiesAsync.valueOrNull ?? const <PortalActivity>[];
-      content = Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 248, child: _ActionRail(summaryAsync: summaryAsync)),
-          const SizedBox(width: 20),
-          Expanded(
-            child: activities.isEmpty
-                ? const _ActivitiesStateMessage(
-                    title: '还没有新的作业',
-                    message: '老师发布新的英语任务后，这里会马上出现。',
-                  )
-                : ListView.separated(
-                    itemCount: activities.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 18),
-                    itemBuilder: (context, index) {
-                      final activity = activities[index];
-                      return _ActivityRow(activity: activity);
-                    },
-                  ),
-          ),
-        ],
+      content = LayoutBuilder(
+        builder: (context, constraints) {
+          final isPhone = constraints.maxWidth < 760;
+          final list = activities.isEmpty
+              ? const _ActivitiesStateMessage(
+                  title: '还没有新的作业',
+                  message: '老师发布新的英语任务后，这里会马上出现。',
+                )
+              : ListView.separated(
+                  shrinkWrap: isPhone,
+                  physics: isPhone
+                      ? const NeverScrollableScrollPhysics()
+                      : const AlwaysScrollableScrollPhysics(),
+                  itemCount: activities.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 18),
+                  itemBuilder: (context, index) {
+                    final activity = activities[index];
+                    return _ActivityRow(activity: activity);
+                  },
+                );
+
+          if (isPhone) {
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  _ActionRail(summaryAsync: summaryAsync, isCompact: true),
+                  const SizedBox(height: 16),
+                  list,
+                ],
+              ),
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 248,
+                child: _ActionRail(summaryAsync: summaryAsync),
+              ),
+              const SizedBox(width: 20),
+              Expanded(child: list),
+            ],
+          );
+        },
       );
     }
 
@@ -87,9 +111,10 @@ class ActivitiesPage extends ConsumerWidget {
 }
 
 class _ActionRail extends StatelessWidget {
-  const _ActionRail({required this.summaryAsync});
+  const _ActionRail({required this.summaryAsync, this.isCompact = false});
 
   final AsyncValue<PortalSummary> summaryAsync;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +130,7 @@ class _ActionRail extends StatelessWidget {
         : '${summary.completedActivities} 份已完成';
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(isCompact ? 14 : 18),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.82),
         borderRadius: BorderRadius.circular(28),
@@ -117,25 +142,25 @@ class _ActionRail extends StatelessWidget {
             label: '今日作业',
             value: taskLabel,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: isCompact ? 10 : 14),
           _RailAction(
             icon: Icons.pending_actions_outlined,
             label: '待完成',
             value: pendingLabel,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: isCompact ? 10 : 14),
           _RailAction(
             icon: Icons.workspace_premium_outlined,
             label: '已完成',
             value: completedLabel,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: isCompact ? 10 : 14),
           const _PromoTile(
             title: '学习提醒',
             subtitle: '优先完成等待老师查看的任务',
             colors: [Color(0xFF1FB5FF), Color(0xFF5B8BFF)],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: isCompact ? 10 : 14),
           const _PromoTile(
             title: '老师反馈',
             subtitle: '完成后记得回来查看点评',

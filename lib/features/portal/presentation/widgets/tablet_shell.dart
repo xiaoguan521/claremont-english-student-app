@@ -39,23 +39,37 @@ class TabletShell extends StatelessWidget {
           children: [
             const _BackgroundDecor(),
             SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(28, 22, 28, 18),
-                child: Column(
-                  children: [
-                    _TopBar(
-                      title: title,
-                      subtitle: subtitle,
-                      brandName: brandName,
-                      brandSubtitle: brandSubtitle,
-                      actions: actions,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isCompact = constraints.maxWidth < 640;
+                  return Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      isCompact ? 16 : 28,
+                      isCompact ? 14 : 22,
+                      isCompact ? 16 : 28,
+                      isCompact ? 14 : 18,
                     ),
-                    const SizedBox(height: 20),
-                    Expanded(child: child),
-                    const SizedBox(height: 18),
-                    _BottomSectionNav(activeSection: activeSection),
-                  ],
-                ),
+                    child: Column(
+                      children: [
+                        _TopBar(
+                          title: title,
+                          subtitle: subtitle,
+                          brandName: brandName,
+                          brandSubtitle: brandSubtitle,
+                          actions: actions,
+                          isCompact: isCompact,
+                        ),
+                        SizedBox(height: isCompact ? 14 : 20),
+                        Expanded(child: child),
+                        SizedBox(height: isCompact ? 12 : 18),
+                        _BottomSectionNav(
+                          activeSection: activeSection,
+                          isCompact: isCompact,
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -71,6 +85,7 @@ class _TopBar extends StatelessWidget {
   final String brandName;
   final String? brandSubtitle;
   final List<Widget>? actions;
+  final bool isCompact;
 
   const _TopBar({
     required this.title,
@@ -78,78 +93,114 @@ class _TopBar extends StatelessWidget {
     this.subtitle,
     this.brandSubtitle,
     this.actions,
+    required this.isCompact,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.auto_stories_rounded,
-                  color: Color(0xFF309A7A),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    brandName,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  if (brandSubtitle != null)
-                    Text(
-                      brandSubtitle!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 18),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+    final brandChip = Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 12 : 16,
+        vertical: isCompact ? 10 : 12,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: isCompact ? 40 : 42,
+            height: isCompact ? 40 : 42,
+            decoration: BoxDecoration(
               color: Colors.white,
-              fontWeight: FontWeight.w900,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.auto_stories_rounded,
+              color: Color(0xFF309A7A),
             ),
           ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  brandName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: isCompact ? 16 : null,
+                  ),
+                ),
+                if (brandSubtitle != null)
+                  Text(
+                    brandSubtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final titleChip = Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 14 : 18,
+        vertical: isCompact ? 12 : 14,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
+          fontSize: isCompact ? 18 : null,
         ),
+      ),
+    );
+
+    if (isCompact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          brandChip,
+          if ((actions?.isNotEmpty ?? false)) ...[
+            const SizedBox(height: 10),
+            Wrap(spacing: 10, runSpacing: 10, children: actions!),
+          ],
+          const SizedBox(height: 10),
+          titleChip,
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        brandChip,
+        const SizedBox(width: 18),
+        titleChip,
         const Spacer(),
         ...?actions,
       ],
@@ -159,15 +210,22 @@ class _TopBar extends StatelessWidget {
 
 class _BottomSectionNav extends StatelessWidget {
   final TabletSection activeSection;
+  final bool isCompact;
 
-  const _BottomSectionNav({required this.activeSection});
+  const _BottomSectionNav({
+    required this.activeSection,
+    required this.isCompact,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 560),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 12 : 18,
+          vertical: isCompact ? 10 : 12,
+        ),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.86),
           borderRadius: BorderRadius.circular(36),
@@ -188,14 +246,14 @@ class _BottomSectionNav extends StatelessWidget {
               selected: activeSection == TabletSection.teaching,
               onTap: () => context.go('/activities'),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: isCompact ? 8 : 12),
             _NavChip(
               label: '首页',
               icon: Icons.dashboard_customize_rounded,
               selected: activeSection == TabletSection.management,
               onTap: () => context.go('/home'),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: isCompact ? 8 : 12),
             _NavChip(
               label: '我的',
               icon: Icons.extension_rounded,
@@ -224,13 +282,17 @@ class _NavChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 640;
     return Expanded(
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(24),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 10 : 16,
+            vertical: isCompact ? 10 : 12,
+          ),
           decoration: BoxDecoration(
             color: selected ? const Color(0xFF2F67F6) : Colors.transparent,
             borderRadius: BorderRadius.circular(24),
@@ -240,15 +302,16 @@ class _NavChip extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                size: 20,
+                size: isCompact ? 18 : 20,
                 color: selected ? Colors.white : const Color(0xFF6B7280),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: isCompact ? 6 : 8),
               Text(
                 label,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: selected ? Colors.white : const Color(0xFF475569),
                   fontWeight: FontWeight.w800,
+                  fontSize: isCompact ? 14 : null,
                 ),
               ),
             ],

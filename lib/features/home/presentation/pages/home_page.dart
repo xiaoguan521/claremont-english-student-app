@@ -40,9 +40,20 @@ class HomePage extends ConsumerWidget {
       } else {
         child = LayoutBuilder(
           builder: (context, constraints) {
+            final isPhone = constraints.maxWidth < 700;
             final isWide = constraints.maxWidth >= 1160;
             final content = isWide
                 ? _WideHomeLayout(
+                    schoolContext: schoolContext,
+                    currentUserEmail: currentUserEmail,
+                    highlightedActivityId: highlightedActivity.id,
+                    highlightedActivityTitle: highlightedActivity.title,
+                    highlightedClassName: highlightedActivity.className,
+                    highlightedDateLabel: highlightedActivity.dateLabel,
+                    summary: summary,
+                  )
+                : isPhone
+                ? _PhoneHomeLayout(
                     schoolContext: schoolContext,
                     currentUserEmail: currentUserEmail,
                     highlightedActivityId: highlightedActivity.id,
@@ -84,6 +95,52 @@ class HomePage extends ConsumerWidget {
         _ActionPill(icon: Icons.account_circle_rounded, label: '我的'),
       ],
       child: child,
+    );
+  }
+}
+
+class _PhoneHomeLayout extends StatelessWidget {
+  const _PhoneHomeLayout({
+    required this.schoolContext,
+    required this.currentUserEmail,
+    required this.highlightedActivityId,
+    required this.highlightedActivityTitle,
+    required this.highlightedClassName,
+    required this.highlightedDateLabel,
+    required this.summary,
+  });
+
+  final SchoolContext schoolContext;
+  final String? currentUserEmail;
+  final String highlightedActivityId;
+  final String highlightedActivityTitle;
+  final String highlightedClassName;
+  final String highlightedDateLabel;
+  final PortalSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _HeroCard(
+          schoolContext: schoolContext,
+          currentUserEmail: currentUserEmail,
+          highlightedActivityId: highlightedActivityId,
+          highlightedActivityTitle: highlightedActivityTitle,
+          highlightedClassName: highlightedClassName,
+          highlightedDateLabel: highlightedDateLabel,
+          summary: summary,
+          isCompact: true,
+        ),
+        const SizedBox(height: 16),
+        _SummaryGrid(summary: summary, isCompact: true),
+        const SizedBox(height: 16),
+        _QuickActionsColumn(activityId: highlightedActivityId),
+        const SizedBox(height: 16),
+        _FeedbackPanel(summary: summary, isCompact: true),
+        const SizedBox(height: 16),
+        _SchoolPanel(schoolContext: schoolContext, isCompact: true),
+      ],
     );
   }
 }
@@ -236,6 +293,7 @@ class _HeroCard extends StatelessWidget {
     required this.highlightedClassName,
     required this.highlightedDateLabel,
     required this.summary,
+    this.isCompact = false,
   });
 
   final SchoolContext schoolContext;
@@ -245,6 +303,7 @@ class _HeroCard extends StatelessWidget {
   final String highlightedClassName;
   final String highlightedDateLabel;
   final PortalSummary summary;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
@@ -265,15 +324,13 @@ class _HeroCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      child: isCompact
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   schoolContext.welcomeTitle,
-                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
                   ),
@@ -306,7 +363,9 @@ class _HeroCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 22),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
                   children: [
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
@@ -338,49 +397,151 @@ class _HeroCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                _AccountPanel(
+                  currentUserEmail: currentUserEmail,
+                  summary: summary,
+                  isCompact: true,
+                ),
               ],
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        schoolContext.welcomeTitle,
+                        style: Theme.of(context).textTheme.displaySmall
+                            ?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '今天优先完成 $highlightedActivityTitle，完成后就能看到老师的新反馈。',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.92),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      const SizedBox(height: 22),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _HeroBadge(
+                            icon: Icons.groups_rounded,
+                            label: highlightedClassName,
+                          ),
+                          _HeroBadge(
+                            icon: Icons.calendar_today_rounded,
+                            label: highlightedDateLabel,
+                          ),
+                          _HeroBadge(
+                            icon: Icons.pending_actions_rounded,
+                            label: '待完成 ${summary.pendingTasks} 项',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: schoolContext.primaryColor,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 22,
+                                vertical: 16,
+                              ),
+                            ),
+                            onPressed: () => context.go(
+                              '/activities/$highlightedActivityId',
+                            ),
+                            icon: const Icon(Icons.play_circle_fill_rounded),
+                            label: const Text('开始学习'),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.white70),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 16,
+                              ),
+                            ),
+                            onPressed: () => context.go('/activities'),
+                            icon: const Icon(Icons.menu_book_rounded),
+                            label: const Text('查看全部作业'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 22),
+                _AccountPanel(
+                  currentUserEmail: currentUserEmail,
+                  summary: summary,
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _AccountPanel extends StatelessWidget {
+  const _AccountPanel({
+    required this.currentUserEmail,
+    required this.summary,
+    this.isCompact = false,
+  });
+
+  final String? currentUserEmail;
+  final PortalSummary summary;
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: isCompact ? double.infinity : 220,
+      height: isCompact ? null : 240,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '我的账号',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(width: 22),
-          Container(
-            width: 220,
-            height: 240,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+          const SizedBox(height: 12),
+          Text(
+            currentUserEmail ?? '还没有绑定账号信息',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: Colors.white.withValues(alpha: 0.94),
+              fontWeight: FontWeight.w700,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '我的账号',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  currentUserEmail ?? '还没有绑定账号信息',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.94),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                _MiniMetric(
-                  label: '本周已完成',
-                  value: '${summary.completedActivities}',
-                ),
-                const SizedBox(height: 12),
-                _MiniMetric(
-                  label: '进行中的作业',
-                  value: '${summary.inProgressActivities}',
-                ),
-              ],
-            ),
+          ),
+          SizedBox(height: isCompact ? 18 : 0),
+          if (!isCompact) const Spacer(),
+          _MiniMetric(label: '本周已完成', value: '${summary.completedActivities}'),
+          const SizedBox(height: 12),
+          _MiniMetric(
+            label: '进行中的作业',
+            value: '${summary.inProgressActivities}',
           ),
         ],
       ),
@@ -459,9 +620,10 @@ class _MiniMetric extends StatelessWidget {
 }
 
 class _SummaryGrid extends StatelessWidget {
-  const _SummaryGrid({required this.summary});
+  const _SummaryGrid({required this.summary, this.isCompact = false});
 
   final PortalSummary summary;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
@@ -469,9 +631,9 @@ class _SummaryGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.38,
+      crossAxisSpacing: isCompact ? 12 : 16,
+      mainAxisSpacing: isCompact ? 12 : 16,
+      childAspectRatio: isCompact ? 1.05 : 1.38,
       children: [
         _SummaryCard(
           title: '今日任务',
@@ -616,6 +778,43 @@ class _QuickActionsRow extends StatelessWidget {
   }
 }
 
+class _QuickActionsColumn extends StatelessWidget {
+  const _QuickActionsColumn({required this.activityId});
+
+  final String activityId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _QuickActionCard(
+          title: '今日任务',
+          subtitle: '去继续完成今天的学习安排',
+          accent: const Color(0xFF73B7FF),
+          icon: Icons.fact_check_rounded,
+          onTap: () => context.go('/activities'),
+        ),
+        const SizedBox(height: 12),
+        _QuickActionCard(
+          title: '老师反馈',
+          subtitle: '完成后可以在这里看点评',
+          accent: const Color(0xFF8B5CF6),
+          icon: Icons.rate_review_rounded,
+          onTap: () => context.go('/activities/$activityId'),
+        ),
+        const SizedBox(height: 12),
+        _QuickActionCard(
+          title: '我的练习',
+          subtitle: '去看看还可以学习什么内容',
+          accent: const Color(0xFF31B08D),
+          icon: Icons.explore_rounded,
+          onTap: () => context.go('/explore'),
+        ),
+      ],
+    );
+  }
+}
+
 class _QuickActionCard extends StatelessWidget {
   const _QuickActionCard({
     required this.title,
@@ -684,15 +883,16 @@ class _QuickActionCard extends StatelessWidget {
 }
 
 class _FeedbackPanel extends StatelessWidget {
-  const _FeedbackPanel({required this.summary});
+  const _FeedbackPanel({required this.summary, this.isCompact = false});
 
   final PortalSummary summary;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isCompact ? 20 : 24),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(30),
@@ -778,15 +978,16 @@ class _FeedbackLine extends StatelessWidget {
 }
 
 class _SchoolPanel extends StatelessWidget {
-  const _SchoolPanel({required this.schoolContext});
+  const _SchoolPanel({required this.schoolContext, this.isCompact = false});
 
   final SchoolContext schoolContext;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isCompact ? 20 : 24),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(30),

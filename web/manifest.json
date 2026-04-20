@@ -1,11 +1,11 @@
 {
-    "name": "克莱蒙英语",
-    "short_name": "克莱蒙英语",
+    "name": "英语打卡",
+    "short_name": "英语打卡",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "克莱蒙英语学生端应用。",
+    "description": "英语打卡学生端应用。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

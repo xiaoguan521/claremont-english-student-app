@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
-        android:label="克莱蒙英语"
+        android:label="英语打卡"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

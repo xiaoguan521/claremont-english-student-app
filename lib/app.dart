@@ -5,6 +5,7 @@ import 'core/router/app_router.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/locale_provider.dart';
 import 'core/theme/app_theme.dart';
+import 'features/school/presentation/widgets/school_link_listener.dart';
 import 'shared/widgets/error/error_boundary.dart';
 import 'l10n/app_localizations.dart';
 
@@ -19,31 +20,34 @@ class App extends ConsumerWidget {
 
     return ErrorBoundary(
       isRootErrorBoundary: true,
-      child: MaterialApp.router(
-        title: '克莱蒙英语',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme(
-          ColorScheme.fromSeed(
-            seedColor: themeState.colorSeed.color,
-            brightness: Brightness.light,
+      child: SchoolLinkListener(
+        router: router,
+        child: MaterialApp.router(
+          title: '克莱蒙英语',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme(
+            ColorScheme.fromSeed(
+              seedColor: themeState.colorSeed.color,
+              brightness: Brightness.light,
+            ),
           ),
-        ),
-        darkTheme: AppTheme.darkTheme(
-          ColorScheme.fromSeed(
-            seedColor: themeState.colorSeed.color,
-            brightness: Brightness.dark,
+          darkTheme: AppTheme.darkTheme(
+            ColorScheme.fromSeed(
+              seedColor: themeState.colorSeed.color,
+              brightness: Brightness.dark,
+            ),
           ),
+          themeMode: themeState.themeMode,
+          locale: locale,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: SupportedLocales.locales,
+          routerConfig: router,
         ),
-        themeMode: themeState.themeMode,
-        locale: locale,
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: SupportedLocales.locales,
-        routerConfig: router,
       ),
     );
   }

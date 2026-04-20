@@ -1,0 +1,22 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": [
+          "2UU8567F7P.com.claremont.english"
+        ],
+        "components": [
+          {
+            "/": "/s/*",
+            "comment": "School-specific student entry"
+          },
+          {
+            "/": "/school/*",
+            "comment": "Legacy school path fallback"
+          }
+        ]
+      }
+    ]
+  }
+}

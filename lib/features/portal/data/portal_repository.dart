@@ -452,8 +452,8 @@ class SupabasePortalRepository implements PortalRepository {
       }
 
       return const AiReviewDispatchResult(
-        status: AiReviewDispatchStatus.processing,
-        message: '录音已经提交，AI 初评正在处理中。',
+        status: AiReviewDispatchStatus.queued,
+        message: '录音已经提交，AI 初评已进入后台队列。',
       );
     } catch (error) {
       final failureNow = DateTime.now().toUtc().toIso8601String();

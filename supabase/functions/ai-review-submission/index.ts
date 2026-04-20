@@ -1,5 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
+declare const EdgeRuntime:
+  | {
+      waitUntil?: (promise: Promise<unknown>) => void
+    }
+  | undefined
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -716,6 +722,87 @@ async function markJobFailed(options: {
     .eq('id', options.submissionId)
 }
 
+async function queueSubmissionReview(options: {
+  adminClient: ReturnType<typeof createClient>
+  schoolConfig: SchoolAiConfigRecord
+  submission: SubmissionRecord
+  assignment: AssignmentRecord
+  existingJob: EvaluationJobRecord | null
+  requestedBy: string
+}) {
+  const existingStatus = options.existingJob?.status ?? null
+  if (existingStatus === 'processing') {
+    return {
+      queued: false,
+      status: 'processing',
+      message: 'AI 初评已经在处理中，请稍后刷新查看结果。',
+      job: options.existingJob,
+    } as const
+  }
+
+  if (existingStatus === 'pending' || existingStatus === 'retrying') {
+    return {
+      queued: false,
+      status: 'queued',
+      message: 'AI 初评已经在队列中了，请稍后刷新查看结果。',
+      job: options.existingJob,
+    } as const
+  }
+
+  const now = new Date().toISOString()
+  const provider = `ai-review:${options.schoolConfig.provider_type}:${options.schoolConfig.model}`
+  const nextStatus = existingStatus === 'failed' ? 'retrying' : 'pending'
+
+  const { data: queuedJob, error: queueError } = await options.adminClient
+    .from('evaluation_jobs')
+    .upsert(
+      {
+        submission_id: options.submission.id,
+        provider,
+        status: nextStatus,
+        last_error: null,
+        request_payload: {
+          schoolId: options.assignment.school_id,
+          assignmentId: options.assignment.id,
+          requestedBy: options.requestedBy,
+          model: options.schoolConfig.model,
+          baseUrl: options.schoolConfig.base_url,
+          dispatchMode: 'background',
+          queuedAt: now,
+        },
+        requested_at: options.existingJob ? undefined : now,
+        started_at: null,
+        completed_at: null,
+        updated_at: now,
+      },
+      { onConflict: 'submission_id' },
+    )
+    .select('id, submission_id, attempt_count, status')
+    .single()
+
+  if (queueError || !queuedJob) {
+    throw new Error(queueError?.message ?? 'Unable to queue evaluation job.')
+  }
+
+  await options.adminClient
+    .from('submissions')
+    .update({
+      status: 'queued',
+      updated_at: now,
+    })
+    .eq('id', options.submission.id)
+
+  return {
+    queued: true,
+    status: 'queued',
+    message:
+      existingStatus === 'failed'
+        ? 'AI 初评已重新入队，系统会在后台自动重试。'
+        : '录音已经收到，AI 初评已进入后台队列。',
+    job: queuedJob as EvaluationJobRecord,
+  } as const
+}
+
 async function processSubmissionReview(options: {
   adminClient: ReturnType<typeof createClient>
   schoolConfig: SchoolAiConfigRecord
@@ -871,6 +958,15 @@ async function processSubmissionReview(options: {
       message: `AI 初评失败：${message}`,
     }
   }
+}
+
+function runBackgroundTask(task: Promise<unknown>) {
+  if (EdgeRuntime?.waitUntil) {
+    EdgeRuntime.waitUntil(task)
+    return
+  }
+
+  void task
 }
 
 Deno.serve(async (req) => {
@@ -1092,19 +1188,52 @@ Deno.serve(async (req) => {
       return json({ error: existingJobError.message }, 400)
     }
 
-    const reviewResponse = await processSubmissionReview({
+    const queueResult = await queueSubmissionReview({
       adminClient,
       schoolConfig,
-      encryptionSecret,
       submission,
       assignment: assignment as AssignmentRecord,
-      items: ((items ?? []) as AssignmentItemRecord[]),
-      audioAsset: audioAsset as SubmissionAudioAsset,
       existingJob: (existingJob as EvaluationJobRecord | null) ?? null,
       requestedBy: user.id,
     })
 
-    return json(reviewResponse)
+    if (!queueResult.queued) {
+      return json({
+        status: queueResult.status,
+        message: queueResult.message,
+      })
+    }
+
+    runBackgroundTask(
+      processSubmissionReview({
+        adminClient,
+        schoolConfig,
+        encryptionSecret,
+        submission,
+        assignment: assignment as AssignmentRecord,
+        items: ((items ?? []) as AssignmentItemRecord[]),
+        audioAsset: audioAsset as SubmissionAudioAsset,
+        existingJob: queueResult.job,
+        requestedBy: user.id,
+      }).catch(async (error) => {
+        const message =
+          error instanceof Error ? error.message : 'Unexpected background AI review error.'
+        console.error('background ai-review-submission failed', error)
+        if (queueResult.job?.id) {
+          await markJobFailed({
+            adminClient,
+            jobId: queueResult.job.id,
+            submissionId: submission.id,
+            error: message,
+          })
+        }
+      }),
+    )
+
+    return json({
+      status: queueResult.status,
+      message: queueResult.message,
+    })
   } catch (error) {
     console.error('ai-review-submission failed', error)
     return json(

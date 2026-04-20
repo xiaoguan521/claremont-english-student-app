@@ -29,6 +29,7 @@ type RetryFailedPayload = {
   action: 'retry_failed_reviews'
   schoolId: string
   assignmentId?: string
+  submissionIds?: string[]
   runNow?: boolean
   batchSize?: number
 }
@@ -187,51 +188,81 @@ Deno.serve(async (req) => {
       }
     }
 
-    const assignmentQuery = adminClient
-      .from('assignments')
-      .select('id')
-      .eq('school_id', payload.schoolId)
+    let submissionIds: string[] = []
+    const requestedSubmissionIds = Array.isArray(payload.submissionIds)
+      ? payload.submissionIds
+          .map((item) => (typeof item === 'string' ? item.trim() : ''))
+          .filter((item): item is string => item.length > 0)
+      : []
 
-    if (payload.assignmentId?.trim()) {
-      assignmentQuery.eq('id', payload.assignmentId)
+    if (requestedSubmissionIds.length > 0) {
+      const { data: scopedSubmissions, error: scopedSubmissionsError } = await adminClient
+        .from('submissions')
+        .select('id, assignment_id, assignments!inner(school_id)')
+        .in('id', requestedSubmissionIds)
+
+      if (scopedSubmissionsError) {
+        return json({ error: scopedSubmissionsError.message }, 400)
+      }
+
+      submissionIds = (scopedSubmissions ?? [])
+        .filter((item) => {
+          const assignment = (item as { assignments?: { school_id?: string | null } | null })
+            .assignments
+          return assignment?.school_id === payload.schoolId
+        })
+        .map((item) => (item as { id?: string | null }).id)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    } else {
+      const assignmentQuery = adminClient
+        .from('assignments')
+        .select('id')
+        .eq('school_id', payload.schoolId)
+
+      if (payload.assignmentId?.trim()) {
+        assignmentQuery.eq('id', payload.assignmentId)
+      }
+
+      const { data: assignmentRows, error: assignmentRowsError } = await assignmentQuery
+
+      if (assignmentRowsError) {
+        return json({ error: assignmentRowsError.message }, 400)
+      }
+
+      const assignmentIds = (assignmentRows ?? [])
+        .map((item) => (item as { id?: string | null }).id)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+
+      if (assignmentIds.length === 0) {
+        return json({
+          status: 'idle',
+          retriedCount: 0,
+          message: '当前范围内没有可重新排队的作业。',
+        })
+      }
+
+      const { data: submissionRows, error: submissionRowsError } = await adminClient
+        .from('submissions')
+        .select('id')
+        .in('assignment_id', assignmentIds)
+
+      if (submissionRowsError) {
+        return json({ error: submissionRowsError.message }, 400)
+      }
+
+      submissionIds = (submissionRows ?? [])
+        .map((item) => (item as { id?: string | null }).id)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
     }
-
-    const { data: assignmentRows, error: assignmentRowsError } = await assignmentQuery
-
-    if (assignmentRowsError) {
-      return json({ error: assignmentRowsError.message }, 400)
-    }
-
-    const assignmentIds = (assignmentRows ?? [])
-      .map((item) => (item as { id?: string | null }).id)
-      .filter((value): value is string => typeof value === 'string' && value.length > 0)
-
-    if (assignmentIds.length === 0) {
-      return json({
-        status: 'idle',
-        retriedCount: 0,
-        message: '当前范围内没有可重新排队的作业。',
-      })
-    }
-
-    const { data: submissionRows, error: submissionRowsError } = await adminClient
-      .from('submissions')
-      .select('id')
-      .in('assignment_id', assignmentIds)
-
-    if (submissionRowsError) {
-      return json({ error: submissionRowsError.message }, 400)
-    }
-
-    const submissionIds = (submissionRows ?? [])
-      .map((item) => (item as { id?: string | null }).id)
-      .filter((value): value is string => typeof value === 'string' && value.length > 0)
 
     if (submissionIds.length === 0) {
       return json({
         status: 'idle',
         retriedCount: 0,
-        message: '当前范围内还没有学生提交，不需要重排 AI 初评。',
+        message:
+          requestedSubmissionIds.length > 0
+            ? '当前选择的失败提交不在这个校区范围内，无法重新处理。'
+            : '当前范围内还没有学生提交，不需要重排 AI 初评。',
       })
     }
 

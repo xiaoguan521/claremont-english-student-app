@@ -108,6 +108,16 @@ function decodeBase64(value: string) {
   return Uint8Array.from(atob(value), (char) => char.charCodeAt(0))
 }
 
+function encodeBase64(bytes: Uint8Array) {
+  let result = ''
+  const chunkSize = 0x8000
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const slice = bytes.subarray(index, index + chunkSize)
+    result += String.fromCharCode(...slice)
+  }
+  return btoa(result)
+}
+
 async function deriveEncryptionKey(secret: string) {
   const secretBytes = new TextEncoder().encode(secret)
   const digest = await crypto.subtle.digest('SHA-256', secretBytes)
@@ -293,6 +303,27 @@ function extractMessageText(content: unknown): string {
   return ''
 }
 
+function extractReasoningText(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object' && 'text' in item) {
+          return typeof item.text === 'string' ? item.text : ''
+        }
+        return ''
+      })
+      .join('\n')
+      .trim()
+  }
+
+  return ''
+}
+
 function parseJsonFromText(content: string) {
   const trimmed = content.trim()
   if (!trimmed) {
@@ -372,6 +403,10 @@ async function transcribeAudio(options: {
     .filter((item) => item !== '')
 
   const errors: string[] = []
+  const authHeaders = options.apiKey
+    ? { Authorization: `Bearer ${options.apiKey}` }
+    : {}
+
   for (const model of transcriptionModels) {
     const formData = new FormData()
     formData.append('model', model)
@@ -379,9 +414,7 @@ async function transcribeAudio(options: {
 
     const response = await fetch(`${options.baseUrl}/audio/transcriptions`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${options.apiKey}`,
-      },
+      headers: authHeaders,
       body: formData,
       signal: AbortSignal.timeout(45000),
     })
@@ -411,6 +444,84 @@ async function transcribeAudio(options: {
     }
   }
 
+  const audioChatModels = (Deno.env.get('AI_AUDIO_CHAT_TRANSCRIPTION_MODELS') ??
+    'mimo-v2-omni')
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item !== '')
+
+  if (audioChatModels.length > 0) {
+    const audioBuffer = await options.audioBlob.arrayBuffer()
+    const audioBase64 = encodeBase64(new Uint8Array(audioBuffer))
+    const format = options.mimeType.includes('wav')
+      ? 'wav'
+      : options.mimeType.includes('aac')
+        ? 'aac'
+        : options.mimeType.includes('webm')
+          ? 'webm'
+          : options.mimeType.includes('ogg')
+            ? 'ogg'
+            : options.mimeType.includes('mp4') || options.mimeType.includes('m4a')
+              ? 'mp4'
+              : 'mp3'
+
+    for (const model of audioChatModels) {
+      const response = await fetch(`${options.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          ...authHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: '请把这段英文音频转写成纯文本，只返回转写内容，不要解释。',
+                },
+                {
+                  type: 'input_audio',
+                  input_audio: {
+                    data: audioBase64,
+                    format,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(45000),
+      })
+
+      if (!response.ok) {
+        errors.push(`${model}: ${response.status} ${await response.text()}`)
+        continue
+      }
+
+      const data = (await response.json()) as Record<string, unknown>
+      const choices = Array.isArray(data.choices) ? data.choices : []
+      const firstChoice = choices[0] as Record<string, unknown> | undefined
+      const message = (firstChoice?.message as Record<string, unknown> | undefined) ?? {}
+      const transcript =
+        extractMessageText(message.content) ||
+        extractReasoningText(message.reasoning_content)
+
+      if (!transcript) {
+        errors.push(`${model}: empty transcript`)
+        continue
+      }
+
+      return {
+        transcript,
+        transcriptionModel: `${model}:audio-chat`,
+        transcriptionRaw: data,
+      }
+    }
+  }
+
   throw new Error(`Audio transcription failed. ${errors.join(' | ')}`)
 }
 
@@ -432,8 +543,12 @@ async function generateReviewNarrative(options: {
   const response = await fetch(`${options.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${options.apiKey}`,
       'Content-Type': 'application/json',
+      ...(options.apiKey
+        ? {
+            Authorization: `Bearer ${options.apiKey}`,
+          }
+        : {}),
     },
     body: JSON.stringify({
       model: options.model,
@@ -472,7 +587,9 @@ async function generateReviewNarrative(options: {
   const choices = Array.isArray(data.choices) ? data.choices : []
   const firstChoice = choices[0] as Record<string, unknown> | undefined
   const message = (firstChoice?.message as Record<string, unknown> | undefined) ?? {}
-  const content = extractMessageText(message.content)
+  const content =
+    extractMessageText(message.content) ||
+    extractReasoningText(message.reasoning_content)
   const parsed = parseJsonFromText(content)
 
   return {

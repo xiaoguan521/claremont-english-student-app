@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -236,6 +237,29 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return;
     }
 
+    final schoolContext = ref.read(schoolContextProvider).valueOrNull;
+    final schoolId = schoolContext?.schoolId;
+    if (schoolId != null && schoolId.trim().isNotEmpty) {
+      try {
+        await _toggleAudioPlayback(
+          audioKey: _generatedSampleAudioKey(task.id, schoolId, text),
+          resolvePath: () => _resolveGeneratedSampleAudioPath(
+            schoolId: schoolId,
+            taskId: task.id,
+            text: text,
+          ),
+          rethrowOnError: true,
+        );
+        return;
+      } catch (_) {
+        _showMessage('远程语音暂时没有生成成功，先用本地示范语音继续学习。');
+      }
+    }
+
+    await _speakSampleLocally(task, text);
+  }
+
+  Future<void> _speakSampleLocally(PortalTask task, String text) async {
     await _audioPlayer.stop();
     if (mounted) {
       setState(() {
@@ -273,6 +297,51 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       });
       _showMessage('示范朗读暂时没有播放成功，请稍后重试。');
     }
+  }
+
+  Future<String> _resolveGeneratedSampleAudioPath({
+    required String schoolId,
+    required String taskId,
+    required String text,
+  }) async {
+    final cacheKey = _generatedSampleAudioKey(taskId, schoolId, text);
+    final cachedPath = _storedAudioCache[cacheKey];
+    if (cachedPath != null && await File(cachedPath).exists()) {
+      return cachedPath;
+    }
+
+    final response = await Supabase.instance.client.functions.invoke(
+      'generate-speech-sample',
+      body: {'schoolId': schoolId, 'text': text},
+    );
+
+    if (response.status != 200) {
+      final data = response.data;
+      final message = data is Map<String, dynamic>
+          ? (data['error'] as String?) ?? '语音生成失败'
+          : '语音生成失败';
+      throw Exception(message);
+    }
+
+    final data = response.data;
+    if (data is! Map) {
+      throw Exception('语音服务返回格式不正确');
+    }
+
+    final audioBase64 = data['audioBase64'] as String?;
+    final mimeType = data['mimeType'] as String? ?? 'audio/mpeg';
+    if (audioBase64 == null || audioBase64.isEmpty) {
+      throw Exception('语音服务没有返回音频内容');
+    }
+
+    final bytes = base64Decode(audioBase64);
+    final tempDir = await getTemporaryDirectory();
+    final extension = _extensionForMimeType(mimeType);
+    final targetPath =
+        '${tempDir.path}/speech-sample-${DateTime.now().millisecondsSinceEpoch}.$extension';
+    await File(targetPath).writeAsBytes(bytes, flush: true);
+    _storedAudioCache[cacheKey] = targetPath;
+    return targetPath;
   }
 
   Future<void> _toggleReferenceAudioPlayback(PortalTask task) async {
@@ -344,6 +413,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   Future<void> _toggleAudioPlayback({
     required String audioKey,
     required Future<String> Function() resolvePath,
+    bool rethrowOnError = false,
   }) async {
     if (_playingAudioKey == audioKey) {
       await _audioPlayer.stop();
@@ -386,6 +456,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           _playingAudioKey = null;
         }
       });
+      if (rethrowOnError) {
+        rethrow;
+      }
       _showMessage('音频回放失败，请稍后再试。');
     }
   }
@@ -1850,12 +1923,33 @@ String _referenceAudioKey(String storagePath) {
   return 'reference:$storagePath';
 }
 
+String _generatedSampleAudioKey(String taskId, String schoolId, String text) {
+  return 'speech:$schoolId:$taskId:${text.hashCode}';
+}
+
 String? _fileExtension(String fileName) {
   final index = fileName.lastIndexOf('.');
   if (index == -1 || index == fileName.length - 1) {
     return null;
   }
   return fileName.substring(index + 1).toLowerCase();
+}
+
+String _extensionForMimeType(String mimeType) {
+  final normalized = mimeType.toLowerCase();
+  if (normalized.contains('wav')) {
+    return 'wav';
+  }
+  if (normalized.contains('aac')) {
+    return 'aac';
+  }
+  if (normalized.contains('mp4') || normalized.contains('m4a')) {
+    return 'm4a';
+  }
+  if (normalized.contains('mpeg') || normalized.contains('mp3')) {
+    return 'mp3';
+  }
+  return 'mp3';
 }
 
 class _StorageAudioReference {

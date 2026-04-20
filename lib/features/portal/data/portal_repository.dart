@@ -435,38 +435,10 @@ class SupabasePortalRepository implements PortalRepository {
         .update({'status': 'queued', 'submitted_at': now, 'updated_at': now})
         .eq('id', submissionId);
 
-    try {
-      final response = await _client.functions.invoke(
-        'ai-review-submission',
-        body: {'action': 'review_submission', 'submissionId': submissionId},
-      );
-
-      if (response.data is Map<String, dynamic>) {
-        final data = response.data as Map<String, dynamic>;
-        final statusValue = (data['status'] as String?)?.trim() ?? '';
-        final message = data['message'] as String?;
-        return AiReviewDispatchResult(
-          status: _mapAiReviewDispatchStatus(statusValue),
-          message: message,
-        );
-      }
-
-      return const AiReviewDispatchResult(
-        status: AiReviewDispatchStatus.queued,
-        message: '录音已经提交，AI 初评已进入后台队列。',
-      );
-    } catch (error) {
-      final failureNow = DateTime.now().toUtc().toIso8601String();
-      await _client
-          .from('submissions')
-          .update({'status': 'failed', 'updated_at': failureNow})
-          .eq('id', submissionId);
-
-      return const AiReviewDispatchResult(
-        status: AiReviewDispatchStatus.failed,
-        message: '录音已经收到，但 AI 初评暂时失败了，老师仍然可以手动查看。',
-      );
-    }
+    return const AiReviewDispatchResult(
+      status: AiReviewDispatchStatus.queued,
+      message: '录音已经提交，AI 初评已进入后台队列。',
+    );
   }
 
   PortalTask _mapTask(
@@ -597,21 +569,6 @@ class SupabasePortalRepository implements PortalRepository {
       return double.tryParse(value);
     }
     return null;
-  }
-
-  AiReviewDispatchStatus _mapAiReviewDispatchStatus(String value) {
-    switch (value) {
-      case 'queued':
-        return AiReviewDispatchStatus.queued;
-      case 'processing':
-        return AiReviewDispatchStatus.processing;
-      case 'completed':
-        return AiReviewDispatchStatus.completed;
-      case 'failed':
-        return AiReviewDispatchStatus.failed;
-      default:
-        return AiReviewDispatchStatus.processing;
-    }
   }
 
   String? _submissionStatusHint(

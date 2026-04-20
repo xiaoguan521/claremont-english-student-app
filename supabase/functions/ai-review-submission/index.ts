@@ -1,11 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-declare const EdgeRuntime:
-  | {
-      waitUntil?: (promise: Promise<unknown>) => void
-    }
-  | undefined
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -25,7 +19,15 @@ type PreviewTextReviewPayload = {
   promptText?: string
 }
 
-type AiReviewPayload = ReviewSubmissionPayload | PreviewTextReviewPayload
+type ProcessQueuePayload = {
+  action: 'process_queue'
+  batchSize?: number
+}
+
+type AiReviewPayload =
+  | ReviewSubmissionPayload
+  | PreviewTextReviewPayload
+  | ProcessQueuePayload
 
 type SchoolAiConfigRecord = {
   school_id: string
@@ -960,13 +962,208 @@ async function processSubmissionReview(options: {
   }
 }
 
-function runBackgroundTask(task: Promise<unknown>) {
-  if (EdgeRuntime?.waitUntil) {
-    EdgeRuntime.waitUntil(task)
-    return
+async function fetchSubmissionReviewContext(options: {
+  adminClient: ReturnType<typeof createClient>
+  encryptionSecret: string
+  submission: SubmissionRecord
+  requestedBy: string
+}) {
+  const { data: assignment, error: assignmentError } = await options.adminClient
+    .from('assignments')
+    .select('id, school_id, title, description')
+    .eq('id', options.submission.assignment_id)
+    .single()
+
+  if (assignmentError || !assignment) {
+    throw new Error(assignmentError?.message ?? 'Assignment not found.')
   }
 
-  void task
+  const schoolConfig = await fetchSchoolAiConfig(
+    options.adminClient,
+    (assignment as AssignmentRecord).school_id,
+  )
+
+  if (!schoolConfig || !schoolConfig.enabled) {
+    throw new Error('School AI config is missing or disabled.')
+  }
+
+  const { data: existingResult, error: existingResultError } = await options.adminClient
+    .from('evaluation_results')
+    .select('provider')
+    .eq('submission_id', options.submission.id)
+    .maybeSingle()
+
+  if (existingResultError) {
+    throw new Error(existingResultError.message)
+  }
+
+  const { data: items, error: itemsError } = await options.adminClient
+    .from('assignment_items')
+    .select('id, title, prompt_text, expected_text, tts_text, sort_order')
+    .eq('assignment_id', options.submission.assignment_id)
+    .order('sort_order', { ascending: true })
+
+  if (itemsError) {
+    throw new Error(itemsError.message)
+  }
+
+  const { data: audioAsset, error: audioAssetError } = await options.adminClient
+    .from('submission_assets')
+    .select('storage_bucket, storage_path, mime_type')
+    .eq('submission_id', options.submission.id)
+    .eq('asset_type', 'audio')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (audioAssetError) {
+    throw new Error(audioAssetError.message)
+  }
+
+  if (!audioAsset) {
+    throw new Error('This submission has no audio asset yet.')
+  }
+
+  const { data: existingJob, error: existingJobError } = await options.adminClient
+    .from('evaluation_jobs')
+    .select('id, submission_id, attempt_count, status')
+    .eq('submission_id', options.submission.id)
+    .maybeSingle()
+
+  if (existingJobError) {
+    throw new Error(existingJobError.message)
+  }
+
+  return {
+    assignment: assignment as AssignmentRecord,
+    schoolConfig,
+    existingResult:
+      existingResult && typeof existingResult.provider === 'string'
+        ? existingResult.provider
+        : null,
+    items: (items ?? []) as AssignmentItemRecord[],
+    audioAsset: audioAsset as SubmissionAudioAsset,
+    existingJob: (existingJob as EvaluationJobRecord | null) ?? null,
+    requestedBy: options.requestedBy,
+  }
+}
+
+async function processQueuedReviewBatch(options: {
+  adminClient: ReturnType<typeof createClient>
+  encryptionSecret: string
+  batchSize: number
+}) {
+  const { data: queuedJobs, error: jobsError } = await options.adminClient
+    .from('evaluation_jobs')
+    .select('id, submission_id, attempt_count, status, request_payload, requested_at')
+    .in('status', ['pending', 'retrying'])
+    .order('requested_at', { ascending: true })
+    .limit(options.batchSize)
+
+  if (jobsError) {
+    throw new Error(jobsError.message)
+  }
+
+  const jobs = (queuedJobs ?? []) as Array<
+    EvaluationJobRecord & { request_payload?: Record<string, unknown> | null }
+  >
+
+  if (jobs.length === 0) {
+    return {
+      status: 'idle',
+      processed: 0,
+      completed: 0,
+      failed: 0,
+      skipped: 0,
+      message: '当前没有待消费的 AI 评审任务。',
+    }
+  }
+
+  let completed = 0
+  let failed = 0
+  let skipped = 0
+
+  for (const job of jobs) {
+    const { data: submission, error: submissionError } = await options.adminClient
+      .from('submissions')
+      .select('id, assignment_id, student_id, status')
+      .eq('id', job.submission_id)
+      .maybeSingle()
+
+    if (submissionError || !submission) {
+      failed += 1
+      if (job.id) {
+        await markJobFailed({
+          adminClient: options.adminClient,
+          jobId: job.id,
+          submissionId: job.submission_id,
+          error: submissionError?.message ?? 'Submission not found.',
+        })
+      }
+      continue
+    }
+
+    try {
+      const context = await fetchSubmissionReviewContext({
+        adminClient: options.adminClient,
+        encryptionSecret: options.encryptionSecret,
+        submission: submission as SubmissionRecord,
+        requestedBy:
+          (job.request_payload?.requestedBy as string | undefined) ?? 'queue-worker',
+      })
+
+      if (context.existingResult === 'teacher-review') {
+        await options.adminClient
+          .from('evaluation_jobs')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            last_error: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', job.id)
+        skipped += 1
+        continue
+      }
+
+      const result = await processSubmissionReview({
+        adminClient: options.adminClient,
+        schoolConfig: context.schoolConfig,
+        encryptionSecret: options.encryptionSecret,
+        submission: submission as SubmissionRecord,
+        assignment: context.assignment,
+        items: context.items,
+        audioAsset: context.audioAsset,
+        existingJob: context.existingJob ?? job,
+        requestedBy: context.requestedBy,
+      })
+
+      if (result.status === 'completed') {
+        completed += 1
+      } else {
+        failed += 1
+      }
+    } catch (error) {
+      failed += 1
+      if (job.id) {
+        await markJobFailed({
+          adminClient: options.adminClient,
+          jobId: job.id,
+          submissionId: job.submission_id,
+          error: error instanceof Error ? error.message : 'Queue worker failed.',
+        })
+      }
+    }
+  }
+
+  return {
+    status: 'completed',
+    processed: jobs.length,
+    completed,
+    failed,
+    skipped,
+    message: `本轮消费了 ${jobs.length} 条评审任务。`,
+  }
 }
 
 Deno.serve(async (req) => {
@@ -982,6 +1179,7 @@ Deno.serve(async (req) => {
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   const encryptionSecret = Deno.env.get('AI_CONFIG_ENCRYPTION_KEY') ?? ''
+  const queueSecret = Deno.env.get('AI_REVIEW_QUEUE_SECRET') ?? ''
   const authHeader = req.headers.get('Authorization')
 
   if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
@@ -992,33 +1190,58 @@ Deno.serve(async (req) => {
     return json({ error: 'AI encryption secret is not configured.' }, 500)
   }
 
-  if (!authHeader) {
-    return json({ error: 'Missing authorization header.' }, 401)
-  }
-
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: authHeader,
-      },
-    },
-  })
-
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   })
 
-  const {
-    data: { user },
-    error: userError,
-  } = await userClient.auth.getUser()
-
-  if (userError || !user) {
-    return json({ error: 'Unable to validate current user.' }, 401)
-  }
-
   try {
     const payload = (await req.json()) as AiReviewPayload
+
+    if (payload.action === 'process_queue') {
+      const requestQueueSecret = req.headers.get('x-queue-secret') ?? ''
+      if (!queueSecret.trim() || requestQueueSecret !== queueSecret) {
+        return json({ error: 'Invalid queue worker secret.' }, 401)
+      }
+
+      const batchSize = Math.min(
+        10,
+        Math.max(
+          1,
+          typeof payload.batchSize === 'number' && Number.isFinite(payload.batchSize)
+            ? Math.round(payload.batchSize)
+            : 3,
+        ),
+      )
+
+      const result = await processQueuedReviewBatch({
+        adminClient,
+        encryptionSecret,
+        batchSize,
+      })
+
+      return json(result)
+    }
+
+    if (!authHeader) {
+      return json({ error: 'Missing authorization header.' }, 401)
+    }
+
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    })
+
+    const {
+      data: { user },
+      error: userError,
+    } = await userClient.auth.getUser()
+
+    if (userError || !user) {
+      return json({ error: 'Unable to validate current user.' }, 401)
+    }
 
     if (payload.action === 'preview_text_review') {
       if (!payload.schoolId?.trim() || !payload.transcript?.trim()) {
@@ -1093,21 +1316,18 @@ Deno.serve(async (req) => {
 
     const submission = visibleSubmission as SubmissionRecord
 
-    const { data: assignment, error: assignmentError } = await adminClient
-      .from('assignments')
-      .select('id, school_id, title, description')
-      .eq('id', submission.assignment_id)
-      .single()
-
-    if (assignmentError || !assignment) {
-      return json({ error: assignmentError?.message ?? 'Assignment not found.' }, 400)
-    }
+    const context = await fetchSubmissionReviewContext({
+      adminClient,
+      encryptionSecret,
+      submission,
+      requestedBy: user.id,
+    })
 
     const { data: activeMembership, error: activeMembershipError } = await userClient
       .from('memberships')
       .select('id')
       .eq('user_id', user.id)
-      .eq('school_id', (assignment as AssignmentRecord).school_id)
+      .eq('school_id', context.assignment.school_id)
       .eq('status', 'active')
       .maybeSingle()
 
@@ -1118,117 +1338,21 @@ Deno.serve(async (req) => {
       return json({ error: 'Current user is not allowed to trigger this review.' }, 403)
     }
 
-    const schoolConfig = await fetchSchoolAiConfig(
-      adminClient,
-      (assignment as AssignmentRecord).school_id,
-    )
-
-    if (!schoolConfig || !schoolConfig.enabled) {
-      return json({ error: 'School AI config is missing or disabled.' }, 400)
-    }
-
-    const { data: existingResult, error: existingResultError } = await adminClient
-      .from('evaluation_results')
-      .select('provider')
-      .eq('submission_id', submission.id)
-      .maybeSingle()
-
-    if (existingResultError) {
-      return json({ error: existingResultError.message }, 400)
-    }
-
-    if (
-      existingResult &&
-      typeof existingResult.provider === 'string' &&
-      existingResult.provider === 'teacher-review'
-    ) {
+    if (context.existingResult === 'teacher-review') {
       return json({
         status: 'completed',
         message: '老师已经完成最终点评，这条提交不会再被 AI 覆盖。',
       })
     }
 
-    const { data: items, error: itemsError } = await adminClient
-      .from('assignment_items')
-      .select('id, title, prompt_text, expected_text, tts_text, sort_order')
-      .eq('assignment_id', submission.assignment_id)
-      .order('sort_order', { ascending: true })
-
-    if (itemsError) {
-      return json({ error: itemsError.message }, 400)
-    }
-
-    const { data: audioAsset, error: audioAssetError } = await adminClient
-      .from('submission_assets')
-      .select('storage_bucket, storage_path, mime_type')
-      .eq('submission_id', submission.id)
-      .eq('asset_type', 'audio')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (audioAssetError) {
-      return json({ error: audioAssetError.message }, 400)
-    }
-
-    if (!audioAsset) {
-      return json({
-        status: 'failed',
-        message: '这条提交还没有音频附件，暂时无法发起 AI 初评。',
-      })
-    }
-
-    const { data: existingJob, error: existingJobError } = await adminClient
-      .from('evaluation_jobs')
-      .select('id, submission_id, attempt_count, status')
-      .eq('submission_id', submission.id)
-      .maybeSingle()
-
-    if (existingJobError) {
-      return json({ error: existingJobError.message }, 400)
-    }
-
     const queueResult = await queueSubmissionReview({
       adminClient,
-      schoolConfig,
+      schoolConfig: context.schoolConfig,
       submission,
-      assignment: assignment as AssignmentRecord,
-      existingJob: (existingJob as EvaluationJobRecord | null) ?? null,
+      assignment: context.assignment,
+      existingJob: context.existingJob,
       requestedBy: user.id,
     })
-
-    if (!queueResult.queued) {
-      return json({
-        status: queueResult.status,
-        message: queueResult.message,
-      })
-    }
-
-    runBackgroundTask(
-      processSubmissionReview({
-        adminClient,
-        schoolConfig,
-        encryptionSecret,
-        submission,
-        assignment: assignment as AssignmentRecord,
-        items: ((items ?? []) as AssignmentItemRecord[]),
-        audioAsset: audioAsset as SubmissionAudioAsset,
-        existingJob: queueResult.job,
-        requestedBy: user.id,
-      }).catch(async (error) => {
-        const message =
-          error instanceof Error ? error.message : 'Unexpected background AI review error.'
-        console.error('background ai-review-submission failed', error)
-        if (queueResult.job?.id) {
-          await markJobFailed({
-            adminClient,
-            jobId: queueResult.job.id,
-            submissionId: submission.id,
-            error: message,
-          })
-        }
-      }),
-    )
 
     return json({
       status: queueResult.status,

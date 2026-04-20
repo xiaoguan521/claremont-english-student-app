@@ -201,6 +201,25 @@ class SupabasePortalRepository implements PortalRepository {
         .whereType<String>()
         .toList();
 
+    final evaluationJobBySubmissionId = <String, Map<String, dynamic>>{};
+    if (submissionIds.isNotEmpty) {
+      final evaluationJobsResponse = await _client
+          .from('evaluation_jobs')
+          .select('submission_id, status, last_error, updated_at')
+          .inFilter('submission_id', submissionIds)
+          .order('updated_at', ascending: false);
+
+      for (final row in List<Map<String, dynamic>>.from(
+        evaluationJobsResponse,
+      )) {
+        final submissionId = row['submission_id'] as String?;
+        if (submissionId != null &&
+            !evaluationJobBySubmissionId.containsKey(submissionId)) {
+          evaluationJobBySubmissionId[submissionId] = row;
+        }
+      }
+    }
+
     final evaluationBySubmissionId = <String, Map<String, dynamic>>{};
     if (submissionIds.isNotEmpty) {
       final evaluationsResponse = await _client
@@ -259,6 +278,9 @@ class SupabasePortalRepository implements PortalRepository {
       final evaluationRow = submissionId == null
           ? null
           : evaluationBySubmissionId[submissionId];
+      final evaluationJobRow = submissionId == null
+          ? null
+          : evaluationJobBySubmissionId[submissionId];
       final audioAssetRow = submissionId == null
           ? null
           : audioAssetBySubmissionId[submissionId];
@@ -325,6 +347,10 @@ class SupabasePortalRepository implements PortalRepository {
         materialTitle: materialRow?['title'] as String?,
         materialPdfPath: materialRow?['pdf_path'] as String?,
         materialPageCount: _asInt(materialRow?['page_count']),
+        submissionStatusHint: _submissionStatusHint(
+          submissionFlowStatus,
+          evaluationJobRow?['last_error'] as String?,
+        ),
       );
     }).toList();
   }
@@ -586,6 +612,39 @@ class SupabasePortalRepository implements PortalRepository {
       default:
         return AiReviewDispatchStatus.processing;
     }
+  }
+
+  String? _submissionStatusHint(
+    SubmissionFlowStatus submissionStatus,
+    String? jobError,
+  ) {
+    switch (submissionStatus) {
+      case SubmissionFlowStatus.failed:
+        return _friendlyStudentError(jobError);
+      case SubmissionFlowStatus.processing:
+        return '系统正在整理 transcript 和初评结果，老师也可以稍后补充人工点评。';
+      case SubmissionFlowStatus.queued:
+        return '老师已经收到这次练习，系统会先尝试生成初评，再由老师查看。';
+      case SubmissionFlowStatus.completed:
+      case SubmissionFlowStatus.notStarted:
+        return null;
+    }
+  }
+
+  String _friendlyStudentError(String? jobError) {
+    final error = (jobError ?? '').toLowerCase();
+    if (error.contains('transcription')) {
+      return '系统这次没有成功听清你的录音，建议换一个安静环境重新录一遍，老师也仍然可以手动查看。';
+    }
+    if (error.contains('503') ||
+        error.contains('temporarily unavailable') ||
+        error.contains('timeout')) {
+      return '系统点评刚才有点忙，建议稍后重新提交，或者直接等待老师手动查看。';
+    }
+    if (error.contains('download')) {
+      return '系统暂时没有取到这次音频附件，建议重新提交一次，老师也仍然可以手动查看。';
+    }
+    return '系统初评这次没有成功，但老师仍然可以手动查看。你可以重新录一段音频再提交。';
   }
 
   int? _asInt(dynamic value) {

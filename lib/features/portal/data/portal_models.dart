@@ -64,6 +64,7 @@ class PortalActivity {
     this.materialTitle,
     this.materialPdfPath,
     this.materialPageCount,
+    this.submissionStatusHint,
   });
 
   final String id;
@@ -90,6 +91,7 @@ class PortalActivity {
   final String? materialTitle;
   final String? materialPdfPath;
   final int? materialPageCount;
+  final String? submissionStatusHint;
 
   bool get hasTeacherFeedback =>
       submissionFlowStatus == SubmissionFlowStatus.completed &&

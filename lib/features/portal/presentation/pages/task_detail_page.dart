@@ -942,9 +942,10 @@ class _SubmissionPanel extends StatelessWidget {
       case SubmissionFlowStatus.queued:
         return _MessagePanel(
           title: '老师已经收到这次练习',
-          subtitle: activity.submittedAt == null
-              ? '现在进入等待点评状态，老师会尽快给你反馈。'
-              : '你已在 ${_formatDateTime(activity.submittedAt!)} 提交，老师会尽快给你反馈。',
+          subtitle: activity.submissionStatusHint ??
+              (activity.submittedAt == null
+                  ? '现在进入等待点评状态，老师会尽快给你反馈。'
+                  : '你已在 ${_formatDateTime(activity.submittedAt!)} 提交，老师会尽快给你反馈。'),
           badgeLabel: '等待老师点评',
           badgeColor: const Color(0xFFF97316),
           existingAudioLabel: activity.submissionAudioName,
@@ -955,7 +956,8 @@ class _SubmissionPanel extends StatelessWidget {
       case SubmissionFlowStatus.processing:
         return _MessagePanel(
           title: '系统正在整理评分结果',
-          subtitle: '这份练习已经进入处理流程，稍后就能看到分数和鼓励语。',
+          subtitle: activity.submissionStatusHint ??
+              '这份练习已经进入处理流程，稍后就能看到分数和鼓励语。',
           badgeLabel: '评分处理中',
           badgeColor: const Color(0xFF7C3AED),
           existingAudioLabel: activity.submissionAudioName,
@@ -968,7 +970,8 @@ class _SubmissionPanel extends StatelessWidget {
           title: isRecording ? '正在重新录音' : '这次提交没有成功',
           subtitle: isRecording
               ? '读完后点击“结束录音并保存”，再重新提交给老师。'
-              : '你可以重新录一段音频，或者换一个文件再提交。',
+              : (activity.submissionStatusHint ??
+                  '你可以重新录一段音频，或者换一个文件再提交。'),
           badgeLabel: isRecording ? '录音进行中' : '需要重新提交',
           badgeColor: isRecording
               ? const Color(0xFFDC2626)

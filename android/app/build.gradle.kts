@@ -42,7 +42,7 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["appLinkScheme"] = "https"
-        manifestPlaceholders["appLinkHost"] = "links.english-daka.app"
+        manifestPlaceholders["appLinkHost"] = "english.201807.xyz"
         manifestPlaceholders["appLinkPathPrefix"] = "/s"
     }
 

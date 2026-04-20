@@ -4,9 +4,9 @@
 
 ## 默认入口规则
 
-- 学校专属入口：`https://links.english-daka.app/s/<school_code>`
+- 学校专属入口：`https://english.201807.xyz/s/<school_code>`
 - App 内路由：`/s/:schoolCode`
-- 兜底查询参数：`https://links.english-daka.app/app?school=<school_code>`
+- 兜底查询参数：`https://english.201807.xyz/app?school=<school_code>`
 
 ## 已落到代码里的配置
 
@@ -14,7 +14,7 @@
   - `ios/Runner/Runner.entitlements`
 - iOS 构建变量：
   - `ios/Runner.xcodeproj/project.pbxproj`
-  - 默认 `APP_LINK_HOST = links.english-daka.app`
+  - 默认 `APP_LINK_HOST = english.201807.xyz`
 - Android App Links：
   - `android/app/src/main/AndroidManifest.xml`
   - `android/app/build.gradle.kts`
@@ -28,7 +28,6 @@
 
 ### iOS
 
-- 如果正式域名不是 `links.english-daka.app`，把 `APP_LINK_HOST` 改成正式域名。
 - 如果 Apple Team ID 或 bundle id 发生变化，同步更新：
   - `web/.well-known/apple-app-site-association`
 
@@ -40,10 +39,10 @@
 
 ## 域名部署要求
 
-正式域名下必须能直接访问：
+正式域名 `english.201807.xyz` 下必须能直接访问：
 
-- `https://<your-domain>/.well-known/apple-app-site-association`
-- `https://<your-domain>/.well-known/assetlinks.json`
+- `https://english.201807.xyz/.well-known/apple-app-site-association`
+- `https://english.201807.xyz/.well-known/assetlinks.json`
 
 要求：
 
@@ -56,7 +55,7 @@
 
 1. 真机安装 Debug / TestFlight 包
 2. 用 Safari 打开：
-   - `https://<your-domain>/s/claremont-demo`
+   - `https://english.201807.xyz/s/claremont-demo`
 3. 确认会直接唤起 App
 4. App 内应自动进入对应学校上下文，不需要手输邀请码
 5. 如果账号绑定多个学校，仍然以链接里的学校为优先入口

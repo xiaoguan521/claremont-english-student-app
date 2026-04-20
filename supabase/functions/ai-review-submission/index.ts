@@ -193,8 +193,16 @@ function levenshteinDistance(source: string, target: string) {
 
 function buildExpectedText(items: AssignmentItemRecord[]) {
   const parts = items
-    .flatMap((item) => [item.expected_text, item.tts_text, item.prompt_text])
-    .map((part) => (part ?? '').trim())
+    .map((item) => {
+      const candidates = [item.expected_text, item.tts_text, item.prompt_text]
+      for (const candidate of candidates) {
+        const trimmed = (candidate ?? '').trim()
+        if (trimmed !== '') {
+          return trimmed
+        }
+      }
+      return ''
+    })
     .filter((part) => part !== '')
 
   return parts.join(' ')

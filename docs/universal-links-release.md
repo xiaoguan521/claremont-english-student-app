@@ -2,6 +2,17 @@
 
 这份清单用于把学生端的“单 App 多学校入口”做成真正可发布的 Universal Links / App Links 方案。
 
+## 当前发布策略
+
+- 当前阶段：**安卓优先发布**
+- iOS：**后期整理**
+
+原因：
+
+- Android App Links 和正式签名已经具备继续推进条件
+- iOS 侧还缺 Apple Developer Program 会员与正式 Team ID
+- 所以当前先完成 Android 发布、域名验证和学校入口闭环，iOS 相关步骤暂不作为当前阻塞项
+
 ## 默认入口规则
 
 - 学校专属入口：`https://english.201807.xyz/s/<school_code>`
@@ -31,11 +42,12 @@
 - 如果 Apple Team ID 或 bundle id 发生变化，同步更新：
   - `web/.well-known/apple-app-site-association`
 
+> 当前状态：后期整理。等 Apple Developer Program 开通后再回填 Team ID。
+
 ### Android
 
-- 把 `web/.well-known/assetlinks.json` 里的：
-  - `REPLACE_WITH_RELEASE_SHA256_FINGERPRINT`
-  替换成正式签名包的 SHA256 指纹。
+- `web/.well-known/assetlinks.json` 已经写入当前学生端正式签名 SHA256
+- 如果后续更换 Android keystore，需要同步更新该文件中的 SHA256 指纹
 
 ## 域名部署要求
 
@@ -51,7 +63,18 @@
 - `Content-Type` 建议是 `application/json`
 - 不要走登录态、302 跳转或鉴权
 
-## App Store / TestFlight 前验收
+## Android 当前验收重点
+
+1. 真机安装 Android 正式签名包
+2. 打开：
+   - `https://english.201807.xyz/s/claremont-demo`
+3. 确认已安装 App 时可直接拉起学生端
+4. 确认未安装时可以落到网页下载页或引导页
+5. 确认多学校账号仍然以链接里的学校为优先入口
+
+## iOS 后期验收
+
+以下内容后置到 Apple Developer Program 开通后再处理：
 
 1. 真机安装 Debug / TestFlight 包
 2. 用 Safari 打开：

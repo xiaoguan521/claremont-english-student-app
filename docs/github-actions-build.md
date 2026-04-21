@@ -10,6 +10,13 @@
 - Android `release aab`
 - iOS `unsigned build`（手动触发，可用于检查 iOS 工程是否能编译，不可直接上架）
 
+## 当前发布优先级
+
+- 当前主线：**Android 发布**
+- iOS：**后期整理**
+
+原因是 iOS 仍缺 Apple Developer Program 会员、Team ID 和正式签名链路；因此当前 CI、签名和提测工作优先围绕 Android 收口。
+
 ## 触发方式
 
 ### 自动触发
@@ -24,7 +31,8 @@
 1. `Actions`
 2. 选择 `Flutter Build`
 3. 点 `Run workflow`
-4. 如果要顺手检查 iOS 编译，把 `build_ios` 设为 `true`
+4. 如果只是当前安卓发布，可以不勾 `build_ios`
+5. 如果后期要顺手检查 iOS 编译，再把 `build_ios` 设为 `true`
 
 ## 需要配置的 GitHub Secrets
 
@@ -92,6 +100,7 @@
 - Provisioning Profile
 - 签名与导出流程
 - 正式 Bundle Identifier
+- Apple Developer Program Team ID
 
 ## 建议的下一步
 
@@ -103,3 +112,4 @@
    - `SUPABASE_PUBLISHABLE_KEY`
 3. 先手动跑一次 `Flutter Build`，确认 Android `apk/aab` 能正常产出
 4. 再补 Android keystore 的 4 个 Secret，切到正式签名包
+5. iOS 暂时只保留工程可编译检查，不作为当前发布阻塞项

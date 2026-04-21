@@ -145,18 +145,21 @@ class _ActionRail extends StatelessWidget {
             icon: Icons.fact_check_outlined,
             label: '今日作业',
             value: taskLabel,
+            isCompact: isCompact,
           ),
           SizedBox(height: isCompact ? 10 : 14),
           _RailAction(
             icon: Icons.pending_actions_outlined,
             label: '待完成',
             value: pendingLabel,
+            isCompact: isCompact,
           ),
           SizedBox(height: isCompact ? 10 : 14),
           _RailAction(
             icon: Icons.workspace_premium_outlined,
             label: '已完成',
             value: completedLabel,
+            isCompact: isCompact,
           ),
           SizedBox(height: isCompact ? 10 : 14),
           const _StudyHintTile(
@@ -215,11 +218,13 @@ class _RailAction extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.isCompact = false,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {

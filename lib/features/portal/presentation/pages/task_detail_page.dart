@@ -39,6 +39,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   final List<StreamSubscription<dynamic>> _playerSubscriptions = [];
 
   Timer? _statusRefreshTimer;
+  Timer? _autoAdvanceHintTimer;
   SubmissionFlowStatus? _statusRefreshMode;
   bool _isSubmitting = false;
   bool _isRecording = false;
@@ -47,6 +48,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   String? _playingAudioKey;
   String? _speakingTaskId;
   String? _focusedTaskId;
+  String? _autoAdvanceHint;
   _PendingAudioFile? _selectedAudio;
 
   @override
@@ -111,6 +113,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   @override
   void dispose() {
     _statusRefreshTimer?.cancel();
+    _autoAdvanceHintTimer?.cancel();
     for (final subscription in _playerSubscriptions) {
       subscription.cancel();
     }
@@ -664,6 +667,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       _showMessage('先录一段音频或选择已有音频，再提交给老师。');
       return;
     }
+    final currentTask = activity.tasks.firstWhere(
+      (task) => task.id == (_focusedTaskId ?? activity.tasks.first.id),
+      orElse: () => activity.tasks.first,
+    );
 
     setState(() {
       _isSubmitting = true;
@@ -688,7 +695,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       setState(() {
         _selectedAudio = null;
       });
-      _focusNextPendingTask(activity);
+      _focusNextPendingTask(activity, submittedTaskTitle: currentTask.title);
       _showMessage(reviewResult.message ?? '已经提交给老师了，AI 初评和老师点评会在稍后同步回来。');
     } catch (_) {
       if (!mounted) {
@@ -741,7 +748,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     });
   }
 
-  void _focusNextPendingTask(PortalActivity activity) {
+  void _focusNextPendingTask(
+    PortalActivity activity, {
+    String? submittedTaskTitle,
+  }) {
     final currentIndex = activity.tasks.indexWhere((task) => task.id == _focusedTaskId);
     final orderedTasks = activity.tasks;
     if (orderedTasks.isEmpty) {
@@ -765,6 +775,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 
     if (_focusedTaskId == nextTask.id || !mounted) {
       return;
+    }
+    if ((submittedTaskTitle ?? '').trim().isNotEmpty) {
+      _showAutoAdvanceHint('$submittedTaskTitle 已提交，继续下一句。');
     }
     _setFocusedTask(nextTask.id);
   }
@@ -792,6 +805,24 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       curve: Curves.easeOutCubic,
       alignment: 0.08,
     );
+  }
+
+  void _showAutoAdvanceHint(String message) {
+    _autoAdvanceHintTimer?.cancel();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _autoAdvanceHint = message;
+    });
+    _autoAdvanceHintTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _autoAdvanceHint = null;
+      });
+    });
   }
 
   @override
@@ -904,6 +935,16 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
               (task) => task.id == focusTask.id,
             ),
             onOpenMaterial: () => _openReadingPage(activity),
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: _autoAdvanceHint == null
+                ? const SizedBox(height: 0, key: ValueKey('empty-hint'))
+                : Padding(
+                    key: ValueKey(_autoAdvanceHint),
+                    padding: const EdgeInsets.only(top: 14),
+                    child: _AutoAdvanceBanner(message: _autoAdvanceHint!),
+                  ),
           ),
           const SizedBox(height: 16),
           _SectionHeading(
@@ -1046,6 +1087,52 @@ class _SectionHeading extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AutoAdvanceBanner extends StatelessWidget {
+  const _AutoAdvanceBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAFBF1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFD6F2E2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2FA77D),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Icon(
+              Icons.check_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: const Color(0xFF0F8B6D),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

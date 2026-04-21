@@ -590,8 +590,14 @@ class SupabasePortalRepository implements PortalRepository {
 
   String _friendlyStudentError(String? jobError) {
     final error = (jobError ?? '').toLowerCase();
+    if (error.contains('invalid audio format') ||
+        error.contains('audio transcription failed') ||
+        error.contains('detail":"not found"') ||
+        error.contains('detail\\\":\\\"not found\\\"')) {
+      return 'AI 初评暂时不可用，这次录音已经提交给老师，并不是你读得不清楚。你可以稍后再试，或者直接等待老师手动查看。';
+    }
     if (error.contains('transcription')) {
-      return '系统这次没有成功听清你的录音，建议换一个安静环境重新录一遍，老师也仍然可以手动查看。';
+      return '系统这次没能完成自动转写，这次录音已经提交给老师。你可以稍后重试，或者直接等待老师手动查看。';
     }
     if (error.contains('503') ||
         error.contains('temporarily unavailable') ||

@@ -49,7 +49,13 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   void initState() {
     super.initState();
     _bindAudioPlayer();
+    _configureAudioPlayer();
     _configureTts();
+  }
+
+  Future<void> _configureAudioPlayer() async {
+    await _audioPlayer.setVolume(1.0);
+    await _audioPlayer.setReleaseMode(ReleaseMode.stop);
   }
 
   void _bindAudioPlayer() {
@@ -155,15 +161,11 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 
     final tempDir = await getTemporaryDirectory();
     final path =
-        '${tempDir.path}/student-reading-${DateTime.now().millisecondsSinceEpoch}.m4a';
+        '${tempDir.path}/student-reading-${DateTime.now().millisecondsSinceEpoch}.wav';
 
     try {
       await _recorder.start(
-        const RecordConfig(
-          encoder: AudioEncoder.aacLc,
-          bitRate: 128000,
-          sampleRate: 44100,
-        ),
+        const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000),
         path: path,
       );
       if (!mounted) {
@@ -214,7 +216,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           name: fileName,
           bytes: bytes,
           sizeBytes: sizeBytes,
-          mimeType: 'audio/mp4',
+          mimeType: 'audio/wav',
           localPath: resolvedPath,
         );
       });
@@ -731,48 +733,46 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         ),
       ],
       child: ListView.separated(
-        itemCount: activity.tasks.length + 2,
+        itemCount:
+            activity.tasks.length +
+            (activity.submissionFlowStatus == SubmissionFlowStatus.completed
+                ? 2
+                : 1),
         separatorBuilder: (_, _) => const SizedBox(height: 16),
         itemBuilder: (context, index) {
           if (index == 0) {
             return _OverviewCard(
               activity: activity,
               completedTasks: completedTasks,
-              isSubmitting: _isSubmitting,
-              onPrimaryAction: () => _handlePrimaryAction(activity),
               onOpenMaterial: () => _openReadingPage(activity),
             );
           }
 
-          if (index == 1) {
-            return _SubmissionPanel(
+          if (activity.submissionFlowStatus == SubmissionFlowStatus.completed &&
+              index == activity.tasks.length + 1) {
+            return _FeedbackPanel(
               activity: activity,
-              isSubmitting: _isSubmitting,
-              isRecording: _isRecording,
-              selectedAudio: _selectedAudio,
-              isSelectedAudioPlaying: selectedAudioKey == _playingAudioKey,
-              isSelectedAudioLoading: selectedAudioKey == _loadingAudioKey,
               isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
               isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
-              onPickAudio: _pickAudioFile,
-              onRecordAudio: _toggleRecording,
-              onPlaySelectedAudio: _selectedAudio == null
-                  ? null
-                  : _togglePendingAudioPlayback,
               onPlayStoredAudio: storedAudioKey == null
                   ? null
                   : () => _toggleStoredAudioPlayback(activity),
-              onPrimaryAction: () => _handlePrimaryAction(activity),
             );
           }
 
-          final task = activity.tasks[index - 2];
+          final task = activity.tasks[index - 1];
           final referenceAudioKey = task.hasReferenceAudio
               ? _referenceAudioKey(task.referenceAudioPath!)
               : null;
           return _TaskCard(
             index: index - 1,
             task: task,
+            submissionFlowStatus: activity.submissionFlowStatus,
+            submissionStatusHint: activity.submissionStatusHint,
+            selectedAudioLabel: _selectedAudio?.name,
+            existingAudioLabel: activity.submissionAudioName,
+            isSubmitting: _isSubmitting,
+            isRecording: _isRecording,
             isSpeaking: _speakingTaskId == task.id,
             isSamplePlaying: task.hasReferenceAudio
                 ? referenceAudioKey == _playingAudioKey
@@ -780,6 +780,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             isSampleLoading: task.hasReferenceAudio
                 ? referenceAudioKey == _loadingAudioKey
                 : false,
+            isSelectedAudioPlaying: selectedAudioKey == _playingAudioKey,
+            isSelectedAudioLoading: selectedAudioKey == _loadingAudioKey,
+            isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
+            isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
             onAction: () => _handleTaskAction(activity, task),
             onOpenReading: activity.materialPdfPath == null
                 ? null
@@ -789,6 +793,15 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                 : _sampleTextFor(task) == null
                 ? null
                 : () => _speakSample(task),
+            onPickAudio: _isRecording ? null : _pickAudioFile,
+            onRecordAudio: _toggleRecording,
+            onPlaySelectedAudio: _selectedAudio == null
+                ? null
+                : _togglePendingAudioPlayback,
+            onPlayStoredAudio: storedAudioKey == null
+                ? null
+                : () => _toggleStoredAudioPlayback(activity),
+            onPrimaryAction: () => _handlePrimaryAction(activity),
           );
         },
       ),
@@ -814,21 +827,15 @@ class _OverviewCard extends StatelessWidget {
   const _OverviewCard({
     required this.activity,
     required this.completedTasks,
-    required this.isSubmitting,
-    required this.onPrimaryAction,
     required this.onOpenMaterial,
   });
 
   final PortalActivity activity;
   final int completedTasks;
-  final bool isSubmitting;
-  final VoidCallback onPrimaryAction;
   final VoidCallback onOpenMaterial;
 
   @override
   Widget build(BuildContext context) {
-    final buttonLabel = _primaryActionLabel(activity.submissionFlowStatus);
-    final buttonEnabled = _canSubmit(activity.submissionFlowStatus);
     final submittedLabel = activity.submittedAt == null
         ? '还没有提交'
         : '提交于 ${_formatDateTime(activity.submittedAt!)}';
@@ -953,20 +960,6 @@ class _OverviewCard extends StatelessWidget {
                 onPressed: onOpenMaterial,
                 icon: const Icon(Icons.menu_book_rounded),
                 label: const Text('打开教材'),
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: buttonEnabled && !isSubmitting
-                    ? onPrimaryAction
-                    : null,
-                icon: isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(_primaryActionIcon(activity.submissionFlowStatus)),
-                label: Text(isSubmitting ? '提交中' : buttonLabel),
               ),
             ],
           );
@@ -1653,22 +1646,52 @@ class _TaskCard extends StatelessWidget {
   const _TaskCard({
     required this.index,
     required this.task,
+    required this.submissionFlowStatus,
+    required this.submissionStatusHint,
+    required this.selectedAudioLabel,
+    required this.existingAudioLabel,
+    required this.isSubmitting,
+    required this.isRecording,
     required this.isSpeaking,
     required this.isSamplePlaying,
     required this.isSampleLoading,
+    required this.isSelectedAudioPlaying,
+    required this.isSelectedAudioLoading,
+    required this.isStoredAudioPlaying,
+    required this.isStoredAudioLoading,
     required this.onAction,
     this.onOpenReading,
     this.onSpeakSample,
+    this.onPickAudio,
+    this.onRecordAudio,
+    this.onPlaySelectedAudio,
+    this.onPlayStoredAudio,
+    required this.onPrimaryAction,
   });
 
   final int index;
   final PortalTask task;
+  final SubmissionFlowStatus submissionFlowStatus;
+  final String? submissionStatusHint;
+  final String? selectedAudioLabel;
+  final String? existingAudioLabel;
+  final bool isSubmitting;
+  final bool isRecording;
   final bool isSpeaking;
   final bool isSamplePlaying;
   final bool isSampleLoading;
+  final bool isSelectedAudioPlaying;
+  final bool isSelectedAudioLoading;
+  final bool isStoredAudioPlaying;
+  final bool isStoredAudioLoading;
   final VoidCallback onAction;
   final VoidCallback? onOpenReading;
   final VoidCallback? onSpeakSample;
+  final VoidCallback? onPickAudio;
+  final VoidCallback? onRecordAudio;
+  final VoidCallback? onPlaySelectedAudio;
+  final VoidCallback? onPlayStoredAudio;
+  final VoidCallback onPrimaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1782,6 +1805,26 @@ class _TaskCard extends StatelessWidget {
                     ),
                 ],
               ),
+              if (task.reviewStatus != TaskReviewStatus.checked) ...[
+                const SizedBox(height: 16),
+                _InlineSubmissionSection(
+                  submissionFlowStatus: submissionFlowStatus,
+                  submissionStatusHint: submissionStatusHint,
+                  selectedAudioLabel: selectedAudioLabel,
+                  existingAudioLabel: existingAudioLabel,
+                  isSubmitting: isSubmitting,
+                  isRecording: isRecording,
+                  isSelectedAudioPlaying: isSelectedAudioPlaying,
+                  isSelectedAudioLoading: isSelectedAudioLoading,
+                  isStoredAudioPlaying: isStoredAudioPlaying,
+                  isStoredAudioLoading: isStoredAudioLoading,
+                  onPickAudio: onPickAudio,
+                  onRecordAudio: onRecordAudio,
+                  onPlaySelectedAudio: onPlaySelectedAudio,
+                  onPlayStoredAudio: onPlayStoredAudio,
+                  onPrimaryAction: onPrimaryAction,
+                ),
+              ],
             ],
           );
 
@@ -1961,6 +2004,181 @@ class _TaskCard extends StatelessWidget {
       case TaskKind.phonics:
         return Icons.spellcheck_rounded;
     }
+  }
+}
+
+class _InlineSubmissionSection extends StatelessWidget {
+  const _InlineSubmissionSection({
+    required this.submissionFlowStatus,
+    required this.submissionStatusHint,
+    required this.selectedAudioLabel,
+    required this.existingAudioLabel,
+    required this.isSubmitting,
+    required this.isRecording,
+    required this.isSelectedAudioPlaying,
+    required this.isSelectedAudioLoading,
+    required this.isStoredAudioPlaying,
+    required this.isStoredAudioLoading,
+    this.onPickAudio,
+    this.onRecordAudio,
+    this.onPlaySelectedAudio,
+    this.onPlayStoredAudio,
+    required this.onPrimaryAction,
+  });
+
+  final SubmissionFlowStatus submissionFlowStatus;
+  final String? submissionStatusHint;
+  final String? selectedAudioLabel;
+  final String? existingAudioLabel;
+  final bool isSubmitting;
+  final bool isRecording;
+  final bool isSelectedAudioPlaying;
+  final bool isSelectedAudioLoading;
+  final bool isStoredAudioPlaying;
+  final bool isStoredAudioLoading;
+  final VoidCallback? onPickAudio;
+  final VoidCallback? onRecordAudio;
+  final VoidCallback? onPlaySelectedAudio;
+  final VoidCallback? onPlayStoredAudio;
+  final VoidCallback onPrimaryAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusLabel = switch (submissionFlowStatus) {
+      SubmissionFlowStatus.notStarted => isRecording ? '录音进行中' : '还没有提交',
+      SubmissionFlowStatus.queued => '等待老师点评',
+      SubmissionFlowStatus.processing => '评分处理中',
+      SubmissionFlowStatus.failed => isRecording ? '录音进行中' : '需要重新提交',
+      SubmissionFlowStatus.completed => '老师点评已完成',
+    };
+    final statusColor = switch (submissionFlowStatus) {
+      SubmissionFlowStatus.notStarted => const Color(0xFF2563EB),
+      SubmissionFlowStatus.queued => const Color(0xFFF97316),
+      SubmissionFlowStatus.processing => const Color(0xFFFF8F4D),
+      SubmissionFlowStatus.failed => const Color(0xFFDC2626),
+      SubmissionFlowStatus.completed => const Color(0xFF16A34A),
+    };
+    final subtitle = switch (submissionFlowStatus) {
+      SubmissionFlowStatus.notStarted =>
+        isRecording ? '读完后点击“结束录音并保存”，再提交给老师。' : '先听示范，再录音或选择音频，然后提交给老师。',
+      SubmissionFlowStatus.queued => submissionStatusHint ?? '已经提交成功，等待老师查看。',
+      SubmissionFlowStatus.processing =>
+        submissionStatusHint ?? '系统正在生成 AI 初评，请稍后刷新查看。',
+      SubmissionFlowStatus.failed =>
+        submissionStatusHint ?? '这次没有完成自动处理，你可以重新提交一次。',
+      SubmissionFlowStatus.completed => '这份练习已经完成，往下可以查看老师反馈。',
+    };
+    final canSubmit =
+        submissionFlowStatus == SubmissionFlowStatus.notStarted ||
+        submissionFlowStatus == SubmissionFlowStatus.failed;
+    final actionLabel = switch (submissionFlowStatus) {
+      SubmissionFlowStatus.notStarted => isSubmitting ? '提交中' : '提交练习',
+      SubmissionFlowStatus.failed => isSubmitting ? '重新提交中' : '重新提交',
+      SubmissionFlowStatus.queued => '等待点评',
+      SubmissionFlowStatus.processing => '处理中',
+      SubmissionFlowStatus.completed => '已完成',
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          if (selectedAudioLabel != null) ...[
+            const SizedBox(height: 12),
+            _AudioInfoCard(
+              title: '准备提交的音频',
+              fileName: selectedAudioLabel!,
+              onAction: onPlaySelectedAudio,
+              isPlaying: isSelectedAudioPlaying,
+              isLoading: isSelectedAudioLoading,
+            ),
+          ],
+          if (existingAudioLabel != null &&
+              submissionFlowStatus != SubmissionFlowStatus.notStarted) ...[
+            const SizedBox(height: 12),
+            _AudioInfoCard(
+              title: '已上传的音频',
+              fileName: existingAudioLabel!,
+              onAction: onPlayStoredAudio,
+              isPlaying: isStoredAudioPlaying,
+              isLoading: isStoredAudioLoading,
+            ),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              if (onRecordAudio != null)
+                FilledButton.tonalIcon(
+                  onPressed: onRecordAudio,
+                  icon: const Icon(Icons.mic_rounded),
+                  label: Text(isRecording ? '结束录音并保存' : '开始录音'),
+                ),
+              if (onPickAudio != null)
+                OutlinedButton.icon(
+                  onPressed: isRecording ? null : onPickAudio,
+                  icon: const Icon(Icons.library_music_rounded),
+                  label: Text(selectedAudioLabel == null ? '选择音频' : '重新选择'),
+                ),
+              FilledButton.icon(
+                onPressed: canSubmit && !isSubmitting && !isRecording
+                    ? onPrimaryAction
+                    : null,
+                icon: isSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        submissionFlowStatus == SubmissionFlowStatus.failed
+                            ? Icons.refresh_rounded
+                            : Icons.cloud_upload_rounded,
+                      ),
+                label: Text(actionLabel),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

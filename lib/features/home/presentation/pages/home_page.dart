@@ -128,7 +128,11 @@ class _PhoneHomeLayout extends StatelessWidget {
           isCompact: true,
         ),
         const SizedBox(height: 16),
-        _SummaryGrid(summary: summary, isCompact: true),
+        _SummaryGrid(
+          summary: summary,
+          activityId: highlightedActivityId,
+          isCompact: true,
+        ),
         const SizedBox(height: 16),
         _QuickActionsColumn(activityId: highlightedActivityId),
         const SizedBox(height: 16),
@@ -221,7 +225,7 @@ class _WideHomeLayout extends StatelessWidget {
           flex: 5,
           child: Column(
             children: [
-              _SummaryGrid(summary: summary),
+              _SummaryGrid(summary: summary, activityId: highlightedActivityId),
               const SizedBox(height: 18),
               _FeedbackPanel(summary: summary),
               const SizedBox(height: 18),
@@ -267,7 +271,7 @@ class _CompactHomeLayout extends StatelessWidget {
           summary: summary,
         ),
         const SizedBox(height: 18),
-        _SummaryGrid(summary: summary),
+        _SummaryGrid(summary: summary, activityId: highlightedActivityId),
         const SizedBox(height: 18),
         _QuickActionsRow(activityId: highlightedActivityId),
         const SizedBox(height: 18),
@@ -615,48 +619,57 @@ class _MiniMetric extends StatelessWidget {
 }
 
 class _SummaryGrid extends StatelessWidget {
-  const _SummaryGrid({required this.summary, this.isCompact = false});
+  const _SummaryGrid({
+    required this.summary,
+    required this.activityId,
+    this.isCompact = false,
+  });
 
   final PortalSummary summary;
+  final String activityId;
   final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: isCompact ? 12 : 16,
-      mainAxisSpacing: isCompact ? 12 : 16,
-      childAspectRatio: isCompact ? 1.05 : 1.38,
+    return Wrap(
+      spacing: isCompact ? 10 : 12,
+      runSpacing: isCompact ? 10 : 12,
       children: [
         _SummaryCard(
           title: '今日任务',
           value: '${summary.totalActivities}',
-          subtitle: '老师已布置的作业',
+          subtitle: '去完成今天的作业',
           color: const Color(0xFF65A9FF),
           icon: Icons.menu_book_rounded,
+          isCompact: isCompact,
+          onTap: () => context.go('/activities'),
         ),
         _SummaryCard(
           title: '已完成',
           value: '${summary.completedActivities}',
-          subtitle: '可以去查看老师反馈',
+          subtitle: '去查看老师反馈',
           color: const Color(0xFF33B28C),
           icon: Icons.verified_rounded,
+          isCompact: isCompact,
+          onTap: () => context.go('/activities/$activityId'),
         ),
         _SummaryCard(
           title: '进行中',
           value: '${summary.inProgressActivities}',
-          subtitle: '还可以继续学习',
+          subtitle: '继续当前进度',
           color: const Color(0xFFFF9B55),
           icon: Icons.auto_mode_rounded,
+          isCompact: isCompact,
+          onTap: () => context.go('/activities'),
         ),
         _SummaryCard(
           title: '待完成',
           value: '${summary.pendingTasks}',
-          subtitle: '优先完成这些小任务',
-          color: const Color(0xFFFF9B55),
+          subtitle: '优先完成这些任务',
+          color: const Color(0xFF7B8CFF),
           icon: Icons.pending_actions_rounded,
+          isCompact: isCompact,
+          onTap: () => context.go('/activities'),
         ),
       ],
     );
@@ -670,6 +683,8 @@ class _SummaryCard extends StatelessWidget {
     required this.subtitle,
     required this.color,
     required this.icon,
+    required this.onTap,
+    this.isCompact = false,
   });
 
   final String title;
@@ -677,54 +692,70 @@ class _SummaryCard extends StatelessWidget {
   final String subtitle;
   final Color color;
   final IconData icon;
+  final VoidCallback onTap;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(18),
+    final width = isCompact ? 164.0 : 200.0;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        width: width,
+        padding: EdgeInsets.all(isCompact ? 14 : 16),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: color.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: isCompact ? 42 : 48,
+              height: isCompact ? 42 : 48,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, color: color, size: isCompact ? 22 : 24),
             ),
-            child: Icon(icon, color: color),
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-              color: const Color(0xFF1E293B),
-              fontWeight: FontWeight.w900,
+            SizedBox(width: isCompact ? 12 : 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    value,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF64748B),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: const Color(0xFF1E293B),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

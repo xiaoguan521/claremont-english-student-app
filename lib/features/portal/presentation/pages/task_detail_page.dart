@@ -45,6 +45,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   String? _loadingAudioKey;
   String? _playingAudioKey;
   String? _speakingTaskId;
+  String? _focusedTaskId;
   _PendingAudioFile? _selectedAudio;
 
   @override
@@ -809,6 +810,18 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         ? null
         : _storedAudioKey(activity.submissionAudioPath!);
 
+    final autoFocusTask = activity.tasks.firstWhere(
+      (task) => task.reviewStatus != TaskReviewStatus.checked,
+      orElse: () => activity.tasks.first,
+    );
+    final focusedTaskId = activity.tasks.any((task) => task.id == _focusedTaskId)
+        ? _focusedTaskId!
+        : autoFocusTask.id;
+    final focusTask = activity.tasks.firstWhere((task) => task.id == focusedTaskId);
+    final otherTasks = activity.tasks
+        .where((task) => task.id != focusedTaskId)
+        .toList(growable: false);
+
     return TabletShell(
       activeSection: TabletSection.teaching,
       brandName: schoolContext.displayName,
@@ -822,98 +835,258 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           onTap: () => context.go('/activities'),
         ),
       ],
-      child: ListView.separated(
-        itemCount: activity.tasks.length + 1,
-        separatorBuilder: (_, _) => const SizedBox(height: 16),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _OverviewCard(
-              activity: activity,
-              completedTasks: completedTasks,
-              onOpenMaterial: () => _openReadingPage(activity),
-            );
-          }
-
-          final task = activity.tasks[index - 1];
-          final referenceAudioKey = task.hasReferenceAudio
-              ? _referenceAudioKey(task.referenceAudioPath!)
-              : null;
-          final encouragementKey =
-              task.review?.encouragement.trim().isNotEmpty == true
-              ? _generatedSampleAudioKey(
-                  _encouragementSpeechKey(task.id),
-                  schoolContext.schoolId ?? 'local',
-                  task.review!.encouragement,
-                )
-              : null;
-          return _TaskCard(
-            index: index - 1,
-            task: task,
+      child: ListView(
+        children: [
+          _TaskJourneyHeader(
+            activity: activity,
+            completedTasks: completedTasks,
+            focusedTaskIndex: activity.tasks.indexWhere(
+              (task) => task.id == focusTask.id,
+            ),
+            onOpenMaterial: () => _openReadingPage(activity),
+          ),
+          const SizedBox(height: 16),
+          _SectionHeading(
+            eyebrow: '当前句子',
+            title: focusTask.reviewStatus == TaskReviewStatus.checked
+                ? '这句已经完成，下面直接看点评。'
+                : '先完成这一句，再继续下一句。',
+            subtitle: '每次只专注一句，先听示范，再录音并提交。',
+          ),
+          const SizedBox(height: 12),
+          _TaskCard(
+            index: activity.tasks.indexWhere((task) => task.id == focusTask.id) + 1,
+            task: focusTask,
             submissionFlowStatus: activity.submissionFlowStatus,
             submissionStatusHint: activity.submissionStatusHint,
             selectedAudioLabel: _selectedAudio?.name,
             existingAudioLabel: activity.submissionAudioName,
             isSubmitting: _isSubmitting,
             isRecording: _isRecording,
-            isSpeaking: _speakingTaskId == _sampleSpeechKey(task.id),
-            isSamplePlaying: task.hasReferenceAudio
-                ? referenceAudioKey == _playingAudioKey
-                : _speakingTaskId == _sampleSpeechKey(task.id),
-            isSampleLoading: task.hasReferenceAudio
-                ? referenceAudioKey == _loadingAudioKey
+            isSpeaking: _speakingTaskId == _sampleSpeechKey(focusTask.id),
+            isSamplePlaying: focusTask.hasReferenceAudio
+                ? _referenceAudioKey(focusTask.referenceAudioPath!) == _playingAudioKey
+                : _speakingTaskId == _sampleSpeechKey(focusTask.id),
+            isSampleLoading: focusTask.hasReferenceAudio
+                ? _referenceAudioKey(focusTask.referenceAudioPath!) == _loadingAudioKey
                 : false,
             isEncouragementPlaying:
-                (encouragementKey != null &&
-                    encouragementKey == _playingAudioKey) ||
-                _speakingTaskId == _encouragementSpeechKey(task.id),
+                (focusTask.review?.encouragement.trim().isNotEmpty == true &&
+                    _generatedSampleAudioKey(
+                          _encouragementSpeechKey(focusTask.id),
+                          schoolContext.schoolId ?? 'local',
+                          focusTask.review!.encouragement,
+                        ) ==
+                        _playingAudioKey) ||
+                _speakingTaskId == _encouragementSpeechKey(focusTask.id),
             isEncouragementLoading:
-                encouragementKey != null &&
-                encouragementKey == _loadingAudioKey,
+                focusTask.review?.encouragement.trim().isNotEmpty == true &&
+                _generatedSampleAudioKey(
+                      _encouragementSpeechKey(focusTask.id),
+                      schoolContext.schoolId ?? 'local',
+                      focusTask.review!.encouragement,
+                    ) ==
+                    _loadingAudioKey,
             isSelectedAudioPlaying: selectedAudioKey == _playingAudioKey,
             isSelectedAudioLoading: selectedAudioKey == _loadingAudioKey,
             isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
             isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
-            onAction: () => _handleTaskAction(activity, task),
             onOpenReading: activity.materialPdfPath == null
                 ? null
-                : () => _openReadingPage(activity, task: task),
-            onSpeakSample: task.hasReferenceAudio
-                ? () => _toggleReferenceAudioPlayback(task)
-                : _sampleTextFor(task) == null
+                : () => _openReadingPage(activity, task: focusTask),
+            onSpeakSample: focusTask.hasReferenceAudio
+                ? () => _toggleReferenceAudioPlayback(focusTask)
+                : _sampleTextFor(focusTask) == null
                 ? null
-                : () => _speakSample(task),
+                : () => _speakSample(focusTask),
             onPickAudio: _isRecording ? null : _pickAudioFile,
             onRecordAudio: _toggleRecording,
-            onClearSelectedAudio: _selectedAudio == null
-                ? null
-                : _clearSelectedAudio,
+            onClearSelectedAudio:
+                _selectedAudio == null ? null : _clearSelectedAudio,
             onPlaySelectedAudio: _selectedAudio == null
                 ? null
                 : _togglePendingAudioPlayback,
             onPlayStoredAudio: storedAudioKey == null
                 ? null
                 : () => _toggleStoredAudioPlayback(activity),
-            onPlayEncouragement:
-                task.review == null ? null : () => _playEncouragement(task),
+            onPlayEncouragement: focusTask.review == null
+                ? null
+                : () => _playEncouragement(focusTask),
             onPrimaryAction: () => _handlePrimaryAction(activity),
-          );
-        },
+            isFocusTask: true,
+          ),
+          if (otherTasks.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            _SectionHeading(
+              eyebrow: '其他句子',
+              title: '其余句子放在下面，做完一条再切下一条。',
+              subtitle: '已完成的会直接显示点评状态，未完成的点一下就切过去。',
+            ),
+            const SizedBox(height: 12),
+            ...otherTasks.map((task) {
+              final index = activity.tasks.indexWhere((item) => item.id == task.id) + 1;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _TaskMiniCard(
+                  index: index,
+                  task: task,
+                  isFocused: task.id == focusedTaskId,
+                  onTap: () {
+                    setState(() {
+                      _focusedTaskId = task.id;
+                    });
+                  },
+                ),
+              );
+            }),
+          ],
+        ],
       ),
     );
   }
 
-  void _handleTaskAction(PortalActivity activity, PortalTask task) {
-    switch (task.reviewStatus) {
-      case TaskReviewStatus.checked:
-        _showMessage('这句的点评就在下面，可以直接看分数和鼓励语。');
-        return;
-      case TaskReviewStatus.pendingReview:
-        _showMessage('这项练习已经提交，老师正在查看。');
-        return;
-      case TaskReviewStatus.inProgress:
-        _handlePrimaryAction(activity);
-        return;
-    }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          eyebrow,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: const Color(0xFF2FA77D),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            color: const Color(0xFF1E293B),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: const Color(0xFF64748B),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TaskJourneyHeader extends StatelessWidget {
+  const _TaskJourneyHeader({
+    required this.activity,
+    required this.completedTasks,
+    required this.focusedTaskIndex,
+    required this.onOpenMaterial,
+  });
+
+  final PortalActivity activity;
+  final int completedTasks;
+  final int focusedTaskIndex;
+  final VoidCallback onOpenMaterial;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentStep = focusedTaskIndex + 1;
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF2FBF5), Color(0xFFFFF7E8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isPhone = constraints.maxWidth < 760;
+          final left = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                activity.title,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: const Color(0xFF1E293B),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${activity.className} · 今天先完成第 $currentStep 句，再继续下面的内容。',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: const Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _OverviewChip(
+                    icon: Icons.flag_rounded,
+                    label: '进度 $currentStep / ${activity.tasks.length}',
+                  ),
+                  _OverviewChip(
+                    icon: Icons.check_circle_rounded,
+                    label: '已完成 $completedTasks 句',
+                  ),
+                  if ((activity.materialTitle ?? '').trim().isNotEmpty)
+                    _OverviewChip(
+                      icon: Icons.menu_book_rounded,
+                      label: activity.materialTitle!,
+                    ),
+                ],
+              ),
+            ],
+          );
+          final right = FilledButton.tonalIcon(
+            onPressed: onOpenMaterial,
+            icon: const Icon(Icons.auto_stories_rounded),
+            label: const Text('先看教材'),
+          );
+
+          if (isPhone) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                left,
+                const SizedBox(height: 16),
+                right,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: left),
+              const SizedBox(width: 18),
+              right,
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -1081,6 +1254,134 @@ class _OverviewCard extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _TaskMiniCard extends StatelessWidget {
+  const _TaskMiniCard({
+    required this.index,
+    required this.task,
+    required this.isFocused,
+    required this.onTap,
+  });
+
+  final int index;
+  final PortalTask task;
+  final bool isFocused;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = switch (task.reviewStatus) {
+      TaskReviewStatus.checked => const Color(0xFF16A34A),
+      TaskReviewStatus.pendingReview => const Color(0xFFF97316),
+      TaskReviewStatus.inProgress => const Color(0xFF2563EB),
+    };
+    final statusLabel = switch (task.reviewStatus) {
+      TaskReviewStatus.checked => task.review == null
+          ? '已完成'
+          : '已完成 · ${task.review!.score.toStringAsFixed(0)} 分',
+      TaskReviewStatus.pendingReview => '等待老师点评',
+      TaskReviewStatus.inProgress => '还没完成',
+    };
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isFocused
+              ? Colors.white.withValues(alpha: 0.96)
+              : Colors.white.withValues(alpha: 0.84),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isFocused ? const Color(0xFF2FA77D) : const Color(0xFFE5E7EB),
+            width: isFocused ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF2FF),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                '$index',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: const Color(0xFFFF8F4D),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    task.expectedText?.trim().isNotEmpty == true
+                        ? task.expectedText!
+                        : (task.promptText ?? '继续完成这一句'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF64748B),
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isFocused ? '当前句子' : '切到这句',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF2FA77D),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2061,7 +2362,6 @@ class _TaskCard extends StatelessWidget {
     required this.isStoredAudioLoading,
     required this.isEncouragementPlaying,
     required this.isEncouragementLoading,
-    required this.onAction,
     this.onOpenReading,
     this.onSpeakSample,
     this.onPickAudio,
@@ -2071,6 +2371,7 @@ class _TaskCard extends StatelessWidget {
     this.onPlayStoredAudio,
     this.onPlayEncouragement,
     required this.onPrimaryAction,
+    this.isFocusTask = false,
   });
 
   final int index;
@@ -2090,7 +2391,6 @@ class _TaskCard extends StatelessWidget {
   final bool isStoredAudioLoading;
   final bool isEncouragementPlaying;
   final bool isEncouragementLoading;
-  final VoidCallback onAction;
   final VoidCallback? onOpenReading;
   final VoidCallback? onSpeakSample;
   final VoidCallback? onPickAudio;
@@ -2100,12 +2400,12 @@ class _TaskCard extends StatelessWidget {
   final VoidCallback? onPlayEncouragement;
   final VoidCallback? onClearSelectedAudio;
   final VoidCallback onPrimaryAction;
+  final bool isFocusTask;
 
   @override
   Widget build(BuildContext context) {
     final statusLabel = _statusLabel(task.reviewStatus);
     final statusColor = _statusColor(task.reviewStatus);
-    final actionLabel = _actionLabel(task.reviewStatus);
     final sampleText = _sampleTextFor(task);
 
     return Container(
@@ -2303,6 +2603,13 @@ class _TaskCard extends StatelessWidget {
                 spacing: 12,
                 runSpacing: 12,
                 children: [
+                  if (isFocusTask)
+                    _ReviewBadge(
+                      icon: Icons.local_fire_department_rounded,
+                      label: '现在先做这一句',
+                      color: const Color(0xFFEA580C),
+                      background: const Color(0xFFFFEDD5),
+                    ),
                   if (onOpenReading != null)
                     OutlinedButton.icon(
                       onPressed: onOpenReading,
@@ -2329,11 +2636,6 @@ class _TaskCard extends StatelessWidget {
                             : '听示范',
                       ),
                     ),
-                  FilledButton.tonalIcon(
-                    onPressed: onAction,
-                    icon: Icon(_actionIcon(task.reviewStatus)),
-                    label: Text(actionLabel),
-                  ),
                 ],
               ),
               if (task.review != null) ...[
@@ -2371,28 +2673,6 @@ class _TaskCard extends StatelessWidget {
         return const Color(0xFFF97316);
       case TaskReviewStatus.inProgress:
         return const Color(0xFF2563EB);
-    }
-  }
-
-  String _actionLabel(TaskReviewStatus status) {
-    switch (status) {
-      case TaskReviewStatus.checked:
-        return '已点评';
-      case TaskReviewStatus.pendingReview:
-        return '等待点评';
-      case TaskReviewStatus.inProgress:
-        return '提交练习';
-    }
-  }
-
-  IconData _actionIcon(TaskReviewStatus status) {
-    switch (status) {
-      case TaskReviewStatus.checked:
-        return Icons.rate_review_outlined;
-      case TaskReviewStatus.pendingReview:
-        return Icons.schedule_rounded;
-      case TaskReviewStatus.inProgress:
-        return Icons.cloud_upload_rounded;
     }
   }
 

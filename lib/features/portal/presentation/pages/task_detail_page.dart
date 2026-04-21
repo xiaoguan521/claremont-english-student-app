@@ -34,6 +34,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final FlutterTts _tts = FlutterTts();
   final AudioRecorder _recorder = AudioRecorder();
+  final GlobalKey _focusedTaskAnchorKey = GlobalKey();
   final Map<String, String> _storedAudioCache = {};
   final List<StreamSubscription<dynamic>> _playerSubscriptions = [];
 
@@ -765,14 +766,32 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     if (_focusedTaskId == nextTask.id || !mounted) {
       return;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _focusedTaskId = nextTask!.id;
-      });
+    _setFocusedTask(nextTask.id);
+  }
+
+  void _setFocusedTask(String taskId) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _focusedTaskId = taskId;
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollFocusedTaskIntoView();
+    });
+  }
+
+  Future<void> _scrollFocusedTaskIntoView() async {
+    final anchorContext = _focusedTaskAnchorKey.currentContext;
+    if (!mounted || anchorContext == null) {
+      return;
+    }
+    await Scrollable.ensureVisible(
+      anchorContext,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      alignment: 0.08,
+    );
   }
 
   @override
@@ -895,66 +914,69 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             subtitle: '每次只专注一句，先听示范，再录音并提交。',
           ),
           const SizedBox(height: 12),
-          _TaskCard(
-            index: activity.tasks.indexWhere((task) => task.id == focusTask.id) + 1,
-            task: focusTask,
-            submissionFlowStatus: activity.submissionFlowStatus,
-            submissionStatusHint: activity.submissionStatusHint,
-            selectedAudioLabel: _selectedAudio?.name,
-            existingAudioLabel: activity.submissionAudioName,
-            isSubmitting: _isSubmitting,
-            isRecording: _isRecording,
-            isSpeaking: _speakingTaskId == _sampleSpeechKey(focusTask.id),
-            isSamplePlaying: focusTask.hasReferenceAudio
-                ? _referenceAudioKey(focusTask.referenceAudioPath!) == _playingAudioKey
-                : _speakingTaskId == _sampleSpeechKey(focusTask.id),
-            isSampleLoading: focusTask.hasReferenceAudio
-                ? _referenceAudioKey(focusTask.referenceAudioPath!) == _loadingAudioKey
-                : false,
-            isEncouragementPlaying:
-                (focusTask.review?.encouragement.trim().isNotEmpty == true &&
-                    _generatedSampleAudioKey(
-                          _encouragementSpeechKey(focusTask.id),
-                          schoolContext.schoolId ?? 'local',
-                          focusTask.review!.encouragement,
-                        ) ==
-                        _playingAudioKey) ||
-                _speakingTaskId == _encouragementSpeechKey(focusTask.id),
-            isEncouragementLoading:
-                focusTask.review?.encouragement.trim().isNotEmpty == true &&
-                _generatedSampleAudioKey(
-                      _encouragementSpeechKey(focusTask.id),
-                      schoolContext.schoolId ?? 'local',
-                      focusTask.review!.encouragement,
-                    ) ==
-                    _loadingAudioKey,
-            isSelectedAudioPlaying: selectedAudioKey == _playingAudioKey,
-            isSelectedAudioLoading: selectedAudioKey == _loadingAudioKey,
-            isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
-            isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
-            onOpenReading: activity.materialPdfPath == null
-                ? null
-                : () => _openReadingPage(activity, task: focusTask),
-            onSpeakSample: focusTask.hasReferenceAudio
-                ? () => _toggleReferenceAudioPlayback(focusTask)
-                : _sampleTextFor(focusTask) == null
-                ? null
-                : () => _speakSample(focusTask),
-            onPickAudio: _isRecording ? null : _pickAudioFile,
-            onRecordAudio: _toggleRecording,
-            onClearSelectedAudio:
-                _selectedAudio == null ? null : _clearSelectedAudio,
-            onPlaySelectedAudio: _selectedAudio == null
-                ? null
-                : _togglePendingAudioPlayback,
-            onPlayStoredAudio: storedAudioKey == null
-                ? null
-                : () => _toggleStoredAudioPlayback(activity),
-            onPlayEncouragement: focusTask.review == null
-                ? null
-                : () => _playEncouragement(focusTask),
-            onPrimaryAction: () => _handlePrimaryAction(activity),
-            isFocusTask: true,
+          Container(
+            key: _focusedTaskAnchorKey,
+            child: _TaskCard(
+              index: activity.tasks.indexWhere((task) => task.id == focusTask.id) + 1,
+              task: focusTask,
+              submissionFlowStatus: activity.submissionFlowStatus,
+              submissionStatusHint: activity.submissionStatusHint,
+              selectedAudioLabel: _selectedAudio?.name,
+              existingAudioLabel: activity.submissionAudioName,
+              isSubmitting: _isSubmitting,
+              isRecording: _isRecording,
+              isSpeaking: _speakingTaskId == _sampleSpeechKey(focusTask.id),
+              isSamplePlaying: focusTask.hasReferenceAudio
+                  ? _referenceAudioKey(focusTask.referenceAudioPath!) == _playingAudioKey
+                  : _speakingTaskId == _sampleSpeechKey(focusTask.id),
+              isSampleLoading: focusTask.hasReferenceAudio
+                  ? _referenceAudioKey(focusTask.referenceAudioPath!) == _loadingAudioKey
+                  : false,
+              isEncouragementPlaying:
+                  (focusTask.review?.encouragement.trim().isNotEmpty == true &&
+                      _generatedSampleAudioKey(
+                            _encouragementSpeechKey(focusTask.id),
+                            schoolContext.schoolId ?? 'local',
+                            focusTask.review!.encouragement,
+                          ) ==
+                          _playingAudioKey) ||
+                  _speakingTaskId == _encouragementSpeechKey(focusTask.id),
+              isEncouragementLoading:
+                  focusTask.review?.encouragement.trim().isNotEmpty == true &&
+                  _generatedSampleAudioKey(
+                        _encouragementSpeechKey(focusTask.id),
+                        schoolContext.schoolId ?? 'local',
+                        focusTask.review!.encouragement,
+                      ) ==
+                      _loadingAudioKey,
+              isSelectedAudioPlaying: selectedAudioKey == _playingAudioKey,
+              isSelectedAudioLoading: selectedAudioKey == _loadingAudioKey,
+              isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
+              isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
+              onOpenReading: activity.materialPdfPath == null
+                  ? null
+                  : () => _openReadingPage(activity, task: focusTask),
+              onSpeakSample: focusTask.hasReferenceAudio
+                  ? () => _toggleReferenceAudioPlayback(focusTask)
+                  : _sampleTextFor(focusTask) == null
+                  ? null
+                  : () => _speakSample(focusTask),
+              onPickAudio: _isRecording ? null : _pickAudioFile,
+              onRecordAudio: _toggleRecording,
+              onClearSelectedAudio:
+                  _selectedAudio == null ? null : _clearSelectedAudio,
+              onPlaySelectedAudio: _selectedAudio == null
+                  ? null
+                  : _togglePendingAudioPlayback,
+              onPlayStoredAudio: storedAudioKey == null
+                  ? null
+                  : () => _toggleStoredAudioPlayback(activity),
+              onPlayEncouragement: focusTask.review == null
+                  ? null
+                  : () => _playEncouragement(focusTask),
+              onPrimaryAction: () => _handlePrimaryAction(activity),
+              isFocusTask: true,
+            ),
           ),
           if (otherTasks.isNotEmpty) ...[
             const SizedBox(height: 18),
@@ -972,11 +994,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                   index: index,
                   task: task,
                   isFocused: task.id == focusedTaskId,
-                  onTap: () {
-                    setState(() {
-                      _focusedTaskId = task.id;
-                    });
-                  },
+                  onTap: () => _setFocusedTask(task.id),
                 ),
               );
             }),

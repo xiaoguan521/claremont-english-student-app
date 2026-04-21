@@ -38,6 +38,7 @@ class ActivitiesPage extends ConsumerWidget {
       content = LayoutBuilder(
         builder: (context, constraints) {
           final isPhone = constraints.maxWidth < 760;
+          final isShortViewport = constraints.maxHeight < 760;
           final list = activities.isEmpty
               ? const _ActivitiesStateMessage(
                   title: '还没有新的作业',
@@ -73,7 +74,12 @@ class ActivitiesPage extends ConsumerWidget {
             children: [
               SizedBox(
                 width: 248,
-                child: _ActionRail(summaryAsync: summaryAsync),
+                child: SingleChildScrollView(
+                  child: _ActionRail(
+                    summaryAsync: summaryAsync,
+                    isCompact: isShortViewport,
+                  ),
+                ),
               ),
               const SizedBox(width: 20),
               Expanded(child: list),
@@ -217,37 +223,38 @@ class _RailAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final iconSize = isCompact ? 22.0 : 24.0;
+    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      color: const Color(0xFF25324B),
+      fontWeight: FontWeight.w800,
+    );
+    final valueStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: const Color(0xFF64748B),
+      fontWeight: FontWeight.w700,
+    );
+
     return Container(
-      height: 92,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      constraints: BoxConstraints(minHeight: isCompact ? 76 : 92),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 14 : 16,
+        vertical: isCompact ? 12 : 0,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FBFF),
         borderRadius: BorderRadius.circular(22),
       ),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF656CFF)),
-          const SizedBox(width: 12),
+          Icon(icon, color: const Color(0xFF4FAE7F), size: iconSize),
+          SizedBox(width: isCompact ? 10 : 12),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: const Color(0xFF25324B),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF64748B),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                Text(label, style: titleStyle),
+                SizedBox(height: isCompact ? 2 : 4),
+                Text(value, style: valueStyle),
               ],
             ),
           ),
@@ -272,7 +279,7 @@ class _StudyHintTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(isCompactPadding(context)),
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(24),
@@ -283,12 +290,12 @@ class _StudyHintTile extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: const Color(0xFF1E293B),
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             subtitle,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -299,6 +306,11 @@ class _StudyHintTile extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  double isCompactPadding(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return width < 980 ? 16 : 18;
   }
 }
 

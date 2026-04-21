@@ -687,6 +687,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       setState(() {
         _selectedAudio = null;
       });
+      _focusNextPendingTask(activity);
       _showMessage(reviewResult.message ?? '已经提交给老师了，AI 初评和老师点评会在稍后同步回来。');
     } catch (_) {
       if (!mounted) {
@@ -736,6 +737,41 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       ref.invalidate(portalActivitiesProvider);
       ref.invalidate(portalSummaryProvider);
       ref.invalidate(portalActivityByIdProvider(widget.activityId));
+    });
+  }
+
+  void _focusNextPendingTask(PortalActivity activity) {
+    final currentIndex = activity.tasks.indexWhere((task) => task.id == _focusedTaskId);
+    final orderedTasks = activity.tasks;
+    if (orderedTasks.isEmpty) {
+      return;
+    }
+
+    PortalTask? nextTask;
+    if (currentIndex >= 0) {
+      for (var i = currentIndex + 1; i < orderedTasks.length; i += 1) {
+        if (orderedTasks[i].reviewStatus != TaskReviewStatus.checked) {
+          nextTask = orderedTasks[i];
+          break;
+        }
+      }
+    }
+
+    nextTask ??= orderedTasks.firstWhere(
+      (task) => task.reviewStatus != TaskReviewStatus.checked,
+      orElse: () => orderedTasks.first,
+    );
+
+    if (_focusedTaskId == nextTask.id || !mounted) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _focusedTaskId = nextTask!.id;
+      });
     });
   }
 
@@ -821,6 +857,11 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     final otherTasks = activity.tasks
         .where((task) => task.id != focusedTaskId)
         .toList(growable: false);
+
+    if (focusTask.reviewStatus == TaskReviewStatus.checked &&
+        activity.tasks.any((task) => task.reviewStatus != TaskReviewStatus.checked)) {
+      _focusNextPendingTask(activity);
+    }
 
     return TabletShell(
       activeSection: TabletSection.teaching,
@@ -2771,13 +2812,30 @@ class _InlineSubmissionSection extends StatelessWidget {
     final canSubmit =
         submissionFlowStatus == SubmissionFlowStatus.notStarted ||
         submissionFlowStatus == SubmissionFlowStatus.failed;
-    final actionLabel = switch (submissionFlowStatus) {
-      SubmissionFlowStatus.notStarted => isSubmitting ? '提交中' : '提交练习',
-      SubmissionFlowStatus.failed => isSubmitting ? '重新提交中' : '重新提交',
-      SubmissionFlowStatus.queued => '等待点评',
-      SubmissionFlowStatus.processing => '处理中',
-      SubmissionFlowStatus.completed => '已完成',
-    };
+    final hasSelectedAudio = (selectedAudioLabel ?? '').trim().isNotEmpty;
+    final primaryLabel = isRecording
+        ? '结束录音并保存'
+        : hasSelectedAudio
+        ? (isSubmitting
+              ? (submissionFlowStatus == SubmissionFlowStatus.failed ? '重新提交中' : '提交中')
+              : (submissionFlowStatus == SubmissionFlowStatus.failed ? '重新提交这一句' : '提交这一句'))
+        : '开始录音';
+    final primaryIcon = isSubmitting
+        ? null
+        : isRecording
+        ? Icons.stop_circle_rounded
+        : hasSelectedAudio
+        ? (submissionFlowStatus == SubmissionFlowStatus.failed
+              ? Icons.refresh_rounded
+              : Icons.cloud_upload_rounded)
+        : Icons.mic_rounded;
+    final primaryAction = isSubmitting
+        ? null
+        : isRecording
+        ? onRecordAudio
+        : hasSelectedAudio
+        ? (canSubmit ? onPrimaryAction : null)
+        : onRecordAudio;
 
     return Container(
       width: double.infinity,
@@ -2841,40 +2899,43 @@ class _InlineSubmissionSection extends StatelessWidget {
               isLoading: isStoredAudioLoading,
             ),
           ],
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: primaryAction,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              backgroundColor: const Color(0xFFFF8F4D),
+              foregroundColor: Colors.white,
+            ),
+            icon: isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(primaryIcon),
+            label: Text(primaryLabel),
+          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
-              if (onRecordAudio != null)
-                FilledButton.tonalIcon(
-                  onPressed: onRecordAudio,
-                  icon: const Icon(Icons.mic_rounded),
-                  label: Text(isRecording ? '结束录音并保存' : '开始录音'),
-                ),
               if (onPickAudio != null)
                 OutlinedButton.icon(
-                  onPressed: isRecording ? null : onPickAudio,
+                  onPressed: isRecording || isSubmitting ? null : onPickAudio,
                   icon: const Icon(Icons.library_music_rounded),
-                  label: Text(selectedAudioLabel == null ? '选择音频' : '重新选择'),
+                  label: Text(hasSelectedAudio ? '换一段音频' : '选择已有音频'),
                 ),
-              FilledButton.icon(
-                onPressed: canSubmit && !isSubmitting && !isRecording
-                    ? onPrimaryAction
-                    : null,
-                icon: isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(
-                        submissionFlowStatus == SubmissionFlowStatus.failed
-                            ? Icons.refresh_rounded
-                            : Icons.cloud_upload_rounded,
-                      ),
-                label: Text(actionLabel),
-              ),
+              if (hasSelectedAudio && onClearSelectedAudio != null)
+                TextButton.icon(
+                  onPressed: isSubmitting ? null : onClearSelectedAudio,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('删除这段音频'),
+                ),
             ],
           ),
         ],

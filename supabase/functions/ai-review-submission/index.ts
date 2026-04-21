@@ -1354,9 +1354,34 @@ Deno.serve(async (req) => {
       requestedBy: user.id,
     })
 
+    if (
+      queueResult.status === 'processing' ||
+      (context.existingJob?.status === 'processing')
+    ) {
+      return json({
+        status: queueResult.status,
+        message: queueResult.message,
+      })
+    }
+
+    const immediateResult = await processSubmissionReview({
+      adminClient,
+      schoolConfig: context.schoolConfig,
+      encryptionSecret,
+      submission,
+      assignment: context.assignment,
+      items: context.items,
+      audioAsset: context.audioAsset,
+      existingJob: queueResult.job ?? context.existingJob,
+      requestedBy: user.id,
+    })
+
     return json({
-      status: queueResult.status,
-      message: queueResult.message,
+      status: immediateResult.status,
+      message:
+        immediateResult.status === 'completed'
+          ? 'AI 初评已完成，学生端刷新后即可查看。'
+          : immediateResult.message ?? queueResult.message,
     })
   } catch (error) {
     console.error('ai-review-submission failed', error)

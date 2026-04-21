@@ -37,6 +37,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   final Map<String, String> _storedAudioCache = {};
   final List<StreamSubscription<dynamic>> _playerSubscriptions = [];
 
+  Timer? _statusRefreshTimer;
+  SubmissionFlowStatus? _statusRefreshMode;
   bool _isSubmitting = false;
   bool _isRecording = false;
   String? _recordingPath;
@@ -106,6 +108,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 
   @override
   void dispose() {
+    _statusRefreshTimer?.cancel();
     for (final subscription in _playerSubscriptions) {
       subscription.cancel();
     }
@@ -676,6 +679,34 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _syncStatusRefresh(SubmissionFlowStatus status) {
+    final shouldRefresh =
+        status == SubmissionFlowStatus.queued ||
+        status == SubmissionFlowStatus.processing;
+
+    if (!shouldRefresh) {
+      _statusRefreshTimer?.cancel();
+      _statusRefreshTimer = null;
+      _statusRefreshMode = null;
+      return;
+    }
+
+    if (_statusRefreshTimer != null && _statusRefreshMode == status) {
+      return;
+    }
+
+    _statusRefreshTimer?.cancel();
+    _statusRefreshMode = status;
+    _statusRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) {
+        return;
+      }
+      ref.invalidate(portalActivitiesProvider);
+      ref.invalidate(portalSummaryProvider);
+      ref.invalidate(portalActivityByIdProvider(widget.activityId));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final activityAsync = ref.watch(
@@ -734,6 +765,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         ),
       );
     }
+
+    _syncStatusRefresh(activity.submissionFlowStatus);
 
     final completedTasks = activity.tasks
         .where((task) => task.reviewStatus == TaskReviewStatus.checked)

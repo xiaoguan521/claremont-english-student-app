@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -63,6 +64,17 @@ class SupabasePortalRepository implements PortalRepository {
   const SupabasePortalRepository(this._client);
 
   final SupabaseClient _client;
+
+  Future<void> _triggerImmediateReview(String submissionId) async {
+    try {
+      await _client.functions.invoke(
+        'ai-review-submission',
+        body: {'action': 'review_submission', 'submissionId': submissionId},
+      );
+    } catch (_) {
+      // Fallback remains the server-side queue worker.
+    }
+  }
 
   @override
   Future<List<PortalActivity>> fetchActivities({String? schoolId}) async {
@@ -435,9 +447,11 @@ class SupabasePortalRepository implements PortalRepository {
         .update({'status': 'queued', 'submitted_at': now, 'updated_at': now})
         .eq('id', submissionId);
 
+    unawaited(_triggerImmediateReview(submissionId));
+
     return const AiReviewDispatchResult(
       status: AiReviewDispatchStatus.queued,
-      message: '录音已经提交，AI 初评已进入后台队列。',
+      message: '录音已经提交，AI 初评已开始处理。',
     );
   }
 

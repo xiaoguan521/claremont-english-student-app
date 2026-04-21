@@ -92,6 +92,7 @@ type ReviewOutcome = {
   pronunciationScore: number
   fluencyScore: number
   completenessScore: number
+  taskReviews: TaskReviewOutcome[]
   similarity: {
     charSimilarity: number
     tokenRecall: number
@@ -100,6 +101,20 @@ type ReviewOutcome = {
   transcriptionModel: string
   transcriptionRaw: unknown
   generationRaw: unknown
+}
+
+type TaskReviewOutcome = {
+  itemId: string
+  title: string
+  expectedText: string
+  overallScore: number
+  pronunciationScore: number
+  fluencyScore: number
+  completenessScore: number
+  summaryFeedback: string
+  strengths: string[]
+  improvementPoints: string[]
+  encouragement: string
 }
 
 function json(body: unknown, status = 200) {
@@ -272,20 +287,20 @@ function buildScores(transcript: string, expectedText: string) {
     similarity.tokenRecall * 0.33 +
     similarity.tokenBalance * 0.15
 
-  const overallScore = clampScore(blended * 100, 42, 98)
+  const overallScore = clampScore(blended * 100, 60, 98)
   const completenessScore = clampScore(
     similarity.tokenRecall * 100 * 0.82 + overallScore * 0.18,
-    40,
+    60,
     99,
   )
   const fluencyScore = clampScore(
     overallScore + (similarity.tokenBalance >= 0.92 ? 3 : -5),
-    35,
+    60,
     99,
   )
   const pronunciationScore = clampScore(
     overallScore + (similarity.charSimilarity >= 0.92 ? 2 : -3),
-    35,
+    60,
     99,
   )
 
@@ -295,6 +310,42 @@ function buildScores(transcript: string, expectedText: string) {
     completenessScore,
     fluencyScore,
     pronunciationScore,
+  }
+}
+
+function fallbackTaskNarrative(expectedText: string, transcript: string, overallScore: number) {
+  const normalizedExpected = normalizeForComparison(expectedText)
+  const normalizedTranscript = normalizeForComparison(transcript)
+  const expectedWords = tokenize(expectedText)
+  const transcriptWords = tokenize(transcript)
+  const matched = normalizedExpected !== '' && normalizedTranscript.includes(normalizedExpected)
+
+  if (matched || overallScore >= 92) {
+    return {
+      summaryFeedback: '这一句读得很接近标准，继续保持现在的节奏。',
+      strengths: ['句子主要内容读出来了', '声音比较自然'],
+      improvementPoints: ['句尾可以再收紧一点'],
+      encouragement: '这一句读得不错，再自信一点会更棒。',
+    }
+  }
+
+  if (overallScore >= 75) {
+    return {
+      summaryFeedback: '这一句大部分已经读对了，再把重点单词读完整一点会更好。',
+      strengths: ['愿意完整开口跟读', '语速比较稳定'],
+      improvementPoints: ['再对照示范，把整句读完整', '注意停顿和连读'],
+      encouragement: '你已经读对了大部分内容，再练一遍就会更稳。',
+    }
+  }
+
+  return {
+    summaryFeedback:
+      transcriptWords.length >= expectedWords.length
+        ? '这一句已经勇敢读出来了，接下来重点把发音读得更准确。'
+        : '这一句先把内容完整读出来，再跟着示范把语音读稳。',
+    strengths: ['愿意尝试开口朗读'],
+    improvementPoints: ['先把整句内容读完整', '跟着示范多听一遍再读'],
+    encouragement: '别着急，这一句再跟着示范练一遍就会越来越顺。',
   }
 }
 
@@ -683,6 +734,33 @@ async function buildReviewOutcome(options: {
     pronunciationScore: scores.pronunciationScore,
   })
 
+  const taskReviews = options.items.map((item) => {
+    const expectedText =
+      (item.expected_text ?? '').trim() ||
+      (item.tts_text ?? '').trim() ||
+      item.prompt_text.trim()
+    const itemScores = buildScores(transcript, expectedText)
+    const taskNarrative = fallbackTaskNarrative(
+      expectedText,
+      transcript,
+      itemScores.overallScore,
+    )
+
+    return {
+      itemId: item.id,
+      title: item.title?.trim() || item.prompt_text.trim(),
+      expectedText,
+      overallScore: itemScores.overallScore,
+      pronunciationScore: itemScores.pronunciationScore,
+      fluencyScore: itemScores.fluencyScore,
+      completenessScore: itemScores.completenessScore,
+      summaryFeedback: taskNarrative.summaryFeedback,
+      strengths: taskNarrative.strengths,
+      improvementPoints: taskNarrative.improvementPoints,
+      encouragement: taskNarrative.encouragement,
+    } satisfies TaskReviewOutcome
+  })
+
   return {
     transcript,
     summaryFeedback: narrative.summaryFeedback,
@@ -693,6 +771,7 @@ async function buildReviewOutcome(options: {
     pronunciationScore: scores.pronunciationScore,
     fluencyScore: scores.fluencyScore,
     completenessScore: scores.completenessScore,
+    taskReviews,
     similarity: scores.similarity,
     transcriptionModel,
     transcriptionRaw,
@@ -901,6 +980,7 @@ async function processSubmissionReview(options: {
             transcript: reviewOutcome.transcript,
             similarity: reviewOutcome.similarity,
             transcriptionModel: reviewOutcome.transcriptionModel,
+            taskReviews: reviewOutcome.taskReviews,
             transcriptionRaw: reviewOutcome.transcriptionRaw,
             generationRaw: reviewOutcome.generationRaw,
           },

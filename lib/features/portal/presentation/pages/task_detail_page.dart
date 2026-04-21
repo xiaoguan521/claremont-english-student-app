@@ -271,13 +271,14 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 
     final schoolContext = ref.read(schoolContextProvider).valueOrNull;
     final schoolId = schoolContext?.schoolId;
+    final speechKey = _sampleSpeechKey(task.id);
     if (schoolId != null && schoolId.trim().isNotEmpty) {
       try {
         await _toggleAudioPlayback(
-          audioKey: _generatedSampleAudioKey(task.id, schoolId, text),
+          audioKey: _generatedSampleAudioKey(speechKey, schoolId, text),
           resolvePath: () => _resolveGeneratedSampleAudioPath(
             schoolId: schoolId,
-            taskId: task.id,
+            taskId: speechKey,
             text: text,
           ),
           rethrowOnError: true,
@@ -288,10 +289,40 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       }
     }
 
-    await _speakSampleLocally(task, text);
+    await _speakTextLocally(speechKey, text);
   }
 
-  Future<void> _speakSampleLocally(PortalTask task, String text) async {
+  Future<void> _playEncouragement(PortalTask task) async {
+    final text = task.review?.encouragement.trim();
+    if (text == null || text.isEmpty) {
+      _showMessage('这句还没有鼓励语。');
+      return;
+    }
+
+    final schoolContext = ref.read(schoolContextProvider).valueOrNull;
+    final schoolId = schoolContext?.schoolId;
+    final speechKey = _encouragementSpeechKey(task.id);
+    if (schoolId != null && schoolId.trim().isNotEmpty) {
+      try {
+        await _toggleAudioPlayback(
+          audioKey: _generatedSampleAudioKey(speechKey, schoolId, text),
+          resolvePath: () => _resolveGeneratedSampleAudioPath(
+            schoolId: schoolId,
+            taskId: speechKey,
+            text: text,
+          ),
+          rethrowOnError: true,
+        );
+        return;
+      } catch (_) {
+        _showMessage('远程鼓励语暂时没有生成成功，先用本地语音继续。');
+      }
+    }
+
+    await _speakTextLocally(speechKey, text);
+  }
+
+  Future<void> _speakTextLocally(String speechKey, String text) async {
     await _audioPlayer.stop();
     if (mounted) {
       setState(() {
@@ -300,7 +331,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       });
     }
 
-    if (_speakingTaskId == task.id) {
+    if (_speakingTaskId == speechKey) {
       await _tts.stop();
       if (!mounted) {
         return;
@@ -316,7 +347,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return;
     }
     setState(() {
-      _speakingTaskId = task.id;
+      _speakingTaskId = speechKey;
     });
 
     final result = await _tts.speak(text);
@@ -792,11 +823,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         ),
       ],
       child: ListView.separated(
-        itemCount:
-            activity.tasks.length +
-            (activity.submissionFlowStatus == SubmissionFlowStatus.completed
-                ? 2
-                : 1),
+        itemCount: activity.tasks.length + 1,
         separatorBuilder: (_, _) => const SizedBox(height: 16),
         itemBuilder: (context, index) {
           if (index == 0) {
@@ -807,21 +834,17 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             );
           }
 
-          if (activity.submissionFlowStatus == SubmissionFlowStatus.completed &&
-              index == activity.tasks.length + 1) {
-            return _FeedbackPanel(
-              activity: activity,
-              isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
-              isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
-              onPlayStoredAudio: storedAudioKey == null
-                  ? null
-                  : () => _toggleStoredAudioPlayback(activity),
-            );
-          }
-
           final task = activity.tasks[index - 1];
           final referenceAudioKey = task.hasReferenceAudio
               ? _referenceAudioKey(task.referenceAudioPath!)
+              : null;
+          final encouragementKey =
+              task.review?.encouragement.trim().isNotEmpty == true
+              ? _generatedSampleAudioKey(
+                  _encouragementSpeechKey(task.id),
+                  schoolContext.schoolId ?? 'local',
+                  task.review!.encouragement,
+                )
               : null;
           return _TaskCard(
             index: index - 1,
@@ -832,13 +855,20 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             existingAudioLabel: activity.submissionAudioName,
             isSubmitting: _isSubmitting,
             isRecording: _isRecording,
-            isSpeaking: _speakingTaskId == task.id,
+            isSpeaking: _speakingTaskId == _sampleSpeechKey(task.id),
             isSamplePlaying: task.hasReferenceAudio
                 ? referenceAudioKey == _playingAudioKey
-                : _speakingTaskId == task.id,
+                : _speakingTaskId == _sampleSpeechKey(task.id),
             isSampleLoading: task.hasReferenceAudio
                 ? referenceAudioKey == _loadingAudioKey
                 : false,
+            isEncouragementPlaying:
+                (encouragementKey != null &&
+                    encouragementKey == _playingAudioKey) ||
+                _speakingTaskId == _encouragementSpeechKey(task.id),
+            isEncouragementLoading:
+                encouragementKey != null &&
+                encouragementKey == _loadingAudioKey,
             isSelectedAudioPlaying: selectedAudioKey == _playingAudioKey,
             isSelectedAudioLoading: selectedAudioKey == _loadingAudioKey,
             isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
@@ -863,6 +893,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             onPlayStoredAudio: storedAudioKey == null
                 ? null
                 : () => _toggleStoredAudioPlayback(activity),
+            onPlayEncouragement:
+                task.review == null ? null : () => _playEncouragement(task),
             onPrimaryAction: () => _handlePrimaryAction(activity),
           );
         },
@@ -873,7 +905,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   void _handleTaskAction(PortalActivity activity, PortalTask task) {
     switch (task.reviewStatus) {
       case TaskReviewStatus.checked:
-        _showMessage('老师点评已经生成了，往上滑一点就能看到。');
+        _showMessage('这句的点评就在下面，可以直接看分数和鼓励语。');
         return;
       case TaskReviewStatus.pendingReview:
         _showMessage('这项练习已经提交，老师正在查看。');
@@ -902,8 +934,8 @@ class _OverviewCard extends StatelessWidget {
         ? '还没有提交'
         : '提交于 ${_formatDateTime(activity.submittedAt!)}';
     final scoreLabel = activity.latestScore == null
-        ? '等待老师评分'
-        : '老师评分 ${activity.latestScore!.toStringAsFixed(0)}';
+        ? '等待老师点评'
+        : '已生成本次点评';
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1478,6 +1510,286 @@ class _AudioInfoCard extends StatelessWidget {
   }
 }
 
+class _TaskReviewPanel extends StatelessWidget {
+  const _TaskReviewPanel({
+    required this.review,
+    required this.isEncouragementPlaying,
+    required this.isEncouragementLoading,
+    this.onPlayEncouragement,
+  });
+
+  final PortalTaskReview review;
+  final bool isEncouragementPlaying;
+  final bool isEncouragementLoading;
+  final VoidCallback? onPlayEncouragement;
+
+  @override
+  Widget build(BuildContext context) {
+    final scoreLabel = review.score.toStringAsFixed(0);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6FBF8),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD9F1E3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _ReviewBadge(
+                icon: Icons.auto_awesome_rounded,
+                label: 'AI 点评',
+                color: const Color(0xFF0F8B6D),
+                background: const Color(0xFFDFF8EC),
+              ),
+              _ReviewBadge(
+                icon: Icons.star_rounded,
+                label: '本句得分 $scoreLabel',
+                color: const Color(0xFFF97316),
+                background: const Color(0xFFFFEBD9),
+              ),
+              if (review.pronunciationScore != null)
+                _ReviewMetricChip(
+                  label: '发音 ${review.pronunciationScore!.toStringAsFixed(0)}',
+                ),
+              if (review.fluencyScore != null)
+                _ReviewMetricChip(
+                  label: '流利度 ${review.fluencyScore!.toStringAsFixed(0)}',
+                ),
+              if (review.completenessScore != null)
+                _ReviewMetricChip(
+                  label: '完整度 ${review.completenessScore!.toStringAsFixed(0)}',
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            review.summaryFeedback,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: const Color(0xFF1E293B),
+              fontWeight: FontWeight.w800,
+              height: 1.45,
+            ),
+          ),
+          if (onPlayEncouragement != null &&
+              review.encouragement.trim().isNotEmpty) ...[
+            const SizedBox(height: 14),
+            FilledButton.tonalIcon(
+              onPressed: onPlayEncouragement,
+              icon: isEncouragementLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      isEncouragementPlaying
+                          ? Icons.stop_circle_rounded
+                          : Icons.volume_up_rounded,
+                    ),
+              label: Text(
+                isEncouragementLoading
+                    ? '鼓励语生成中'
+                    : isEncouragementPlaying
+                    ? '停止鼓励语'
+                    : '听鼓励语',
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isPhone = constraints.maxWidth < 720;
+              final strengthsCard = _ReviewListCard(
+                title: '这句读得好的地方',
+                icon: Icons.thumb_up_alt_rounded,
+                background: const Color(0xFFEAFBF1),
+                foreground: const Color(0xFF0F8B6D),
+                items: review.strengths.isEmpty
+                    ? const ['这句已经认真开口读出来了。']
+                    : review.strengths,
+              );
+              final improvementCard = _ReviewListCard(
+                title: '下次可以继续加强',
+                icon: Icons.flag_rounded,
+                background: const Color(0xFFFFF4E8),
+                foreground: const Color(0xFFB45309),
+                items: review.improvementPoints.isEmpty
+                    ? const ['再跟着示范多读一遍，会更顺。']
+                    : review.improvementPoints,
+              );
+
+              if (isPhone) {
+                return Column(
+                  children: [
+                    strengthsCard,
+                    const SizedBox(height: 12),
+                    improvementCard,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: strengthsCard),
+                  const SizedBox(width: 12),
+                  Expanded(child: improvementCard),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewBadge extends StatelessWidget {
+  const _ReviewBadge({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.background,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewMetricChip extends StatelessWidget {
+  const _ReviewMetricChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFDCE7E3)),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: const Color(0xFF475569),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewListCard extends StatelessWidget {
+  const _ReviewListCard({
+    required this.title,
+    required this.icon,
+    required this.background,
+    required this.foreground,
+    required this.items,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color background;
+  final Color foreground;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: foreground),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '• ',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: foreground,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF334155),
+                        fontWeight: FontWeight.w700,
+                        height: 1.45,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _FeedbackPanel extends StatelessWidget {
   const _FeedbackPanel({
     required this.activity,
@@ -1747,6 +2059,8 @@ class _TaskCard extends StatelessWidget {
     required this.isSelectedAudioLoading,
     required this.isStoredAudioPlaying,
     required this.isStoredAudioLoading,
+    required this.isEncouragementPlaying,
+    required this.isEncouragementLoading,
     required this.onAction,
     this.onOpenReading,
     this.onSpeakSample,
@@ -1755,6 +2069,7 @@ class _TaskCard extends StatelessWidget {
     this.onClearSelectedAudio,
     this.onPlaySelectedAudio,
     this.onPlayStoredAudio,
+    this.onPlayEncouragement,
     required this.onPrimaryAction,
   });
 
@@ -1773,6 +2088,8 @@ class _TaskCard extends StatelessWidget {
   final bool isSelectedAudioLoading;
   final bool isStoredAudioPlaying;
   final bool isStoredAudioLoading;
+  final bool isEncouragementPlaying;
+  final bool isEncouragementLoading;
   final VoidCallback onAction;
   final VoidCallback? onOpenReading;
   final VoidCallback? onSpeakSample;
@@ -1780,6 +2097,7 @@ class _TaskCard extends StatelessWidget {
   final VoidCallback? onRecordAudio;
   final VoidCallback? onPlaySelectedAudio;
   final VoidCallback? onPlayStoredAudio;
+  final VoidCallback? onPlayEncouragement;
   final VoidCallback? onClearSelectedAudio;
   final VoidCallback onPrimaryAction;
 
@@ -2018,6 +2336,15 @@ class _TaskCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (task.review != null) ...[
+                const SizedBox(height: 16),
+                _TaskReviewPanel(
+                  review: task.review!,
+                  onPlayEncouragement: onPlayEncouragement,
+                  isEncouragementPlaying: isEncouragementPlaying,
+                  isEncouragementLoading: isEncouragementLoading,
+                ),
+              ],
             ],
           );
         },
@@ -2050,7 +2377,7 @@ class _TaskCard extends StatelessWidget {
   String _actionLabel(TaskReviewStatus status) {
     switch (status) {
       case TaskReviewStatus.checked:
-        return '查看点评';
+        return '已点评';
       case TaskReviewStatus.pendingReview:
         return '等待点评';
       case TaskReviewStatus.inProgress:
@@ -2475,6 +2802,14 @@ String _storedAudioKey(String storagePath) {
 
 String _referenceAudioKey(String storagePath) {
   return 'reference:$storagePath';
+}
+
+String _sampleSpeechKey(String taskId) {
+  return 'sample:$taskId';
+}
+
+String _encouragementSpeechKey(String taskId) {
+  return 'encouragement:$taskId';
 }
 
 String _generatedSampleAudioKey(String taskId, String schoolId, String text) {

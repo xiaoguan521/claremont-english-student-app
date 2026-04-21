@@ -13,6 +13,7 @@ class PortalTask {
     required this.kind,
     required this.reviewStatus,
     required this.previewAsset,
+    this.review,
     this.promptText,
     this.ttsText,
     this.expectedText,
@@ -26,6 +27,7 @@ class PortalTask {
   final TaskKind kind;
   final TaskReviewStatus reviewStatus;
   final String previewAsset;
+  final PortalTaskReview? review;
   final String? promptText;
   final String? ttsText;
   final String? expectedText;
@@ -36,6 +38,29 @@ class PortalTask {
   bool get hasTtsText => (ttsText ?? '').trim().isNotEmpty;
   bool get hasPageRange => startPage != null || endPage != null;
   bool get hasReferenceAudio => (referenceAudioPath ?? '').trim().isNotEmpty;
+  bool get hasReview => review != null;
+}
+
+class PortalTaskReview {
+  const PortalTaskReview({
+    required this.score,
+    required this.summaryFeedback,
+    required this.encouragement,
+    this.pronunciationScore,
+    this.fluencyScore,
+    this.completenessScore,
+    this.strengths = const [],
+    this.improvementPoints = const [],
+  });
+
+  final double score;
+  final String summaryFeedback;
+  final String encouragement;
+  final double? pronunciationScore;
+  final double? fluencyScore;
+  final double? completenessScore;
+  final List<String> strengths;
+  final List<String> improvementPoints;
 }
 
 class PortalActivity {

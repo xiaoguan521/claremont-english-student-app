@@ -237,7 +237,7 @@ class SupabasePortalRepository implements PortalRepository {
       final evaluationsResponse = await _client
           .from('evaluation_results')
           .select(
-            'submission_id, overall_score, strengths, improvement_points, encouragement',
+            'submission_id, provider, overall_score, strengths, improvement_points, encouragement, raw_result',
           )
           .inFilter('submission_id', submissionIds);
 
@@ -317,8 +317,15 @@ class SupabasePortalRepository implements PortalRepository {
           ? _asStringList(evaluationRow?['improvement_points'])
           : const <String>[];
 
+      final taskReviewByItemId = _extractTaskReviews(evaluationRow);
       final tasks = (itemsByAssignmentId[assignmentId] ?? const [])
-          .map((item) => _mapTask(item, submissionFlowStatus))
+          .map(
+            (item) => _mapTask(
+              item,
+              submissionFlowStatus,
+              taskReviewByItemId[item['id'] as String? ?? ''],
+            ),
+          )
           .toList();
       final materialRow = materialById[row['material_id'] as String? ?? ''];
       final reviewCount =
@@ -458,6 +465,7 @@ class SupabasePortalRepository implements PortalRepository {
   PortalTask _mapTask(
     Map<String, dynamic> row,
     SubmissionFlowStatus submissionFlowStatus,
+    PortalTaskReview? review,
   ) {
     final itemType = (row['item_type'] as String?) ?? 'sentence';
 
@@ -470,6 +478,7 @@ class SupabasePortalRepository implements PortalRepository {
       kind: _mapTaskKind(itemType),
       reviewStatus: _mapTaskReviewStatus(submissionFlowStatus),
       previewAsset: _previewAsset(itemType),
+      review: review,
       promptText: row['prompt_text'] as String?,
       ttsText: row['tts_text'] as String?,
       expectedText: row['expected_text'] as String?,
@@ -642,6 +651,61 @@ class SupabasePortalRepository implements PortalRepository {
       return value.map((item) => item.toString()).toList();
     }
     return const [];
+  }
+
+  Map<String, PortalTaskReview> _extractTaskReviews(
+    Map<String, dynamic>? evaluationRow,
+  ) {
+    if (evaluationRow == null) {
+      return const {};
+    }
+
+    final provider = evaluationRow['provider'] as String?;
+    final rawResult = _asMap(evaluationRow['raw_result']);
+    final source =
+        provider == 'teacher-review'
+            ? _asMap(rawResult?['previousAiReview'])
+            : rawResult;
+    final taskReviews = source?['taskReviews'];
+    if (taskReviews is! List) {
+      return const {};
+    }
+
+    final result = <String, PortalTaskReview>{};
+    for (final item in taskReviews) {
+      final row = _asMap(item);
+      final itemId = row?['itemId'] as String?;
+      final score = _asDouble(row?['overallScore'] ?? row?['score']);
+      final summaryFeedback = (row?['summaryFeedback'] as String?)?.trim();
+      if (itemId == null || score == null || summaryFeedback == null) {
+        continue;
+      }
+
+      result[itemId] = PortalTaskReview(
+        score: score,
+        summaryFeedback: summaryFeedback,
+        encouragement: (row?['encouragement'] as String?)?.trim() ?? '',
+        pronunciationScore: _asDouble(row?['pronunciationScore']),
+        fluencyScore: _asDouble(row?['fluencyScore']),
+        completenessScore: _asDouble(row?['completenessScore']),
+        strengths: _asStringList(row?['strengths']),
+        improvementPoints: _asStringList(row?['improvementPoints']),
+      );
+    }
+
+    return result;
+  }
+
+  Map<String, dynamic>? _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return value.map(
+        (key, item) => MapEntry(key.toString(), item),
+      );
+    }
+    return null;
   }
 
   String? _fileNameFromPath(String? path) {

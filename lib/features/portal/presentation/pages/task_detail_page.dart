@@ -655,73 +655,67 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           onTap: () => context.go('/activities'),
         ),
       ],
-      child: Column(
-        children: [
-          _OverviewCard(
-            activity: activity,
-            completedTasks: completedTasks,
-            isSubmitting: _isSubmitting,
-            onPrimaryAction: () => _handlePrimaryAction(activity),
-            onOpenMaterial: () => _openReadingPage(activity),
-          ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: ListView.separated(
-              itemCount: activity.tasks.length + 1,
-              separatorBuilder: (_, _) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _SubmissionPanel(
-                    activity: activity,
-                    isSubmitting: _isSubmitting,
-                    isRecording: _isRecording,
-                    selectedAudio: _selectedAudio,
-                    isSelectedAudioPlaying:
-                        selectedAudioKey == _playingAudioKey,
-                    isSelectedAudioLoading:
-                        selectedAudioKey == _loadingAudioKey,
-                    isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
-                    isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
-                    onPickAudio: _pickAudioFile,
-                    onRecordAudio: _toggleRecording,
-                    onPlaySelectedAudio: _selectedAudio == null
-                        ? null
-                        : _togglePendingAudioPlayback,
-                    onPlayStoredAudio: storedAudioKey == null
-                        ? null
-                        : () => _toggleStoredAudioPlayback(activity),
-                    onPrimaryAction: () => _handlePrimaryAction(activity),
-                  );
-                }
+      child: ListView.separated(
+        itemCount: activity.tasks.length + 2,
+        separatorBuilder: (_, _) => const SizedBox(height: 16),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return _OverviewCard(
+              activity: activity,
+              completedTasks: completedTasks,
+              isSubmitting: _isSubmitting,
+              onPrimaryAction: () => _handlePrimaryAction(activity),
+              onOpenMaterial: () => _openReadingPage(activity),
+            );
+          }
 
-                final task = activity.tasks[index - 1];
-                final referenceAudioKey = task.hasReferenceAudio
-                    ? _referenceAudioKey(task.referenceAudioPath!)
-                    : null;
-                return _TaskCard(
-                  index: index,
-                  task: task,
-                  isSpeaking: _speakingTaskId == task.id,
-                  isSamplePlaying: task.hasReferenceAudio
-                      ? referenceAudioKey == _playingAudioKey
-                      : _speakingTaskId == task.id,
-                  isSampleLoading: task.hasReferenceAudio
-                      ? referenceAudioKey == _loadingAudioKey
-                      : false,
-                  onAction: () => _handleTaskAction(activity, task),
-                  onOpenReading: activity.materialPdfPath == null
-                      ? null
-                      : () => _openReadingPage(activity, task: task),
-                  onSpeakSample: task.hasReferenceAudio
-                      ? () => _toggleReferenceAudioPlayback(task)
-                      : _sampleTextFor(task) == null
-                      ? null
-                      : () => _speakSample(task),
-                );
-              },
-            ),
-          ),
-        ],
+          if (index == 1) {
+            return _SubmissionPanel(
+              activity: activity,
+              isSubmitting: _isSubmitting,
+              isRecording: _isRecording,
+              selectedAudio: _selectedAudio,
+              isSelectedAudioPlaying: selectedAudioKey == _playingAudioKey,
+              isSelectedAudioLoading: selectedAudioKey == _loadingAudioKey,
+              isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
+              isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
+              onPickAudio: _pickAudioFile,
+              onRecordAudio: _toggleRecording,
+              onPlaySelectedAudio: _selectedAudio == null
+                  ? null
+                  : _togglePendingAudioPlayback,
+              onPlayStoredAudio: storedAudioKey == null
+                  ? null
+                  : () => _toggleStoredAudioPlayback(activity),
+              onPrimaryAction: () => _handlePrimaryAction(activity),
+            );
+          }
+
+          final task = activity.tasks[index - 2];
+          final referenceAudioKey = task.hasReferenceAudio
+              ? _referenceAudioKey(task.referenceAudioPath!)
+              : null;
+          return _TaskCard(
+            index: index - 1,
+            task: task,
+            isSpeaking: _speakingTaskId == task.id,
+            isSamplePlaying: task.hasReferenceAudio
+                ? referenceAudioKey == _playingAudioKey
+                : _speakingTaskId == task.id,
+            isSampleLoading: task.hasReferenceAudio
+                ? referenceAudioKey == _loadingAudioKey
+                : false,
+            onAction: () => _handleTaskAction(activity, task),
+            onOpenReading: activity.materialPdfPath == null
+                ? null
+                : () => _openReadingPage(activity, task: task),
+            onSpeakSample: task.hasReferenceAudio
+                ? () => _toggleReferenceAudioPlayback(task)
+                : _sampleTextFor(task) == null
+                ? null
+                : () => _speakSample(task),
+          );
+        },
       ),
     );
   }
@@ -773,10 +767,11 @@ class _OverviewCard extends StatelessWidget {
         color: Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(30),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 120,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isPhone = constraints.maxWidth < 720;
+          final cover = Container(
+            width: isPhone ? double.infinity : 120,
             height: 120,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
@@ -789,67 +784,65 @@ class _OverviewCard extends StatelessWidget {
               size: 56,
               color: Colors.white,
             ),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          );
+          final summary = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                activity.className,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: const Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '今天先按顺序完成下面 ${activity.tasks.length} 个学习任务。',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: const Color(0xFF1E293B),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if ((activity.description ?? '').trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
                 Text(
-                  activity.className,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  activity.description!,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: const Color(0xFF64748B),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  '今天先按顺序完成下面 ${activity.tasks.length} 个学习任务。',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: const Color(0xFF1E293B),
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                if ((activity.description ?? '').trim().isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    activity.description!,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: const Color(0xFF64748B),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _OverviewChip(
-                      icon: Icons.check_circle_rounded,
-                      label: '已完成 $completedTasks 项',
-                    ),
-                    _OverviewChip(
-                      icon: Icons.schedule_rounded,
-                      label: submittedLabel,
-                    ),
-                    _OverviewChip(
-                      icon: Icons.mark_chat_read_rounded,
-                      label: scoreLabel,
-                    ),
-                    if ((activity.materialTitle ?? '').trim().isNotEmpty)
-                      _OverviewChip(
-                        icon: Icons.picture_as_pdf_rounded,
-                        label: activity.materialTitle!,
-                      ),
-                  ],
-                ),
               ],
-            ),
-          ),
-          const SizedBox(width: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _OverviewChip(
+                    icon: Icons.check_circle_rounded,
+                    label: '已完成 $completedTasks 项',
+                  ),
+                  _OverviewChip(
+                    icon: Icons.schedule_rounded,
+                    label: submittedLabel,
+                  ),
+                  _OverviewChip(
+                    icon: Icons.mark_chat_read_rounded,
+                    label: scoreLabel,
+                  ),
+                  if ((activity.materialTitle ?? '').trim().isNotEmpty)
+                    _OverviewChip(
+                      icon: Icons.picture_as_pdf_rounded,
+                      label: activity.materialTitle!,
+                    ),
+                ],
+              ),
+            ],
+          );
+          final actions = Column(
+            crossAxisAlignment: isPhone
+                ? CrossAxisAlignment.stretch
+                : CrossAxisAlignment.end,
             children: [
               FilledButton.tonalIcon(
                 onPressed: onOpenMaterial,
@@ -871,8 +864,31 @@ class _OverviewCard extends StatelessWidget {
                 label: Text(isSubmitting ? '提交中' : buttonLabel),
               ),
             ],
-          ),
-        ],
+          );
+
+          if (isPhone) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                cover,
+                const SizedBox(height: 18),
+                summary,
+                const SizedBox(height: 18),
+                actions,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              cover,
+              const SizedBox(width: 20),
+              Expanded(child: summary),
+              const SizedBox(width: 20),
+              actions,
+            ],
+          );
+        },
       ),
     );
   }
@@ -942,7 +958,8 @@ class _SubmissionPanel extends StatelessWidget {
       case SubmissionFlowStatus.queued:
         return _MessagePanel(
           title: '老师已经收到这次练习',
-          subtitle: activity.submissionStatusHint ??
+          subtitle:
+              activity.submissionStatusHint ??
               (activity.submittedAt == null
                   ? '现在进入等待点评状态，老师会尽快给你反馈。'
                   : '你已在 ${_formatDateTime(activity.submittedAt!)} 提交，老师会尽快给你反馈。'),
@@ -956,8 +973,8 @@ class _SubmissionPanel extends StatelessWidget {
       case SubmissionFlowStatus.processing:
         return _MessagePanel(
           title: '系统正在整理评分结果',
-          subtitle: activity.submissionStatusHint ??
-              '这份练习已经进入处理流程，稍后就能看到分数和鼓励语。',
+          subtitle:
+              activity.submissionStatusHint ?? '这份练习已经进入处理流程，稍后就能看到分数和鼓励语。',
           badgeLabel: '评分处理中',
           badgeColor: const Color(0xFF7C3AED),
           existingAudioLabel: activity.submissionAudioName,
@@ -970,8 +987,7 @@ class _SubmissionPanel extends StatelessWidget {
           title: isRecording ? '正在重新录音' : '这次提交没有成功',
           subtitle: isRecording
               ? '读完后点击“结束录音并保存”，再重新提交给老师。'
-              : (activity.submissionStatusHint ??
-                  '你可以重新录一段音频，或者换一个文件再提交。'),
+              : (activity.submissionStatusHint ?? '你可以重新录一段音频，或者换一个文件再提交。'),
           badgeLabel: isRecording ? '录音进行中' : '需要重新提交',
           badgeColor: isRecording
               ? const Color(0xFFDC2626)
@@ -1051,71 +1067,71 @@ class _MessagePanel extends StatelessWidget {
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(30),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: badgeColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    badgeLabel,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: badgeColor,
-                      fontWeight: FontWeight.w800,
-                    ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isPhone = constraints.maxWidth < 720;
+          final details = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  badgeLabel,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: badgeColor,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: const Color(0xFF1E293B),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: const Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (selectedAudioLabel != null) ...[
                 const SizedBox(height: 14),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: const Color(0xFF1E293B),
-                    fontWeight: FontWeight.w900,
-                  ),
+                _AudioInfoCard(
+                  title: '准备提交的音频',
+                  fileName: selectedAudioLabel!,
+                  onAction: onPlaySelectedAudio,
+                  isPlaying: isSelectedAudioPlaying,
+                  isLoading: isSelectedAudioLoading,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: const Color(0xFF64748B),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (selectedAudioLabel != null) ...[
-                  const SizedBox(height: 14),
-                  _AudioInfoCard(
-                    title: '准备提交的音频',
-                    fileName: selectedAudioLabel!,
-                    onAction: onPlaySelectedAudio,
-                    isPlaying: isSelectedAudioPlaying,
-                    isLoading: isSelectedAudioLoading,
-                  ),
-                ],
-                if (existingAudioLabel != null) ...[
-                  const SizedBox(height: 14),
-                  _AudioInfoCard(
-                    title: '已上传的音频',
-                    fileName: existingAudioLabel!,
-                    onAction: onPlayStoredAudio,
-                    isPlaying: isStoredAudioPlaying,
-                    isLoading: isStoredAudioLoading,
-                  ),
-                ],
               ],
-            ),
-          ),
-          const SizedBox(width: 18),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+              if (existingAudioLabel != null) ...[
+                const SizedBox(height: 14),
+                _AudioInfoCard(
+                  title: '已上传的音频',
+                  fileName: existingAudioLabel!,
+                  onAction: onPlayStoredAudio,
+                  isPlaying: isStoredAudioPlaying,
+                  isLoading: isStoredAudioLoading,
+                ),
+              ],
+            ],
+          );
+          final actions = Column(
+            crossAxisAlignment: isPhone
+                ? CrossAxisAlignment.stretch
+                : CrossAxisAlignment.end,
             children: [
               if (onRecordAudio != null)
                 FilledButton.tonalIcon(
@@ -1140,8 +1156,23 @@ class _MessagePanel extends StatelessWidget {
                 ),
               ],
             ],
-          ),
-        ],
+          );
+
+          if (isPhone) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [details, const SizedBox(height: 18), actions],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: details),
+              const SizedBox(width: 18),
+              actions,
+            ],
+          );
+        },
       ),
     );
   }
@@ -1170,12 +1201,10 @@ class _AudioInfoCard extends StatelessWidget {
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.audio_file_rounded, color: Color(0xFF2F67F6)),
-          const SizedBox(width: 10),
-          Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isPhone = constraints.maxWidth < 480;
+          final details = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -1188,32 +1217,54 @@ class _AudioInfoCard extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 fileName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: const Color(0xFF1E293B),
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ],
-          ),
-          if (onAction != null) ...[
-            const SizedBox(width: 14),
-            OutlinedButton.icon(
-              onPressed: onAction,
-              icon: isLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      isPlaying
-                          ? Icons.stop_circle_rounded
-                          : Icons.play_circle_outline_rounded,
-                    ),
-              label: Text(isLoading ? '加载中' : (isPlaying ? '停止' : '播放')),
-            ),
-          ],
-        ],
+          );
+          final action = onAction == null
+              ? null
+              : OutlinedButton.icon(
+                  onPressed: onAction,
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          isPlaying
+                              ? Icons.stop_circle_rounded
+                              : Icons.play_circle_outline_rounded,
+                        ),
+                  label: Text(isLoading ? '加载中' : (isPlaying ? '停止' : '播放')),
+                );
+
+          if (isPhone) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.audio_file_rounded, color: Color(0xFF2F67F6)),
+                const SizedBox(height: 10),
+                details,
+                if (action != null) ...[const SizedBox(height: 12), action],
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              const Icon(Icons.audio_file_rounded, color: Color(0xFF2F67F6)),
+              const SizedBox(width: 10),
+              Expanded(child: details),
+              if (action != null) ...[const SizedBox(width: 14), action],
+            ],
+          );
+        },
       ),
     );
   }
@@ -1316,29 +1367,56 @@ class _FeedbackPanel extends StatelessWidget {
           if (activity.strengths.isNotEmpty ||
               activity.improvementPoints.isNotEmpty) ...[
             const SizedBox(height: 18),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _FeedbackListCard(
-                    title: '这次做得好的地方',
-                    items: activity.strengths.isEmpty
-                        ? const ['老师觉得你的整体状态不错。']
-                        : activity.strengths,
-                    color: const Color(0xFF10B981),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _FeedbackListCard(
-                    title: '下次可以继续加强',
-                    items: activity.improvementPoints.isEmpty
-                        ? const ['继续保持稳定的语速和句尾停顿。']
-                        : activity.improvementPoints,
-                    color: const Color(0xFFF97316),
-                  ),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isPhone = constraints.maxWidth < 720;
+                if (isPhone) {
+                  return Column(
+                    children: [
+                      _FeedbackListCard(
+                        title: '这次做得好的地方',
+                        items: activity.strengths.isEmpty
+                            ? const ['老师觉得你的整体状态不错。']
+                            : activity.strengths,
+                        color: const Color(0xFF10B981),
+                      ),
+                      const SizedBox(height: 16),
+                      _FeedbackListCard(
+                        title: '下次可以继续加强',
+                        items: activity.improvementPoints.isEmpty
+                            ? const ['继续保持稳定的语速和句尾停顿。']
+                            : activity.improvementPoints,
+                        color: const Color(0xFFF97316),
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _FeedbackListCard(
+                        title: '这次做得好的地方',
+                        items: activity.strengths.isEmpty
+                            ? const ['老师觉得你的整体状态不错。']
+                            : activity.strengths,
+                        color: const Color(0xFF10B981),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _FeedbackListCard(
+                        title: '下次可以继续加强',
+                        items: activity.improvementPoints.isEmpty
+                            ? const ['继续保持稳定的语速和句尾停顿。']
+                            : activity.improvementPoints,
+                        color: const Color(0xFFF97316),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ],
@@ -1478,176 +1556,210 @@ class _TaskCard extends StatelessWidget {
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(28),
       ),
-      child: Column(
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isPhone = constraints.maxWidth < 720;
+          final preview = Container(
+            width: isPhone ? double.infinity : 92,
+            height: 74,
+            decoration: BoxDecoration(
+              gradient: _previewGradient(task.kind),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(_previewIcon(task.kind), color: Colors.white, size: 36),
+          );
+
+          final details = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEAF2FF),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '$index',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: const Color(0xFF2F67F6),
-                    fontWeight: FontWeight.w900,
-                  ),
+              Text(
+                task.title,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: const Color(0xFF1E293B),
+                  fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(width: 18),
-              Container(
-                width: 92,
-                height: 74,
-                decoration: BoxDecoration(
-                  gradient: _previewGradient(task.kind),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Icon(
-                  _previewIcon(task.kind),
-                  color: Colors.white,
-                  size: 36,
+              const SizedBox(height: 8),
+              Text(
+                '学习方式：${task.previewAsset}',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: const Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            color: const Color(0xFF1E293B),
-                            fontWeight: FontWeight.w900,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '学习方式：${task.previewAsset}',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: const Color(0xFF64748B),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if ((task.promptText ?? '').trim().isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        task.promptText!,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: const Color(0xFF475569),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                    if (sampleText != null) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          sampleText,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(
-                                color: const Color(0xFF1E293B),
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            statusLabel,
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                        ),
-                        if (task.hasPageRange)
-                          _TaskInfoChip(
-                            icon: Icons.menu_book_rounded,
-                            label: _pageRangeLabel(task),
-                          ),
-                        if (sampleText != null)
-                          _TaskInfoChip(
-                            icon: isSamplePlaying
-                                ? Icons.pause_circle_filled_rounded
-                                : task.hasReferenceAudio
-                                ? Icons.audiotrack_rounded
-                                : Icons.volume_up_rounded,
-                            label: task.hasReferenceAudio
-                                ? (isSamplePlaying ? '示范音频播放中' : '可播放示范音频')
-                                : (isSpeaking ? '示范朗读播放中' : '可播放示范朗读'),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              if (onOpenReading != null)
-                OutlinedButton.icon(
-                  onPressed: onOpenReading,
-                  icon: const Icon(Icons.menu_book_rounded),
-                  label: const Text('打开教材'),
-                ),
-              if (onSpeakSample != null) ...[
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: onSpeakSample,
-                  icon: Icon(
-                    isSamplePlaying
-                        ? Icons.stop_circle_rounded
-                        : task.hasReferenceAudio
-                        ? Icons.play_circle_outline_rounded
-                        : Icons.record_voice_over_rounded,
-                  ),
-                  label: Text(
-                    isSampleLoading
-                        ? '加载中'
-                        : isSamplePlaying
-                        ? '停止示范'
-                        : task.hasReferenceAudio
-                        ? '听音频'
-                        : '听示范',
+              if ((task.promptText ?? '').trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  task.promptText!,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: const Color(0xFF475569),
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
-              const Spacer(),
-              FilledButton.tonalIcon(
-                onPressed: onAction,
-                icon: Icon(_actionIcon(task.reviewStatus)),
-                label: Text(actionLabel),
+              if (sampleText != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    sampleText,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (task.hasPageRange)
+                    _TaskInfoChip(
+                      icon: Icons.menu_book_rounded,
+                      label: _pageRangeLabel(task),
+                    ),
+                  if (sampleText != null)
+                    _TaskInfoChip(
+                      icon: isSamplePlaying
+                          ? Icons.pause_circle_filled_rounded
+                          : task.hasReferenceAudio
+                          ? Icons.audiotrack_rounded
+                          : Icons.volume_up_rounded,
+                      label: task.hasReferenceAudio
+                          ? (isSamplePlaying ? '示范音频播放中' : '可播放示范音频')
+                          : (isSpeaking ? '示范朗读播放中' : '可播放示范朗读'),
+                    ),
+                ],
               ),
             ],
-          ),
-        ],
+          );
+
+          final header = isPhone
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAF2FF),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '$index',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: const Color(0xFF2F67F6),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(child: preview),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    details,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAF2FF),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$index',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: const Color(0xFF2F67F6),
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 18),
+                    preview,
+                    const SizedBox(width: 18),
+                    Expanded(child: details),
+                  ],
+                );
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              header,
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  if (onOpenReading != null)
+                    OutlinedButton.icon(
+                      onPressed: onOpenReading,
+                      icon: const Icon(Icons.menu_book_rounded),
+                      label: const Text('打开教材'),
+                    ),
+                  if (onSpeakSample != null)
+                    OutlinedButton.icon(
+                      onPressed: onSpeakSample,
+                      icon: Icon(
+                        isSamplePlaying
+                            ? Icons.stop_circle_rounded
+                            : task.hasReferenceAudio
+                            ? Icons.play_circle_outline_rounded
+                            : Icons.record_voice_over_rounded,
+                      ),
+                      label: Text(
+                        isSampleLoading
+                            ? '加载中'
+                            : isSamplePlaying
+                            ? '停止示范'
+                            : task.hasReferenceAudio
+                            ? '听音频'
+                            : '听示范',
+                      ),
+                    ),
+                  FilledButton.tonalIcon(
+                    onPressed: onAction,
+                    icon: Icon(_actionIcon(task.reviewStatus)),
+                    label: Text(actionLabel),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

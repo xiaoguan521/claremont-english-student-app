@@ -322,10 +322,11 @@ class _ActivityRow extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(30),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 190,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isPhone = constraints.maxWidth < 680;
+            final cover = Container(
+              width: isPhone ? double.infinity : 190,
               height: 118,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
@@ -338,54 +339,93 @@ class _ActivityRow extends StatelessWidget {
                 size: 64,
                 color: Color(0xFFB56A25),
               ),
-            ),
-            const SizedBox(width: 22),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    activity.title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: const Color(0xFF1E293B),
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${activity.className} · ${activity.dateLabel}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: const Color(0xFF64748B),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      _InfoChip(label: '任务 ${activity.tasks.length} 项'),
-                      _InfoChip(label: '完成 $progress'),
-                      _InfoChip(label: '老师反馈 ${activity.reviewCount} 条'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 22),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            );
+
+            final content = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _StatusBadge(status: activity.status),
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: () => context.go('/activities/${activity.id}'),
-                  icon: const Icon(Icons.play_circle_fill_rounded),
-                  label: Text(nextStep),
+                Text(
+                  activity.title,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: const Color(0xFF1E293B),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${activity.className} · ${activity.dateLabel}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF64748B),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _InfoChip(label: '任务 ${activity.tasks.length} 项'),
+                    _InfoChip(label: '完成 $progress'),
+                    _InfoChip(label: '老师反馈 ${activity.reviewCount} 条'),
+                  ],
                 ),
               ],
-            ),
-          ],
+            );
+
+            final actions = isPhone
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _StatusBadge(status: activity.status),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () =>
+                              context.go('/activities/${activity.id}'),
+                          icon: const Icon(Icons.play_circle_fill_rounded),
+                          label: Text(nextStep),
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _StatusBadge(status: activity.status),
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed: () =>
+                            context.go('/activities/${activity.id}'),
+                        icon: const Icon(Icons.play_circle_fill_rounded),
+                        label: Text(nextStep),
+                      ),
+                    ],
+                  );
+
+            if (isPhone) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  cover,
+                  const SizedBox(height: 18),
+                  content,
+                  const SizedBox(height: 18),
+                  actions,
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                cover,
+                const SizedBox(width: 22),
+                Expanded(child: content),
+                const SizedBox(width: 22),
+                actions,
+              ],
+            );
+          },
         ),
       ),
     );

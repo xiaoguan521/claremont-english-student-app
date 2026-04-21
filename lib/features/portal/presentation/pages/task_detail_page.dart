@@ -148,6 +148,32 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     });
   }
 
+  Future<void> _clearSelectedAudio() async {
+    final selectedAudio = _selectedAudio;
+    if (selectedAudio == null) {
+      return;
+    }
+
+    final audioKey = _pendingAudioKey(selectedAudio);
+    if (_playingAudioKey == audioKey || _loadingAudioKey == audioKey) {
+      await _audioPlayer.stop();
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _selectedAudio = null;
+      if (_playingAudioKey == audioKey) {
+        _playingAudioKey = null;
+      }
+      if (_loadingAudioKey == audioKey) {
+        _loadingAudioKey = null;
+      }
+    });
+    _showMessage('这段准备提交的音频已经移除。');
+  }
+
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       await _stopRecording();
@@ -795,6 +821,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                 : () => _speakSample(task),
             onPickAudio: _isRecording ? null : _pickAudioFile,
             onRecordAudio: _toggleRecording,
+            onClearSelectedAudio: _selectedAudio == null
+                ? null
+                : _clearSelectedAudio,
             onPlaySelectedAudio: _selectedAudio == null
                 ? null
                 : _togglePendingAudioPlayback,
@@ -1126,6 +1155,7 @@ class _MessagePanel extends StatelessWidget {
     required this.badgeColor,
     this.onPlaySelectedAudio,
     this.onPlayStoredAudio,
+    this.onClearSelectedAudio,
     this.isSelectedAudioPlaying = false,
     this.isSelectedAudioLoading = false,
     this.isStoredAudioPlaying = false,
@@ -1147,6 +1177,7 @@ class _MessagePanel extends StatelessWidget {
   final Color badgeColor;
   final VoidCallback? onPlaySelectedAudio;
   final VoidCallback? onPlayStoredAudio;
+  final VoidCallback? onClearSelectedAudio;
   final bool isSelectedAudioPlaying;
   final bool isSelectedAudioLoading;
   final bool isStoredAudioPlaying;
@@ -1214,6 +1245,7 @@ class _MessagePanel extends StatelessWidget {
                   title: '准备提交的音频',
                   fileName: selectedAudioLabel!,
                   onAction: onPlaySelectedAudio,
+                  onDelete: onClearSelectedAudio,
                   isPlaying: isSelectedAudioPlaying,
                   isLoading: isSelectedAudioLoading,
                 ),
@@ -1303,6 +1335,7 @@ class _AudioInfoCard extends StatelessWidget {
     required this.title,
     required this.fileName,
     this.onAction,
+    this.onDelete,
     this.isPlaying = false,
     this.isLoading = false,
   });
@@ -1310,6 +1343,7 @@ class _AudioInfoCard extends StatelessWidget {
   final String title;
   final String fileName;
   final VoidCallback? onAction;
+  final VoidCallback? onDelete;
   final bool isPlaying;
   final bool isLoading;
 
@@ -1363,6 +1397,13 @@ class _AudioInfoCard extends StatelessWidget {
                         ),
                   label: Text(isLoading ? '加载中' : (isPlaying ? '停止' : '播放')),
                 );
+          final deleteAction = onDelete == null
+              ? null
+              : OutlinedButton.icon(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('删除'),
+                );
 
           if (isPhone) {
             return Column(
@@ -1371,7 +1412,17 @@ class _AudioInfoCard extends StatelessWidget {
                 const Icon(Icons.audio_file_rounded, color: Color(0xFF2FA77D)),
                 const SizedBox(height: 10),
                 details,
-                if (action != null) ...[const SizedBox(height: 12), action],
+                if (action != null || deleteAction != null) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      if (action != null) action,
+                      if (deleteAction != null) deleteAction,
+                    ],
+                  ),
+                ],
               ],
             );
           }
@@ -1381,6 +1432,10 @@ class _AudioInfoCard extends StatelessWidget {
               const Icon(Icons.audio_file_rounded, color: Color(0xFF2FA77D)),
               const SizedBox(width: 10),
               Expanded(child: details),
+              if (deleteAction != null) ...[
+                const SizedBox(width: 14),
+                deleteAction,
+              ],
               if (action != null) ...[const SizedBox(width: 14), action],
             ],
           );
@@ -1666,6 +1721,7 @@ class _TaskCard extends StatelessWidget {
     this.onRecordAudio,
     this.onPlaySelectedAudio,
     this.onPlayStoredAudio,
+    this.onClearSelectedAudio,
     required this.onPrimaryAction,
   });
 
@@ -1691,6 +1747,7 @@ class _TaskCard extends StatelessWidget {
   final VoidCallback? onRecordAudio;
   final VoidCallback? onPlaySelectedAudio;
   final VoidCallback? onPlayStoredAudio;
+  final VoidCallback? onClearSelectedAudio;
   final VoidCallback onPrimaryAction;
 
   @override
@@ -2125,6 +2182,7 @@ class _InlineSubmissionSection extends StatelessWidget {
               title: '准备提交的音频',
               fileName: selectedAudioLabel!,
               onAction: onPlaySelectedAudio,
+              onDelete: onClearSelectedAudio,
               isPlaying: isSelectedAudioPlaying,
               isLoading: isSelectedAudioLoading,
             ),

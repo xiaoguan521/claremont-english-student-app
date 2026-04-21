@@ -96,8 +96,6 @@ class ActivitiesPage extends ConsumerWidget {
           onTap: () => context.go('/home'),
         ),
         const SizedBox(width: 12),
-        _TopToolButton(icon: Icons.tune_rounded, label: '筛选', onTap: () {}),
-        const SizedBox(width: 12),
         _TopToolButton(
           icon: Icons.refresh_rounded,
           label: '刷新',
@@ -155,16 +153,16 @@ class _ActionRail extends StatelessWidget {
             value: completedLabel,
           ),
           SizedBox(height: isCompact ? 10 : 14),
-          const _PromoTile(
-            title: '学习提醒',
-            subtitle: '优先完成等待老师查看的任务',
-            colors: [Color(0xFF1FB5FF), Color(0xFF5B8BFF)],
+          const _StudyHintTile(
+            title: '先完成今天的作业',
+            subtitle: '每份作业点进去后，先打开教材，再听示范、录音并提交。',
+            accent: Color(0xFF4FAE7F),
           ),
           SizedBox(height: isCompact ? 10 : 14),
-          const _PromoTile(
-            title: '老师反馈',
-            subtitle: '完成后记得回来查看点评',
-            colors: [Color(0xFF8B5CF6), Color(0xFFE879F9)],
+          const _StudyHintTile(
+            title: '完成后回来查看反馈',
+            subtitle: '老师和系统处理完成后，这里会显示新的点评和分数。',
+            accent: Color(0xFFFF9B55),
           ),
         ],
       ),
@@ -259,16 +257,16 @@ class _RailAction extends StatelessWidget {
   }
 }
 
-class _PromoTile extends StatelessWidget {
-  const _PromoTile({
+class _StudyHintTile extends StatelessWidget {
+  const _StudyHintTile({
     required this.title,
     required this.subtitle,
-    required this.colors,
+    required this.accent,
   });
 
   final String title;
   final String subtitle;
-  final List<Color> colors;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
@@ -276,8 +274,9 @@ class _PromoTile extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: colors),
+        color: accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,7 +284,7 @@ class _PromoTile extends StatelessWidget {
           Text(
             title,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
+              color: const Color(0xFF1E293B),
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -293,7 +292,7 @@ class _PromoTile extends StatelessWidget {
           Text(
             subtitle,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.9),
+              color: const Color(0xFF475569),
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -377,6 +376,16 @@ class _ActivityRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _StatusBadge(status: activity.status),
+                      const SizedBox(height: 12),
+                      Text(
+                        activity.status == ActivityStatus.active
+                            ? '点进去后会看到教材、示范音频和提交入口。'
+                            : '点进去可以继续查看反馈或等待状态。',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF64748B),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
@@ -513,7 +522,7 @@ class _TopToolButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final backgroundColor = isPrimary
-        ? const Color(0xFF2F67F6)
+        ? const Color(0xFFFF8F4D)
         : Colors.white.withValues(alpha: 0.18);
     final foregroundColor = Colors.white;
 

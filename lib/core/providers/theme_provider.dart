@@ -17,12 +17,14 @@ class ThemeState with _$ThemeState {
 
 class ThemeNotifier extends StateNotifier<ThemeState> {
   ThemeNotifier(this.prefs, this.ref)
-      : super(
-          ThemeState(
-            themeMode: ThemeMode.values[prefs.getInt(_themeModeKey) ?? 1], // Default to light mode
-            colorSeed: ColorSeed.values[prefs.getInt(_colorSeedKey) ?? 0],
-          ),
-        );
+    : super(
+        ThemeState(
+          themeMode:
+              ThemeMode.values[prefs.getInt(_themeModeKey) ??
+                  1], // Default to light mode
+          colorSeed: ColorSeed.values[prefs.getInt(_colorSeedKey) ?? 3],
+        ),
+      );
 
   final SharedPreferences prefs;
   final Ref ref;
@@ -52,7 +54,9 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError();
 });
 
-final themeNotifierProvider = StateNotifierProvider<ThemeNotifier, ThemeState>((ref) {
+final themeNotifierProvider = StateNotifierProvider<ThemeNotifier, ThemeState>((
+  ref,
+) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return ThemeNotifier(prefs, ref);
 });

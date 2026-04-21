@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../widgets/tablet_shell.dart';
 
@@ -9,85 +10,107 @@ class ExplorePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return TabletShell(
       activeSection: TabletSection.explore,
-      title: '拓展空间',
-      subtitle: '平板学习中心',
+      title: '更多内容',
+      subtitle: '先完成老师布置的作业，拓展功能会陆续开放',
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final crossAxisCount = width < 520
-              ? 2
-              : width < 900
-              ? 3
-              : 5;
-          final aspectRatio = width < 520
-              ? 1.05
-              : width < 900
-              ? 1.0
-              : 1.1;
-
-          return Container(
-            padding: EdgeInsets.all(width < 520 ? 14 : 18),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.82),
-              borderRadius: BorderRadius.circular(30),
+          final isPhone = constraints.maxWidth < 720;
+          final items = const [
+            _UpcomingItem(
+              title: '快乐听',
+              description: '跟着有趣音频完成轻松听力练习。',
+              accent: Color(0xFF62B7FF),
+              icon: Icons.podcasts_rounded,
             ),
-            child: GridView.count(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: width < 520 ? 12 : 16,
-              mainAxisSpacing: width < 520 ? 12 : 16,
-              childAspectRatio: aspectRatio,
-              children: const [
-                _ExploreCard(
-                  title: '快乐听',
-                  color: Color(0xFF6EC4FF),
-                  icon: Icons.podcasts_rounded,
-                ),
-                _ExploreCard(
-                  title: '视频配音',
-                  color: Color(0xFFFA7EC8),
-                  icon: Icons.mic_external_on_rounded,
-                ),
-                _ExploreCard(
-                  title: 'AI自习室',
-                  color: Color(0xFF8BB7FF),
-                  icon: Icons.smart_toy_rounded,
-                ),
-                _ExploreCard(
-                  title: '练口语',
-                  color: Color(0xFFFFA53A),
-                  icon: Icons.record_voice_over_rounded,
-                ),
-                _ExploreCard(
-                  title: '作品秀场',
-                  color: Color(0xFF8FB7FF),
-                  icon: Icons.collections_bookmark_rounded,
-                ),
-                _ExploreCard(
-                  title: '背单词',
-                  color: Color(0xFFFFD47F),
-                  icon: Icons.spellcheck_rounded,
-                ),
-                _ExploreCard(
-                  title: '分级阅读',
-                  color: Color(0xFFFFB3C8),
-                  icon: Icons.library_books_rounded,
-                ),
-                _ExploreCard(
-                  title: '自然拼读',
-                  color: Color(0xFFA8E58F),
-                  icon: Icons.auto_stories_rounded,
-                ),
-                _ExploreCard(
-                  title: '错题本',
-                  color: Color(0xFFFFD1D6),
-                  icon: Icons.edit_note_rounded,
-                ),
-                _ExploreCard(
-                  title: '积分兑换',
-                  color: Color(0xFF7DE0F1),
-                  icon: Icons.workspace_premium_rounded,
-                ),
-              ],
+            _UpcomingItem(
+              title: '视频配音',
+              description: '用短视频练节奏、语调和表达。',
+              accent: Color(0xFFFF85C2),
+              icon: Icons.mic_external_on_rounded,
+            ),
+            _UpcomingItem(
+              title: 'AI 自习室',
+              description: '根据你的学习情况推荐专项练习。',
+              accent: Color(0xFFFFB347),
+              icon: Icons.smart_toy_rounded,
+            ),
+            _UpcomingItem(
+              title: '背单词',
+              description: '用小游戏方式记住今天的新单词。',
+              accent: Color(0xFF77D49A),
+              icon: Icons.spellcheck_rounded,
+            ),
+          ];
+
+          return SingleChildScrollView(
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(isPhone ? 16 : 20),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.84),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '这些功能正在准备中',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '当前先专注完成老师布置的作业。等这些内容开放后，你会在这里看到正式入口。',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF64748B),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: () => context.go('/activities'),
+                        icon: const Icon(Icons.play_circle_fill_rounded),
+                        label: const Text('去做今日作业'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => context.go('/home'),
+                        icon: const Icon(Icons.home_rounded),
+                        label: const Text('回首页'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  if (isPhone)
+                    Column(
+                      children: items
+                          .map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _UpcomingCard(item: item),
+                            ),
+                          )
+                          .toList(),
+                    )
+                  else
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: constraints.maxWidth < 980 ? 2 : 4,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: constraints.maxWidth < 980 ? 1.35 : 1.1,
+                      children: items
+                          .map((item) => _UpcomingCard(item: item))
+                          .toList(),
+                    ),
+                ],
+              ),
             ),
           );
         },
@@ -96,23 +119,32 @@ class ExplorePage extends StatelessWidget {
   }
 }
 
-class _ExploreCard extends StatelessWidget {
+class _UpcomingItem {
   final String title;
-  final Color color;
+  final String description;
+  final Color accent;
   final IconData icon;
 
-  const _ExploreCard({
+  const _UpcomingItem({
     required this.title,
-    required this.color,
+    required this.description,
+    required this.accent,
     required this.icon,
   });
+}
+
+class _UpcomingCard extends StatelessWidget {
+  final _UpcomingItem item;
+
+  const _UpcomingCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: color,
+        color: item.accent.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: item.accent.withValues(alpha: 0.22)),
       ),
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -122,17 +154,40 @@ class _ExploreCard extends StatelessWidget {
             width: 58,
             height: 58,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.24),
+              color: item.accent.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: Icon(icon, color: Colors.white, size: 28),
+            child: Icon(item.icon, color: item.accent, size: 28),
           ),
-          const Spacer(),
+          const SizedBox(height: 18),
           Text(
-            title,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
+            item.title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: const Color(0xFF1E293B),
               fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item.description,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF475569),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              '即将开放',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: item.accent,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ],

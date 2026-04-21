@@ -21,8 +21,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('今日任务'), findsWidgets);
-    expect(find.text('老师反馈'), findsWidgets);
+    expect(find.text('查看反馈'), findsWidgets);
     expect(find.text('我的学校'), findsOneWidget);
-    expect(find.text('开始学习'), findsOneWidget);
+    expect(find.text('开始今日作业'), findsOneWidget);
   });
 }

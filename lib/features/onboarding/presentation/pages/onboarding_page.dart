@@ -21,13 +21,13 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       title: '欢迎来到英语打卡',
       description: '每天跟着老师布置的任务练听、练读、练说，完成后就能看到 AI 初评和老师反馈。',
       image: Icons.rocket_launch,
-      color: Colors.blue,
+      color: const Color(0xFF2FBF9B),
     ),
     OnboardingStepData(
       title: '按学校自动进入',
       description: '登录后系统会自动识别你的学校；只有一个账号属于多个学校时，才需要手动选择。',
       image: Icons.palette,
-      color: Colors.purple,
+      color: const Color(0xFFFF9B55),
     ),
     OnboardingStepData(
       title: '作业流程更清楚',
@@ -45,7 +45,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       title: '准备开始今天的任务',
       description: '进入首页后先看今日任务，再去完成作业、查看老师反馈和自己的学习进度。',
       image: Icons.star,
-      color: Colors.green,
+      color: const Color(0xFF68C96A),
     ),
   ];
 

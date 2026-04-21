@@ -89,11 +89,6 @@ class HomePage extends ConsumerWidget {
       brandSubtitle: '学校学习入口',
       title: '今日任务',
       subtitle: schoolContext.welcomeMessage,
-      actions: const [
-        _ActionPill(icon: Icons.notifications_active_rounded, label: '提醒'),
-        SizedBox(width: 12),
-        _ActionPill(icon: Icons.account_circle_rounded, label: '我的'),
-      ],
       child: child,
     );
   }
@@ -379,7 +374,7 @@ class _HeroCard extends StatelessWidget {
                       onPressed: () =>
                           context.go('/activities/$highlightedActivityId'),
                       icon: const Icon(Icons.play_circle_fill_rounded),
-                      label: const Text('开始学习'),
+                      label: const Text('开始今日作业'),
                     ),
                     const SizedBox(width: 12),
                     OutlinedButton.icon(
@@ -463,7 +458,7 @@ class _HeroCard extends StatelessWidget {
                               '/activities/$highlightedActivityId',
                             ),
                             icon: const Icon(Icons.play_circle_fill_rounded),
-                            label: const Text('开始学习'),
+                            label: const Text('开始今日作业'),
                           ),
                           const SizedBox(width: 12),
                           OutlinedButton.icon(
@@ -660,7 +655,7 @@ class _SummaryGrid extends StatelessWidget {
           title: '待完成',
           value: '${summary.pendingTasks}',
           subtitle: '优先完成这些小任务',
-          color: const Color(0xFF8B5CF6),
+          color: const Color(0xFFFF9B55),
           icon: Icons.pending_actions_rounded,
         ),
       ],
@@ -756,21 +751,11 @@ class _QuickActionsRow extends StatelessWidget {
         const SizedBox(width: 18),
         Expanded(
           child: _QuickActionCard(
-            title: '老师反馈',
-            subtitle: '完成后可以在这里看点评',
-            accent: const Color(0xFF8B5CF6),
+            title: '查看反馈',
+            subtitle: '完成作业后回来看老师的点评',
+            accent: const Color(0xFFFF8F4D),
             icon: Icons.rate_review_rounded,
             onTap: () => context.go('/activities/$activityId'),
-          ),
-        ),
-        const SizedBox(width: 18),
-        Expanded(
-          child: _QuickActionCard(
-            title: '我的练习',
-            subtitle: '去看看还可以学习什么内容',
-            accent: const Color(0xFF31B08D),
-            icon: Icons.explore_rounded,
-            onTap: () => context.go('/explore'),
           ),
         ),
       ],
@@ -796,19 +781,11 @@ class _QuickActionsColumn extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _QuickActionCard(
-          title: '老师反馈',
-          subtitle: '完成后可以在这里看点评',
-          accent: const Color(0xFF8B5CF6),
+          title: '查看反馈',
+          subtitle: '完成作业后回来看老师的点评',
+          accent: const Color(0xFFFF8F4D),
           icon: Icons.rate_review_rounded,
           onTap: () => context.go('/activities/$activityId'),
-        ),
-        const SizedBox(height: 12),
-        _QuickActionCard(
-          title: '我的练习',
-          subtitle: '去看看还可以学习什么内容',
-          accent: const Color(0xFF31B08D),
-          icon: Icons.explore_rounded,
-          onTap: () => context.go('/explore'),
         ),
       ],
     );
@@ -910,13 +887,13 @@ class _FeedbackPanel extends StatelessWidget {
           const SizedBox(height: 14),
           _FeedbackLine(
             icon: Icons.mark_chat_unread_rounded,
-            title: '优先完成待处理任务',
+            title: '先完成今天的作业',
             subtitle: '还有 ${summary.pendingTasks} 项小任务等你完成。',
           ),
           const SizedBox(height: 12),
           _FeedbackLine(
             icon: Icons.workspace_premium_rounded,
-            title: '已完成的作业可以查看点评',
+            title: '完成后回来查看反馈',
             subtitle: '本周已经完成 ${summary.completedActivities} 项作业。',
           ),
         ],
@@ -944,10 +921,10 @@ class _FeedbackLine extends StatelessWidget {
           width: 46,
           height: 46,
           decoration: BoxDecoration(
-            color: const Color(0xFFE8F0FF),
+            color: const Color(0xFFFFF2E4),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Icon(icon, color: const Color(0xFF2F67F6)),
+          child: Icon(icon, color: const Color(0xFFFF8F4D)),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -1018,35 +995,12 @@ class _SchoolPanel extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionPill extends StatelessWidget {
-  const _ActionPill({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.white),
-          const SizedBox(width: 8),
+          const SizedBox(height: 12),
           Text(
-            label,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
+            '先完成老师布置的作业，更多拓展内容会在后续逐步开放。',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

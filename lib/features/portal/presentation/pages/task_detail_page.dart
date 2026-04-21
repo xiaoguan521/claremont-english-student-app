@@ -775,7 +775,7 @@ class _OverviewCard extends StatelessWidget {
             height: 120,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF34D399), Color(0xFF2F67F6)],
+                colors: [Color(0xFF3ECF8E), Color(0xFFFFB347)],
               ),
               borderRadius: BorderRadius.circular(28),
             ),
@@ -813,6 +813,36 @@ class _OverviewCard extends StatelessWidget {
                   ),
                 ),
               ],
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF4DF),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '完成方法',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF9A5A14),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '1. 先打开教材看看今天读什么\n2. 听示范后录音或选择音频\n3. 提交后等待系统和老师反馈',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF7C5A2F),
+                        fontWeight: FontWeight.w700,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 14),
               Wrap(
                 spacing: 12,
@@ -976,7 +1006,7 @@ class _SubmissionPanel extends StatelessWidget {
           subtitle:
               activity.submissionStatusHint ?? '这份练习已经进入处理流程，稍后就能看到分数和鼓励语。',
           badgeLabel: '评分处理中',
-          badgeColor: const Color(0xFF7C3AED),
+          badgeColor: const Color(0xFFFF8F4D),
           existingAudioLabel: activity.submissionAudioName,
           onPlayStoredAudio: onPlayStoredAudio,
           isStoredAudioPlaying: isStoredAudioPlaying,
@@ -1248,7 +1278,7 @@ class _AudioInfoCard extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.audio_file_rounded, color: Color(0xFF2F67F6)),
+                const Icon(Icons.audio_file_rounded, color: Color(0xFF2FA77D)),
                 const SizedBox(height: 10),
                 details,
                 if (action != null) ...[const SizedBox(height: 12), action],
@@ -1258,7 +1288,7 @@ class _AudioInfoCard extends StatelessWidget {
 
           return Row(
             children: [
-              const Icon(Icons.audio_file_rounded, color: Color(0xFF2F67F6)),
+              const Icon(Icons.audio_file_rounded, color: Color(0xFF2FA77D)),
               const SizedBox(width: 10),
               Expanded(child: details),
               if (action != null) ...[const SizedBox(width: 14), action],
@@ -1329,7 +1359,7 @@ class _FeedbackPanel extends StatelessWidget {
                   child: Text(
                     '老师评分 ${activity.latestScore!.toStringAsFixed(0)}',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: const Color(0xFF2F67F6),
+                      color: const Color(0xFF2FA77D),
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1507,7 +1537,7 @@ class _OverviewChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18, color: const Color(0xFF2F67F6)),
+          Icon(icon, size: 18, color: const Color(0xFF2FA77D)),
           const SizedBox(width: 8),
           Text(
             label,
@@ -1676,7 +1706,7 @@ class _TaskCard extends StatelessWidget {
                             '$index',
                             style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(
-                                  color: const Color(0xFF2F67F6),
+                                  color: const Color(0xFFFF8F4D),
                                   fontWeight: FontWeight.w900,
                                 ),
                           ),
@@ -1703,7 +1733,7 @@ class _TaskCard extends StatelessWidget {
                       child: Text(
                         '$index',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: const Color(0xFF2F67F6),
+                          color: const Color(0xFFFF8F4D),
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -1812,15 +1842,15 @@ class _TaskCard extends StatelessWidget {
     switch (kind) {
       case TaskKind.dubbing:
         return const LinearGradient(
-          colors: [Color(0xFF8B5CF6), Color(0xFF2563EB)],
+          colors: [Color(0xFFFF7F50), Color(0xFFFFB347)],
         );
       case TaskKind.recording:
         return const LinearGradient(
-          colors: [Color(0xFFEC4899), Color(0xFFF97316)],
+          colors: [Color(0xFFFF7A7A), Color(0xFFFFB25B)],
         );
       case TaskKind.phonics:
         return const LinearGradient(
-          colors: [Color(0xFF10B981), Color(0xFF06B6D4)],
+          colors: [Color(0xFF3ECF8E), Color(0xFF6FD2D2)],
         );
     }
   }
@@ -1854,7 +1884,7 @@ class _TaskInfoChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: const Color(0xFF2F67F6)),
+          Icon(icon, size: 16, color: const Color(0xFF2FA77D)),
           const SizedBox(width: 8),
           Text(
             label,

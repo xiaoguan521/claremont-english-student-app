@@ -26,13 +26,13 @@ class TabletShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEAF7DF),
+      backgroundColor: const Color(0xFFF7F3D9),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF4ABB87), Color(0xFF93D56D), Color(0xFFF4E9B7)],
+            colors: [Color(0xFF54C58F), Color(0xFFB9E36E), Color(0xFFFFE7A8)],
           ),
         ),
         child: Stack(
@@ -255,8 +255,8 @@ class _BottomSectionNav extends StatelessWidget {
             ),
             SizedBox(width: isCompact ? 8 : 12),
             _NavChip(
-              label: '我的',
-              icon: Icons.extension_rounded,
+              label: '更多',
+              icon: Icons.stars_rounded,
               selected: activeSection == TabletSection.explore,
               onTap: () => context.go('/explore'),
             ),
@@ -294,7 +294,7 @@ class _NavChip extends StatelessWidget {
             vertical: isCompact ? 10 : 12,
           ),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFF2F67F6) : Colors.transparent,
+            color: selected ? const Color(0xFFFF8F4D) : Colors.transparent,
             borderRadius: BorderRadius.circular(24),
           ),
           child: Row(

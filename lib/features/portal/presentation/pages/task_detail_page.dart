@@ -1722,7 +1722,6 @@ class _TaskCard extends StatelessWidget {
     this.onClearSelectedAudio,
     this.onPlaySelectedAudio,
     this.onPlayStoredAudio,
-    this.onClearSelectedAudio,
     required this.onPrimaryAction,
   });
 
@@ -2080,6 +2079,7 @@ class _InlineSubmissionSection extends StatelessWidget {
     required this.isStoredAudioLoading,
     this.onPickAudio,
     this.onRecordAudio,
+    this.onClearSelectedAudio,
     this.onPlaySelectedAudio,
     this.onPlayStoredAudio,
     required this.onPrimaryAction,

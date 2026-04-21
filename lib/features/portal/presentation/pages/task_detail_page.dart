@@ -2095,6 +2095,7 @@ class _InlineSubmissionSection extends StatelessWidget {
   final bool isStoredAudioLoading;
   final VoidCallback? onPickAudio;
   final VoidCallback? onRecordAudio;
+  final VoidCallback? onClearSelectedAudio;
   final VoidCallback? onPlaySelectedAudio;
   final VoidCallback? onPlayStoredAudio;
   final VoidCallback onPrimaryAction;

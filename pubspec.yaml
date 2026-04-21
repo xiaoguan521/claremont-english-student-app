@@ -54,6 +54,7 @@ dependencies:
   flutter_tts: ^4.2.3
   app_links: ^6.3.2
   path_provider: ^2.1.4
+  permission_handler: ^11.4.0
   record: ^6.2.0
   syncfusion_flutter_pdfviewer: ^28.2.12
   

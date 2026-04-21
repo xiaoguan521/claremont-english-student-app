@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -69,6 +70,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     await _tts.setLanguage('en-US');
     await _tts.setSpeechRate(0.42);
     await _tts.setPitch(1.0);
+    await _tts.setVolume(1.0);
     await _tts.awaitSpeakCompletion(true);
     _tts.setCompletionHandler(() {
       if (!mounted) {
@@ -146,9 +148,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return;
     }
 
-    final hasPermission = await _recorder.hasPermission();
+    final hasPermission = await _ensureMicrophonePermission();
     if (!hasPermission) {
-      _showMessage('需要先允许麦克风权限，才能开始录音。');
       return;
     }
 
@@ -295,8 +296,82 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       setState(() {
         _speakingTaskId = null;
       });
-      _showMessage('示范朗读暂时没有播放成功，请稍后重试。');
+      _showMessage('示范朗读没有播放成功，请检查媒体音量或系统语音服务。');
     }
+  }
+
+  Future<bool> _ensureMicrophonePermission() async {
+    final currentStatus = await Permission.microphone.status;
+    if (currentStatus.isGranted) {
+      return true;
+    }
+
+    if (mounted) {
+      final continueRequest = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('需要麦克风权限'),
+            content: const Text('录音提交作业时需要使用麦克风。点“继续”后，系统会弹出权限请求。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('暂不'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('继续'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (continueRequest != true) {
+        return false;
+      }
+    }
+
+    final requestedStatus = await Permission.microphone.request();
+    if (requestedStatus.isGranted) {
+      final pluginPermission = await _recorder.hasPermission(request: false);
+      if (!pluginPermission) {
+        _showMessage('系统已授权，但录音器还没准备好，请重新点一次录音。');
+      }
+      return pluginPermission;
+    }
+
+    if (requestedStatus.isPermanentlyDenied || requestedStatus.isRestricted) {
+      if (!mounted) {
+        return false;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('麦克风权限未开启'),
+            content: const Text('当前无法录音。请到系统设置里开启麦克风权限后，再回来提交作业。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('知道了'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  await openAppSettings();
+                },
+                child: const Text('去设置'),
+              ),
+            ],
+          );
+        },
+      );
+      return false;
+    }
+
+    _showMessage('没有麦克风权限，暂时不能录音。');
+    return false;
   }
 
   Future<String> _resolveGeneratedSampleAudioPath({
@@ -459,7 +534,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       if (rethrowOnError) {
         rethrow;
       }
-      _showMessage('音频回放失败，请稍后再试。');
+      _showMessage('示范音频没有播放成功，请检查媒体音量后再试。');
     }
   }
 
@@ -978,6 +1053,7 @@ class _SubmissionPanel extends StatelessWidget {
           isStoredAudioLoading: isStoredAudioLoading,
           onPickAudio: isRecording ? null : onPickAudio,
           onRecordAudio: onRecordAudio,
+          helperNote: '第一次录音会请求麦克风权限；如果没有弹出，请检查系统权限设置。',
           recordActionLabel: isRecording ? '结束录音并保存' : '开始录音',
           actionLabel: isSubmitting ? '提交中' : '提交本次练习',
           actionIcon: isSubmitting
@@ -1032,6 +1108,7 @@ class _SubmissionPanel extends StatelessWidget {
           isStoredAudioLoading: isStoredAudioLoading,
           onPickAudio: isRecording ? null : onPickAudio,
           onRecordAudio: onRecordAudio,
+          helperNote: '如果录音没有权限或音频没有保存成功，可以重新授权后再试一次。',
           recordActionLabel: isRecording ? '结束录音并保存' : '重新录音',
           actionLabel: isSubmitting ? '重新提交中' : '重新提交',
           actionIcon: isSubmitting ? null : const Icon(Icons.refresh_rounded),
@@ -1064,6 +1141,7 @@ class _MessagePanel extends StatelessWidget {
     this.existingAudioLabel,
     this.onPickAudio,
     this.onRecordAudio,
+    this.helperNote,
     this.recordActionLabel,
     this.actionLabel,
     this.actionIcon,
@@ -1084,6 +1162,7 @@ class _MessagePanel extends StatelessWidget {
   final String? existingAudioLabel;
   final VoidCallback? onPickAudio;
   final VoidCallback? onRecordAudio;
+  final String? helperNote;
   final String? recordActionLabel;
   final String? actionLabel;
   final Widget? actionIcon;
@@ -1154,6 +1233,24 @@ class _MessagePanel extends StatelessWidget {
                   onAction: onPlayStoredAudio,
                   isPlaying: isStoredAudioPlaying,
                   isLoading: isStoredAudioLoading,
+                ),
+              ],
+              if ((helperNote ?? '').trim().isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF6E8),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    helperNote!,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF7C5A2F),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ],

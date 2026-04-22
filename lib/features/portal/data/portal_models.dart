@@ -80,6 +80,7 @@ class PortalActivity {
     required this.title,
     required this.className,
     required this.dateLabel,
+    required this.dueDate,
     required this.status,
     required this.reviewCount,
     required this.inspectCount,
@@ -108,6 +109,7 @@ class PortalActivity {
   final String title;
   final String className;
   final String dateLabel;
+  final DateTime? dueDate;
   final ActivityStatus status;
   final int reviewCount;
   final int inspectCount;
@@ -153,6 +155,7 @@ final mockPortalActivities = [
     title: '7天打卡活动',
     className: '精品英语H班',
     dateLabel: '4.18 - 4.24',
+    dueDate: DateTime(2026, 4, 24),
     status: ActivityStatus.active,
     reviewCount: 3,
     inspectCount: 0,
@@ -228,6 +231,7 @@ final mockPortalActivities = [
     title: '7天打卡活动',
     className: '精品英语Z班',
     dateLabel: '4.18 - 4.24',
+    dueDate: DateTime(2026, 4, 24),
     status: ActivityStatus.active,
     reviewCount: 3,
     inspectCount: 0,
@@ -282,6 +286,7 @@ final mockPortalActivities = [
     title: '7天打卡活动',
     className: '精品英语T班',
     dateLabel: '4.17 - 4.23',
+    dueDate: DateTime(2026, 4, 23),
     status: ActivityStatus.reviewPending,
     reviewCount: 6,
     inspectCount: 0,

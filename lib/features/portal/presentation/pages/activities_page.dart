@@ -12,22 +12,40 @@ class ActivitiesPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activitiesAsync = ref.watch(portalActivitiesProvider);
-    final summaryAsync = ref.watch(portalSummaryProvider);
+    final allActivitiesAsync = ref.watch(portalActivitiesProvider);
+    final activitiesAsync = ref.watch(activitiesForSelectedDateProvider);
+    final summaryAsync = ref.watch(selectedDatePortalSummaryProvider);
+    final selectedDateAsync = ref.watch(visibleActivityDateProvider);
+    final calendarDatesAsync = ref.watch(activityCalendarDatesProvider);
+    final today = ref.watch(todayActivityDateProvider);
     final schoolContext =
         ref.watch(schoolContextProvider).valueOrNull ??
         SchoolContext.fallback();
 
     final subtitle = summaryAsync.maybeWhen(
-      data: (summary) =>
-          '共 ${summary.totalActivities} 份作业 | 已完成 ${summary.completedActivities} 份',
+      data: (summary) {
+        final selectedDate = selectedDateAsync.valueOrNull;
+        if (selectedDate == null) {
+          return '正在同步老师布置的作业';
+        }
+        final prefix = _isSameDay(selectedDate, today)
+            ? '今天'
+            : _formatDateLabel(selectedDate);
+        return '$prefix有 ${summary.totalActivities} 份作业 | 已完成 ${summary.completedActivities} 份';
+      },
       orElse: () => '正在同步老师布置的作业',
     );
 
     Widget content;
-    if (activitiesAsync.isLoading) {
+    if (activitiesAsync.isLoading ||
+        summaryAsync.isLoading ||
+        selectedDateAsync.isLoading ||
+        calendarDatesAsync.isLoading) {
       content = const Center(child: CircularProgressIndicator());
-    } else if (activitiesAsync.hasError) {
+    } else if (activitiesAsync.hasError ||
+        summaryAsync.hasError ||
+        selectedDateAsync.hasError ||
+        calendarDatesAsync.hasError) {
       content = const _ActivitiesStateMessage(
         title: '作业还没有加载出来',
         message: '请稍后重试，或者联系老师确认班级是否已绑定。',
@@ -35,14 +53,40 @@ class ActivitiesPage extends ConsumerWidget {
     } else {
       final activities =
           activitiesAsync.valueOrNull ?? const <PortalActivity>[];
+      final allActivities =
+          allActivitiesAsync.valueOrNull ?? const <PortalActivity>[];
+      final summary = summaryAsync.valueOrNull ?? const PortalSummary(
+        activeClasses: 0,
+        totalActivities: 0,
+        completedActivities: 0,
+        inProgressActivities: 0,
+        pendingTasks: 0,
+      );
+      final selectedDate =
+          selectedDateAsync.valueOrNull ?? today;
+      final calendarDates = calendarDatesAsync.valueOrNull ?? <DateTime>[today];
+      final activityCountByDate = <DateTime, int>{};
+      for (final activity in allActivities) {
+        final dueDate = activity.dueDate;
+        if (dueDate == null) {
+          continue;
+        }
+        final normalized = DateTime(dueDate.year, dueDate.month, dueDate.day);
+        activityCountByDate.update(normalized, (value) => value + 1, ifAbsent: () => 1);
+      }
+
       content = LayoutBuilder(
         builder: (context, constraints) {
           final isPhone = constraints.maxWidth < 760;
           final isShortViewport = constraints.maxHeight < 760;
           final list = activities.isEmpty
-              ? const _ActivitiesStateMessage(
-                  title: '还没有新的作业',
-                  message: '老师发布新的英语任务后，这里会马上出现。',
+              ? _ActivitiesStateMessage(
+                  title: _isSameDay(selectedDate, today)
+                      ? '今天还没有新的作业'
+                      : '${_formatDateLabel(selectedDate)}没有布置作业',
+                  message: _isSameDay(selectedDate, today)
+                      ? '你可以切到前几天看看有没有漏掉的作业要补做。'
+                      : '可以切换到别的日期，看看前后几天的作业安排。',
                 )
               : ListView.separated(
                   shrinkWrap: isPhone,
@@ -61,7 +105,27 @@ class ActivitiesPage extends ConsumerWidget {
             return SingleChildScrollView(
               child: Column(
                 children: [
-                  _ActionRail(summaryAsync: summaryAsync, isCompact: true),
+                  _HomeworkCalendarStrip(
+                    dates: calendarDates,
+                    selectedDate: selectedDate,
+                    today: today,
+                    activityCountByDate: activityCountByDate,
+                    onSelectDate: (date) => ref
+                        .read(selectedActivityDateProvider.notifier)
+                        .state = date,
+                  ),
+                  const SizedBox(height: 16),
+                  _ActionRail(
+                    summary: summary,
+                    selectedDate: selectedDate,
+                    today: today,
+                    isCompact: true,
+                    onResetToToday: !_isSameDay(selectedDate, today)
+                        ? () => ref
+                            .read(selectedActivityDateProvider.notifier)
+                            .state = today
+                        : null,
+                  ),
                   const SizedBox(height: 16),
                   list,
                 ],
@@ -69,20 +133,43 @@ class ActivitiesPage extends ConsumerWidget {
             );
           }
 
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          return Column(
             children: [
-              SizedBox(
-                width: 248,
-                child: SingleChildScrollView(
-                  child: _ActionRail(
-                    summaryAsync: summaryAsync,
-                    isCompact: isShortViewport,
-                  ),
+              _HomeworkCalendarStrip(
+                dates: calendarDates,
+                selectedDate: selectedDate,
+                today: today,
+                activityCountByDate: activityCountByDate,
+                onSelectDate: (date) => ref
+                    .read(selectedActivityDateProvider.notifier)
+                    .state = date,
+              ),
+              const SizedBox(height: 18),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 248,
+                      child: SingleChildScrollView(
+                        child: _ActionRail(
+                          summary: summary,
+                          selectedDate: selectedDate,
+                          today: today,
+                          isCompact: isShortViewport,
+                          onResetToToday: !_isSameDay(selectedDate, today)
+                              ? () => ref
+                                  .read(selectedActivityDateProvider.notifier)
+                                  .state = today
+                              : null,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(child: list),
+                  ],
                 ),
               ),
-              const SizedBox(width: 20),
-              Expanded(child: list),
             ],
           );
         },
@@ -115,23 +202,26 @@ class ActivitiesPage extends ConsumerWidget {
 }
 
 class _ActionRail extends StatelessWidget {
-  const _ActionRail({required this.summaryAsync, this.isCompact = false});
+  const _ActionRail({
+    required this.summary,
+    required this.selectedDate,
+    required this.today,
+    this.isCompact = false,
+    this.onResetToToday,
+  });
 
-  final AsyncValue<PortalSummary> summaryAsync;
+  final PortalSummary summary;
+  final DateTime selectedDate;
+  final DateTime today;
   final bool isCompact;
+  final VoidCallback? onResetToToday;
 
   @override
   Widget build(BuildContext context) {
-    final summary = summaryAsync.valueOrNull;
-    final taskLabel = summary == null
-        ? '同步中'
-        : '${summary.totalActivities} 份作业';
-    final pendingLabel = summary == null
-        ? '正在统计'
-        : '${summary.pendingTasks} 项待完成';
-    final completedLabel = summary == null
-        ? '加载中'
-        : '${summary.completedActivities} 份已完成';
+    final isToday = _isSameDay(selectedDate, today);
+    final taskLabel = '${summary.totalActivities} 份作业';
+    final pendingLabel = '${summary.pendingTasks} 项待补做';
+    final completedLabel = '${summary.completedActivities} 份已完成';
 
     return Container(
       padding: EdgeInsets.all(isCompact ? 14 : 18),
@@ -143,14 +233,14 @@ class _ActionRail extends StatelessWidget {
         children: [
           _RailAction(
             icon: Icons.fact_check_outlined,
-            label: '今日作业',
+            label: isToday ? '今日作业' : _formatDateLabel(selectedDate),
             value: taskLabel,
             isCompact: isCompact,
           ),
           SizedBox(height: isCompact ? 10 : 14),
           _RailAction(
             icon: Icons.pending_actions_outlined,
-            label: '待完成',
+            label: isToday ? '待完成' : '待补作业',
             value: pendingLabel,
             isCompact: isCompact,
           ),
@@ -162,18 +252,115 @@ class _ActionRail extends StatelessWidget {
             isCompact: isCompact,
           ),
           SizedBox(height: isCompact ? 10 : 14),
-          const _StudyHintTile(
-            title: '先完成今天的作业',
-            subtitle: '每份作业点进去后，先打开教材，再听示范、录音并提交。',
-            accent: Color(0xFF4FAE7F),
+          _StudyHintTile(
+            title: isToday ? '今天先完成今天的作业' : '漏掉的作业也可以补做',
+            subtitle: isToday
+                ? '想补做前几天的内容，可以在上面的日期条里切换。'
+                : '这一天的作业会单独显示，做完后再切回今天继续。',
+            accent: isToday ? const Color(0xFF4FAE7F) : const Color(0xFFFF9B55),
           ),
-          SizedBox(height: isCompact ? 10 : 14),
-          const _StudyHintTile(
-            title: '完成后回来查看反馈',
-            subtitle: '老师和系统处理完成后，这里会显示新的点评和分数。',
-            accent: Color(0xFFFF9B55),
-          ),
+          if (onResetToToday != null) ...[
+            SizedBox(height: isCompact ? 10 : 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onResetToToday,
+                icon: const Icon(Icons.today_rounded),
+                label: const Text('回到今天'),
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _HomeworkCalendarStrip extends StatelessWidget {
+  const _HomeworkCalendarStrip({
+    required this.dates,
+    required this.selectedDate,
+    required this.today,
+    required this.activityCountByDate,
+    required this.onSelectDate,
+  });
+
+  final List<DateTime> dates;
+  final DateTime selectedDate;
+  final DateTime today;
+  final Map<DateTime, int> activityCountByDate;
+  final ValueChanged<DateTime> onSelectDate;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 108,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemBuilder: (context, index) {
+          final date = dates[index];
+          final isSelected = _isSameDay(date, selectedDate);
+          final isToday = _isSameDay(date, today);
+          final count = activityCountByDate[date] ?? 0;
+
+          return InkWell(
+            onTap: () => onSelectDate(date),
+            borderRadius: BorderRadius.circular(26),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 104,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF1E7D66)
+                    : Colors.white.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF1E7D66).withValues(alpha: 0.2),
+                          blurRadius: 18,
+                          offset: const Offset(0, 10),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    isToday ? '今天' : _weekdayLabel(date),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.9)
+                          : const Color(0xFF64748B),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    '${date.month}/${date.day}',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    count > 0 ? '$count 份作业' : '暂无作业',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: 0.88)
+                          : const Color(0xFF64748B),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemCount: dates.length,
       ),
     );
   }
@@ -317,6 +504,19 @@ class _StudyHintTile extends StatelessWidget {
     final width = MediaQuery.sizeOf(context).width;
     return width < 980 ? 16 : 18;
   }
+}
+
+bool _isSameDay(DateTime left, DateTime right) {
+  return left.year == right.year &&
+      left.month == right.month &&
+      left.day == right.day;
+}
+
+String _formatDateLabel(DateTime date) => '${date.month}月${date.day}日';
+
+String _weekdayLabel(DateTime date) {
+  const labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+  return labels[date.weekday - 1];
 }
 
 class _ActivityRow extends StatelessWidget {

@@ -390,6 +390,7 @@ class SupabasePortalRepository implements PortalRepository {
         title: (row['title'] as String?) ?? '未命名活动',
         className: classNameById[(row['class_id'] as String?) ?? ''] ?? '未命名班级',
         dateLabel: _buildDateLabel(dueAt),
+        dueDate: dueAt,
         status: _mapActivityStatus(submissionFlowStatus, assignmentStatus),
         reviewCount: reviewCount,
         inspectCount: 0,
@@ -612,8 +613,7 @@ class SupabasePortalRepository implements PortalRepository {
     if (dueAt == null) {
       return '待设置截止时间';
     }
-    final start = dueAt.subtract(const Duration(days: 6));
-    return '${start.month}.${start.day} - ${dueAt.month}.${dueAt.day}';
+    return '${dueAt.month}月${dueAt.day}日 截止';
   }
 
   SubmissionFlowStatus _mapSubmissionFlowStatus(String? status) {

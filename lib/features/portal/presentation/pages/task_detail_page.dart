@@ -1655,7 +1655,13 @@ class _TaskReviewPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scoreLabel = review.score.toStringAsFixed(0);
-    final reviewBadgeLabel = review.sourceLabel;
+    final canPlayEncouragement =
+        onPlayEncouragement != null && review.encouragement.trim().isNotEmpty;
+    final reviewBadgeLabel = isEncouragementLoading
+        ? '鼓励语生成中'
+        : isEncouragementPlaying
+        ? '停止鼓励语'
+        : review.sourceLabel;
     final subheading = review.isTeacherReviewedReference
         ? '下面是这一句的 AI 点评，老师已经看过整份作业。'
         : '下面就是这一句的 AI 点评。';
@@ -1692,12 +1698,15 @@ class _TaskReviewPanel extends StatelessWidget {
             runSpacing: 10,
             children: [
               _ReviewBadge(
-                icon: review.isTeacherReviewedReference
-                    ? Icons.auto_awesome_rounded
+                icon: isEncouragementLoading
+                    ? Icons.hourglass_top_rounded
+                    : isEncouragementPlaying
+                    ? Icons.stop_circle_rounded
                     : Icons.auto_awesome_rounded,
                 label: reviewBadgeLabel,
                 color: const Color(0xFF0F8B6D),
                 background: const Color(0xFFDFF8EC),
+                onTap: canPlayEncouragement ? onPlayEncouragement : null,
               ),
               if (review.isTeacherReviewedReference)
                 const _ReviewBadge(
@@ -1735,31 +1744,6 @@ class _TaskReviewPanel extends StatelessWidget {
               height: 1.45,
             ),
           ),
-          if (onPlayEncouragement != null &&
-              review.encouragement.trim().isNotEmpty) ...[
-            const SizedBox(height: 14),
-            FilledButton.tonalIcon(
-              onPressed: onPlayEncouragement,
-              icon: isEncouragementLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      isEncouragementPlaying
-                          ? Icons.stop_circle_rounded
-                          : Icons.volume_up_rounded,
-                    ),
-              label: Text(
-                isEncouragementLoading
-                    ? '鼓励语生成中'
-                    : isEncouragementPlaying
-                    ? '停止鼓励语'
-                    : '听鼓励语',
-              ),
-            ),
-          ],
           const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -1815,20 +1799,25 @@ class _ReviewBadge extends StatelessWidget {
     required this.label,
     required this.color,
     required this.background,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final Color color;
   final Color background;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final badge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(14),
+        border: onTap == null
+            ? null
+            : Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1843,6 +1832,19 @@ class _ReviewBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+
+    if (onTap == null) {
+      return badge;
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: badge,
       ),
     );
   }

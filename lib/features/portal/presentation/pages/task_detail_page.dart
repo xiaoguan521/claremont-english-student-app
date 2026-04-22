@@ -940,10 +940,6 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             ),
             onOpenMaterial: () => _openReadingPage(activity),
           ),
-          if (_shouldShowOverallReviewSummary(activity)) ...[
-            const SizedBox(height: 14),
-            _OverallReviewSummary(activity: activity),
-          ],
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
             child: _autoAdvanceHint == null
@@ -958,9 +954,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           _SectionHeading(
             eyebrow: '当前句子',
             title: focusTask.reviewStatus == TaskReviewStatus.checked
-                ? (focusTask.review?.isTeacherReviewedReference == true
-                      ? '老师总评在上面，这里保留这一句的 AI 点评。'
-                      : '这句已经完成，下面直接看这一句的 AI 点评。')
+                ? '这句已经完成，下面直接看这一句的点评。'
                 : '先完成这一句，再继续下一句。',
             subtitle: '每次只专注一句，先听示范，再录音并提交。',
           ),
@@ -1051,15 +1045,6 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         ],
       ),
     );
-  }
-
-  bool _shouldShowOverallReviewSummary(PortalActivity activity) {
-    return activity.reviewSource != PortalActivityReviewSource.none &&
-        (((activity.latestFeedback ?? '').trim().isNotEmpty) ||
-            activity.latestScore != null ||
-            (activity.encouragement ?? '').trim().isNotEmpty ||
-            activity.strengths.isNotEmpty ||
-            activity.improvementPoints.isNotEmpty);
   }
 }
 
@@ -1248,92 +1233,6 @@ class _TaskJourneyHeader extends StatelessWidget {
   }
 }
 
-class _OverallReviewSummary extends StatelessWidget {
-  const _OverallReviewSummary({required this.activity});
-
-  final PortalActivity activity;
-
-  @override
-  Widget build(BuildContext context) {
-    final isTeacherReview = activity.hasTeacherReviewedResult;
-    final accent = isTeacherReview
-        ? const Color(0xFF0F766E)
-        : const Color(0xFF7C3AED);
-    final background = isTeacherReview
-        ? const Color(0xFFEAFBF1)
-        : const Color(0xFFF3EEFF);
-    final heading = isTeacherReview ? '老师总评已经完成' : 'AI 已完成整份作业初评';
-    final subtitle = isTeacherReview
-        ? '上面是老师对整份作业的总结，下面每句继续保留 AI 句子点评，方便你逐句回看。'
-        : '下面每句显示的是 AI 句子点评，老师后面还可以继续复核。';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: accent.withValues(alpha: 0.14)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _ReviewBadge(
-                icon: isTeacherReview
-                    ? Icons.person_rounded
-                    : Icons.auto_awesome_rounded,
-                label: isTeacherReview ? '老师总评' : 'AI 总评',
-                color: accent,
-                background: background,
-              ),
-              if (activity.latestScore != null)
-                _ReviewBadge(
-                  icon: Icons.star_rounded,
-                  label:
-                      '${isTeacherReview ? '老师评分' : 'AI 总分'} ${activity.latestScore!.toStringAsFixed(0)}',
-                  color: const Color(0xFFF97316),
-                  background: const Color(0xFFFFEBD9),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            heading,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: const Color(0xFF1E293B),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          if ((activity.latestFeedback ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              activity.latestFeedback!,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: const Color(0xFF334155),
-                fontWeight: FontWeight.w700,
-                height: 1.55,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w700,
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _TaskProgressPanel extends StatelessWidget {
   const _TaskProgressPanel({
     required this.tasks,
@@ -1403,7 +1302,7 @@ class _TaskProgressStep extends StatelessWidget {
     final helperLabel = switch (task.reviewStatus) {
       TaskReviewStatus.checked =>
         task.review?.isTeacherReviewedReference == true
-            ? 'AI 句子点评已经在上面展开，老师总评在更上面'
+            ? '这一句显示的是 AI 点评，老师已经看过整份作业'
             : 'AI 句子点评已经在上面展开了',
       TaskReviewStatus.pendingReview => '老师和系统正在处理这句',
       TaskReviewStatus.inProgress => isFocused ? '现在先完成这一句' : '点这里切换到这一句',
@@ -1732,7 +1631,7 @@ class _TaskReviewPanel extends StatelessWidget {
               if (review.isTeacherReviewedReference)
                 const _ReviewBadge(
                   icon: Icons.person_rounded,
-                  label: '老师已复核整份作业',
+                  label: '老师已看过整份作业',
                   color: Color(0xFF0369A1),
                   background: Color(0xFFE0F2FE),
                 ),
@@ -2316,15 +2215,6 @@ class _TaskCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               header,
-              if (isFocusTask) ...[
-                const SizedBox(height: 16),
-                const _ReviewBadge(
-                  icon: Icons.local_fire_department_rounded,
-                  label: '现在先做这一句',
-                  color: Color(0xFFEA580C),
-                  background: Color(0xFFFFEDD5),
-                ),
-              ],
               if (task.review != null) ...[
                 const SizedBox(height: 16),
                 _TaskReviewPanel(
@@ -2625,7 +2515,7 @@ class _TaskInfoChip extends StatelessWidget {
             const Icon(
               Icons.open_in_new_rounded,
               size: 14,
-              color: const Color(0xFF2FA77D),
+              color: Color(0xFF2FA77D),
             ),
           ],
         ],

@@ -1473,6 +1473,53 @@ class _TaskProgressStep extends StatelessWidget {
   }
 }
 
+class _LabeledTextBlock extends StatelessWidget {
+  const _LabeledTextBlock({
+    required this.label,
+    required this.text,
+    required this.background,
+    this.foreground = const Color(0xFF475569),
+  });
+
+  final String label;
+  final String text;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: const Color(0xFF64748B),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AudioInfoCard extends StatelessWidget {
   const _AudioInfoCard({
     required this.title,
@@ -1605,6 +1652,9 @@ class _TaskReviewPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final scoreLabel = review.score.toStringAsFixed(0);
     final reviewBadgeLabel = review.sourceLabel;
+    final subheading = review.isTeacherReviewedReference
+        ? '下面是这一句的 AI 点评，老师已经看过整份作业。'
+        : '下面就是这一句的 AI 点评。';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -1616,6 +1666,23 @@ class _TaskReviewPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            '这一句的点评',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: const Color(0xFF0F172A),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subheading,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -2064,30 +2131,28 @@ class _TaskCard extends StatelessWidget {
               ),
               if ((task.promptText ?? '').trim().isNotEmpty) ...[
                 const SizedBox(height: 10),
-                Text(
-                  task.promptText!,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: const Color(0xFF475569),
-                    fontWeight: FontWeight.w700,
-                  ),
+                _LabeledTextBlock(
+                  label: '任务提示',
+                  text: task.promptText!,
+                  background: const Color(0xFFF8FAFC),
                 ),
               ],
               if (sampleText != null) ...[
                 const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    sampleText,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: const Color(0xFF1E293B),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                _LabeledTextBlock(
+                  label: '要读的句子',
+                  text: sampleText,
+                  background: const Color(0xFFF7F7FF),
+                  foreground: const Color(0xFF1E293B),
+                ),
+              ],
+              if (task.review != null) ...[
+                const SizedBox(height: 16),
+                _TaskReviewPanel(
+                  review: task.review!,
+                  onPlayEncouragement: onPlayEncouragement,
+                  isEncouragementPlaying: isEncouragementPlaying,
+                  isEncouragementLoading: isEncouragementLoading,
                 ),
               ],
               const SizedBox(height: 12),
@@ -2213,18 +2278,7 @@ class _TaskCard extends StatelessWidget {
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              header,
-              if (task.review != null) ...[
-                const SizedBox(height: 16),
-                _TaskReviewPanel(
-                  review: task.review!,
-                  onPlayEncouragement: onPlayEncouragement,
-                  isEncouragementPlaying: isEncouragementPlaying,
-                  isEncouragementLoading: isEncouragementLoading,
-                ),
-              ],
-            ],
+            children: [header],
           );
         },
       ),

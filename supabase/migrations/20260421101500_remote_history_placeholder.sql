@@ -1,0 +1,4 @@
+-- Placeholder migration to reconcile remote history.
+-- This version exists in the linked Supabase project but was not committed
+-- into the local repository history. Keeping a no-op file here allows future
+-- migrations to continue without rewriting the remote migration ledger.

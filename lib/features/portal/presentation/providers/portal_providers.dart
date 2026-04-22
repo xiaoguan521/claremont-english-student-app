@@ -21,10 +21,10 @@ final highlightedActivityProvider = FutureProvider<PortalActivity>((ref) async {
 
 final portalActivityByIdProvider =
     FutureProvider.family<PortalActivity?, String>((ref, activityId) async {
-      for (final activity in await ref.watch(portalActivitiesProvider.future)) {
-        if (activity.id == activityId) return activity;
-      }
-      return null;
+      final repository = ref.watch(portalRepositoryProvider);
+      final schoolContext = ref.watch(schoolContextProvider);
+      final schoolId = schoolContext.valueOrNull?.schoolId;
+      return repository.fetchActivityById(activityId, schoolId: schoolId);
     });
 
 final portalSummaryProvider = FutureProvider<PortalSummary>((ref) async {

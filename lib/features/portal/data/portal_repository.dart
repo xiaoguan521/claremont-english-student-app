@@ -10,6 +10,11 @@ import 'portal_models.dart';
 abstract class PortalRepository {
   Future<List<PortalActivity>> fetchActivities({String? schoolId});
 
+  Future<PortalActivity?> fetchActivityById(
+    String activityId, {
+    String? schoolId,
+  });
+
   Future<void> submitActivity(String activityId);
 
   Future<AiReviewDispatchResult> uploadAudioSubmission({
@@ -37,6 +42,20 @@ class MockPortalRepository implements PortalRepository {
   Future<List<PortalActivity>> fetchActivities({String? schoolId}) async {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     return mockPortalActivities;
+  }
+
+  @override
+  Future<PortalActivity?> fetchActivityById(
+    String activityId, {
+    String? schoolId,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    for (final activity in mockPortalActivities) {
+      if (activity.id == activityId) {
+        return activity;
+      }
+    }
+    return null;
   }
 
   @override
@@ -77,7 +96,29 @@ class SupabasePortalRepository implements PortalRepository {
   }
 
   @override
-  Future<List<PortalActivity>> fetchActivities({String? schoolId}) async {
+  Future<List<PortalActivity>> fetchActivities({String? schoolId}) {
+    return _fetchActivitiesInternal(schoolId: schoolId);
+  }
+
+  @override
+  Future<PortalActivity?> fetchActivityById(
+    String activityId, {
+    String? schoolId,
+  }) async {
+    final activities = await _fetchActivitiesInternal(
+      schoolId: schoolId,
+      onlyActivityId: activityId,
+    );
+    if (activities.isEmpty) {
+      return null;
+    }
+    return activities.first;
+  }
+
+  Future<List<PortalActivity>> _fetchActivitiesInternal({
+    String? schoolId,
+    String? onlyActivityId,
+  }) async {
     final targetSchoolId = schoolId;
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
@@ -156,15 +197,19 @@ class SupabasePortalRepository implements PortalRepository {
         .order('created_at', ascending: false);
     final assignmentRows = List<Map<String, dynamic>>.from(assignmentsResponse);
 
-    if (assignmentRows.isEmpty) {
+    final targetAssignmentRows = onlyActivityId == null
+        ? assignmentRows
+        : assignmentRows.where((row) => row['id'] == onlyActivityId).toList();
+
+    if (targetAssignmentRows.isEmpty) {
       return const [];
     }
 
-    final assignmentIds = assignmentRows
+    final assignmentIds = targetAssignmentRows
         .map((row) => row['id'] as String?)
         .whereType<String>()
         .toList();
-    final materialIds = assignmentRows
+    final materialIds = targetAssignmentRows
         .map((row) => row['material_id'] as String?)
         .whereType<String>()
         .toSet()
@@ -278,7 +323,7 @@ class SupabasePortalRepository implements PortalRepository {
       itemsByAssignmentId.putIfAbsent(assignmentId, () => []).add(item);
     }
 
-    return assignmentRows.map((row) {
+    return targetAssignmentRows.map((row) {
       final assignmentId = row['id'] as String;
       final assignmentStatus = (row['status'] as String?) ?? 'published';
       final dueAt = DateTime.tryParse((row['due_at'] as String?) ?? '');

@@ -49,6 +49,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   String? _speakingTaskId;
   String? _focusedTaskId;
   String? _autoAdvanceHint;
+  PortalActivity? _staleActivity;
   _PendingAudioFile? _selectedAudio;
 
   @override
@@ -686,8 +687,6 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             sizeBytes: selectedAudio.sizeBytes,
             mimeType: selectedAudio.mimeType,
           );
-      ref.invalidate(portalActivitiesProvider);
-      ref.invalidate(portalSummaryProvider);
       ref.invalidate(portalActivityByIdProvider(widget.activityId));
       if (!mounted) {
         return;
@@ -742,8 +741,6 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       if (!mounted) {
         return;
       }
-      ref.invalidate(portalActivitiesProvider);
-      ref.invalidate(portalSummaryProvider);
       ref.invalidate(portalActivityByIdProvider(widget.activityId));
     });
   }
@@ -836,7 +833,15 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         ref.watch(schoolContextProvider).valueOrNull ??
         SchoolContext.fallback();
 
-    if (activityAsync.isLoading) {
+    final latestActivity = activityAsync.valueOrNull;
+    if (latestActivity != null) {
+      _staleActivity = latestActivity;
+    }
+    final activity =
+        latestActivity ??
+        (_staleActivity?.id == widget.activityId ? _staleActivity : null);
+
+    if (activityAsync.isLoading && activity == null) {
       return TabletShell(
         activeSection: TabletSection.teaching,
         brandName: schoolContext.displayName,
@@ -847,7 +852,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       );
     }
 
-    if (activityAsync.hasError) {
+    if (activityAsync.hasError && activity == null) {
       return TabletShell(
         activeSection: TabletSection.teaching,
         brandName: schoolContext.displayName,
@@ -866,7 +871,6 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       );
     }
 
-    final activity = activityAsync.valueOrNull;
     if (activity == null) {
       return TabletShell(
         activeSection: TabletSection.teaching,

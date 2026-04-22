@@ -664,8 +664,7 @@ class SupabasePortalRepository implements PortalRepository {
     final error = (jobError ?? '').toLowerCase();
     if (error.contains('invalid audio format') ||
         error.contains('audio transcription failed') ||
-        error.contains('detail":"not found"') ||
-        error.contains('detail\\\":\\\"not found\\\"')) {
+        error.contains('detail":"not found"')) {
       return 'AI 初评暂时不可用，这次录音已经提交给老师，并不是你读得不清楚。你可以稍后再试，或者直接等待老师手动查看。';
     }
     if (error.contains('transcription')) {
@@ -702,6 +701,31 @@ class SupabasePortalRepository implements PortalRepository {
     return const [];
   }
 
+  bool _containsChinese(String value) {
+    return RegExp(r'[\u3400-\u9FFF]').hasMatch(value);
+  }
+
+  String _fallbackTaskReviewSummary(double score) {
+    if (score >= 90) {
+      return '这一句读得很接近标准，继续保持。';
+    }
+    if (score >= 75) {
+      return '这一句大部分已经读对了，再把重点词读完整一点会更好。';
+    }
+    return '这一句先把内容完整读出来，再跟着示范多读一遍。';
+  }
+
+  List<String> _normalizeChineseList(
+    List<String> items,
+    List<String> fallback,
+  ) {
+    final normalized = items
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty && _containsChinese(item))
+        .toList();
+    return normalized.isEmpty ? fallback : normalized;
+  }
+
   Map<String, PortalTaskReview> _extractTaskReviews(
     Map<String, dynamic>? evaluationRow,
   ) {
@@ -714,9 +738,7 @@ class SupabasePortalRepository implements PortalRepository {
     final reviewSource = provider == 'teacher-review'
         ? PortalTaskReviewSource.aiRetainedAfterTeacherReview
         : PortalTaskReviewSource.ai;
-    final sourceLabel = provider == 'teacher-review'
-        ? 'AI 句子点评（老师已复核）'
-        : 'AI 句子点评';
+    const sourceLabel = 'AI 初评';
     final source = provider == 'teacher-review'
         ? _asMap(rawResult?['previousAiReview'])
         : rawResult;
@@ -735,17 +757,34 @@ class SupabasePortalRepository implements PortalRepository {
         continue;
       }
 
+      final normalizedSummary = _containsChinese(summaryFeedback)
+          ? summaryFeedback
+          : _fallbackTaskReviewSummary(score);
+      final normalizedStrengths = _normalizeChineseList(
+        _asStringList(row?['strengths']),
+        const ['愿意尝试开口朗读'],
+      );
+      final normalizedImprovements = _normalizeChineseList(
+        _asStringList(row?['improvementPoints']),
+        const ['先把整句内容读完整，再跟着示范多读一遍'],
+      );
+      final encouragement = ((row?['encouragement'] as String?) ?? '').trim();
+      final normalizedEncouragement =
+          encouragement.isNotEmpty && _containsChinese(encouragement)
+          ? encouragement
+          : '继续加油，再跟着示范多练一遍会更顺。';
+
       result[itemId] = PortalTaskReview(
         score: score,
-        summaryFeedback: summaryFeedback,
-        encouragement: (row?['encouragement'] as String?)?.trim() ?? '',
+        summaryFeedback: normalizedSummary,
+        encouragement: normalizedEncouragement,
         source: reviewSource,
         sourceLabel: sourceLabel,
         pronunciationScore: _asDouble(row?['pronunciationScore']),
         fluencyScore: _asDouble(row?['fluencyScore']),
         completenessScore: _asDouble(row?['completenessScore']),
-        strengths: _asStringList(row?['strengths']),
-        improvementPoints: _asStringList(row?['improvementPoints']),
+        strengths: normalizedStrengths,
+        improvementPoints: normalizedImprovements,
       );
     }
 

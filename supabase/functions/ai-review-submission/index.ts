@@ -421,6 +421,27 @@ function ensureStringArray(value: unknown, fallback: string[]) {
   return next.length > 0 ? next.slice(0, 3) : fallback
 }
 
+function containsChinese(value: string) {
+  return /[\u3400-\u9FFF]/.test(value)
+}
+
+function preferChineseText(value: unknown, fallback: string) {
+  const next = typeof value === 'string' ? value.trim() : ''
+  return next !== '' && containsChinese(next) ? next : fallback
+}
+
+function preferChineseArray(value: unknown, fallback: string[]) {
+  if (!Array.isArray(value)) {
+    return fallback
+  }
+
+  const next = value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((item) => item !== '' && containsChinese(item))
+
+  return next.length > 0 ? next.slice(0, 3) : fallback
+}
+
 function fallbackNarrative(expectedText: string, transcript: string, overallScore: number): ReviewNarrative {
   const expectedWords = tokenize(expectedText).length
   const actualWords = tokenize(transcript).length
@@ -607,6 +628,12 @@ async function generateReviewNarrative(options: {
   fluencyScore: number
   pronunciationScore: number
 }) {
+  const fallback = fallbackNarrative(
+    options.expectedText,
+    options.transcript,
+    options.overallScore,
+  )
+
   const response = await fetch(`${options.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -623,22 +650,22 @@ async function generateReviewNarrative(options: {
         {
           role: 'system',
           content:
-            'You are an English homework review assistant for K12 students. Return JSON only with keys: summaryFeedback, strengths, improvementPoints, encouragement. strengths and improvementPoints must be arrays of 1-3 short Chinese strings. summaryFeedback and encouragement must be concise Chinese sentences.',
+            '你是一名小学英语作业点评助手。请只返回 JSON，字段只能包含 summaryFeedback、strengths、improvementPoints、encouragement。所有字段都必须用简短自然的中文表达。strengths 和 improvementPoints 必须是 1 到 3 条中文短句数组，summaryFeedback 和 encouragement 必须是适合小学生阅读的中文短句。',
         },
         {
           role: 'user',
           content: [
-            `provider: ${options.providerLabel}`,
-            `assignment title: ${options.assignmentTitle}`,
-            `assignment description: ${options.assignmentDescription ?? ''}`,
-            `prompt text: ${options.promptText}`,
-            `expected text: ${options.expectedText}`,
-            `student transcript: ${options.transcript}`,
-            `heuristic overall score: ${options.overallScore}`,
-            `heuristic pronunciation score: ${options.pronunciationScore}`,
-            `heuristic fluency score: ${options.fluencyScore}`,
-            `heuristic completeness score: ${options.completenessScore}`,
-            'Write feedback for a primary school student. Keep the tone warm, encouraging, and concrete.',
+            `评审来源：${options.providerLabel}`,
+            `作业名称：${options.assignmentTitle}`,
+            `作业说明：${options.assignmentDescription ?? ''}`,
+            `老师提示：${options.promptText}`,
+            `标准句子：${options.expectedText}`,
+            `学生转写：${options.transcript}`,
+            `估算总分：${options.overallScore}`,
+            `估算发音分：${options.pronunciationScore}`,
+            `估算流利度：${options.fluencyScore}`,
+            `估算完整度：${options.completenessScore}`,
+            '请用温和、具体、鼓励式的中文写给小学生，不要批评式表达。',
           ].join('\n'),
         },
       ],
@@ -661,26 +688,16 @@ async function generateReviewNarrative(options: {
 
   return {
     narrative: {
-      summaryFeedback:
-        typeof parsed.summaryFeedback === 'string'
-          ? parsed.summaryFeedback.trim()
-          : fallbackNarrative(options.expectedText, options.transcript, options.overallScore)
-              .summaryFeedback,
-      strengths: ensureStringArray(parsed.strengths, fallbackNarrative(
-        options.expectedText,
-        options.transcript,
-        options.overallScore,
-      ).strengths),
-      improvementPoints: ensureStringArray(parsed.improvementPoints, fallbackNarrative(
-        options.expectedText,
-        options.transcript,
-        options.overallScore,
-      ).improvementPoints),
-      encouragement:
-        typeof parsed.encouragement === 'string'
-          ? parsed.encouragement.trim()
-          : fallbackNarrative(options.expectedText, options.transcript, options.overallScore)
-              .encouragement,
+      summaryFeedback: preferChineseText(parsed.summaryFeedback, fallback.summaryFeedback),
+      strengths: preferChineseArray(
+        ensureStringArray(parsed.strengths, fallback.strengths),
+        fallback.strengths,
+      ),
+      improvementPoints: preferChineseArray(
+        ensureStringArray(parsed.improvementPoints, fallback.improvementPoints),
+        fallback.improvementPoints,
+      ),
+      encouragement: preferChineseText(parsed.encouragement, fallback.encouragement),
     } satisfies ReviewNarrative,
     generationRaw: data,
   }

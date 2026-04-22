@@ -10,6 +10,26 @@ enum PortalTaskReviewSource { ai, aiRetainedAfterTeacherReview }
 
 enum PortalActivityReviewSource { none, aiOnly, teacherReviewed }
 
+class PortalTaskRegion {
+  const PortalTaskRegion({
+    required this.id,
+    required this.pageNumber,
+    required this.pageImagePath,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  final String id;
+  final int pageNumber;
+  final String pageImagePath;
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+}
+
 class PortalTask {
   const PortalTask({
     required this.id,
@@ -24,6 +44,7 @@ class PortalTask {
     this.startPage,
     this.endPage,
     this.referenceAudioPath,
+    this.region,
   });
 
   final String id;
@@ -38,11 +59,13 @@ class PortalTask {
   final int? startPage;
   final int? endPage;
   final String? referenceAudioPath;
+  final PortalTaskRegion? region;
 
   bool get hasTtsText => (ttsText ?? '').trim().isNotEmpty;
   bool get hasPageRange => startPage != null || endPage != null;
   bool get hasReferenceAudio => (referenceAudioPath ?? '').trim().isNotEmpty;
   bool get hasReview => review != null;
+  bool get hasRegion => region != null;
 }
 
 class PortalTaskReview {

@@ -945,11 +945,14 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             key: _textbookAnchorKey,
             child: _TextbookStageCard(
               activity: activity,
+              tasks: activity.tasks,
               task: focusTask,
+              focusedTaskId: focusedTaskId,
               taskIndex:
                   activity.tasks.indexWhere((task) => task.id == focusTask.id) +
                   1,
               totalTasks: activity.tasks.length,
+              onSelectTask: _setFocusedTask,
               onOpenFullScreen: () =>
                   _openReadingPage(activity, task: focusTask),
             ),
@@ -1196,16 +1199,22 @@ class _PdfStateMessage extends StatelessWidget {
 class _TextbookStageCard extends StatefulWidget {
   const _TextbookStageCard({
     required this.activity,
+    required this.tasks,
     required this.task,
+    required this.focusedTaskId,
     required this.taskIndex,
     required this.totalTasks,
+    required this.onSelectTask,
     required this.onOpenFullScreen,
   });
 
   final PortalActivity activity;
+  final List<PortalTask> tasks;
   final PortalTask task;
+  final String focusedTaskId;
   final int taskIndex;
   final int totalTasks;
+  final ValueChanged<String> onSelectTask;
   final VoidCallback onOpenFullScreen;
 
   @override
@@ -1276,6 +1285,20 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
   @override
   Widget build(BuildContext context) {
     final pageLabel = _pageRangeLabel(widget.task);
+    final focusedPageImagePath = widget.task.region?.pageImagePath;
+    final pageTasks = focusedPageImagePath == null
+        ? const <PortalTask>[]
+        : widget.tasks
+              .where((task) => task.region?.pageImagePath == focusedPageImagePath)
+              .toList()
+            ..sort(
+              (left, right) =>
+                  (left.region?.pageNumber ?? 0) == (right.region?.pageNumber ?? 0)
+                  ? left.title.compareTo(right.title)
+                  : (left.region?.pageNumber ?? 0).compareTo(
+                      right.region?.pageNumber ?? 0,
+                    ),
+            );
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1331,39 +1354,153 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(26),
-              child: FutureBuilder<Uint8List>(
-                future: _pdfFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+              child: focusedPageImagePath != null
+                  ? _TextbookImageStage(
+                      pageImagePath: focusedPageImagePath,
+                      tasks: pageTasks,
+                      focusedTaskId: widget.focusedTaskId,
+                      onSelectTask: widget.onSelectTask,
+                    )
+                  : FutureBuilder<Uint8List>(
+                      future: _pdfFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState != ConnectionState.done) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
 
-                  if (snapshot.hasError || !snapshot.hasData) {
-                    return _PdfStateMessage(
-                      title: '教材暂时打不开',
-                      message: snapshot.error?.toString() ?? '请稍后重试。',
-                    );
-                  }
+                        if (snapshot.hasError || !snapshot.hasData) {
+                          return _PdfStateMessage(
+                            title: '教材暂时打不开',
+                            message: snapshot.error?.toString() ?? '请稍后重试。',
+                          );
+                        }
+
+                        return Stack(
+                          children: [
+                            SfPdfViewer.memory(
+                              snapshot.data!,
+                              controller: _pdfController,
+                              canShowPaginationDialog: false,
+                              canShowScrollHead: false,
+                              onDocumentLoaded: (_) {
+                                _documentReady = true;
+                                _jumpToTaskPage();
+                              },
+                            ),
+                            Positioned(
+                              right: 16,
+                              bottom: 16,
+                              child: FilledButton.tonalIcon(
+                                onPressed: widget.onOpenFullScreen,
+                                icon: const Icon(Icons.open_in_full_rounded),
+                                label: const Text('放大看教材'),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TextbookImageStage extends StatelessWidget {
+  const _TextbookImageStage({
+    required this.pageImagePath,
+    required this.tasks,
+    required this.focusedTaskId,
+    required this.onSelectTask,
+  });
+
+  final String pageImagePath;
+  final List<PortalTask> tasks;
+  final String focusedTaskId;
+  final ValueChanged<String> onSelectTask;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _StageImage(path: pageImagePath),
+        for (final task in tasks)
+          if (task.region != null)
+            Positioned.fill(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final region = task.region!;
+                  final left = constraints.maxWidth * region.x;
+                  final top = constraints.maxHeight * region.y;
+                  final width = constraints.maxWidth * region.width;
+                  final height = constraints.maxHeight * region.height;
+                  final isFocused = task.id == focusedTaskId;
+                  final isDone = task.reviewStatus == TaskReviewStatus.checked;
 
                   return Stack(
                     children: [
-                      SfPdfViewer.memory(
-                        snapshot.data!,
-                        controller: _pdfController,
-                        canShowPaginationDialog: false,
-                        canShowScrollHead: false,
-                        onDocumentLoaded: (_) {
-                          _documentReady = true;
-                          _jumpToTaskPage();
-                        },
-                      ),
                       Positioned(
-                        right: 16,
-                        bottom: 16,
-                        child: FilledButton.tonalIcon(
-                          onPressed: widget.onOpenFullScreen,
-                          icon: const Icon(Icons.open_in_full_rounded),
-                          label: const Text('放大看教材'),
+                        left: left,
+                        top: top,
+                        width: width,
+                        height: height,
+                        child: GestureDetector(
+                          onTap: () => onSelectTask(task.id),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            decoration: BoxDecoration(
+                              color: isFocused
+                                  ? const Color(0x33F97316)
+                                  : isDone
+                                  ? const Color(0x2216A34A)
+                                  : const Color(0x22FFFFFF),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: isFocused
+                                    ? const Color(0xFFF97316)
+                                    : isDone
+                                    ? const Color(0xFF16A34A)
+                                    : const Color(0x66FFFFFF),
+                                width: isFocused ? 3 : 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Align(
+                              alignment: Alignment.topLeft,
+                              child: Container(
+                                margin: const EdgeInsets.all(8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.92),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  task.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: isFocused
+                                            ? const Color(0xFFEA580C)
+                                            : const Color(0xFF1E293B),
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -1371,9 +1508,39 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
                 },
               ),
             ),
-          ),
-        ],
-      ),
+      ],
+    );
+  }
+}
+
+class _StageImage extends StatelessWidget {
+  const _StageImage({required this.path});
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context) {
+    if (path.startsWith('asset:')) {
+      return Image.asset(
+        path.substring('asset:'.length),
+        fit: BoxFit.contain,
+      );
+    }
+
+    return FutureBuilder<Uint8List>(
+      future: Supabase.instance.client.storage.from('material-pages').download(path),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          return _PdfStateMessage(
+            title: '教材页暂时打不开',
+            message: snapshot.error?.toString() ?? '请稍后重试。',
+          );
+        }
+        return Image.memory(snapshot.data!, fit: BoxFit.contain);
+      },
     );
   }
 }

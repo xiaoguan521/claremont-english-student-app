@@ -218,11 +218,80 @@ class SupabasePortalRepository implements PortalRepository {
     final assignmentItemsResponse = await _client
         .from('assignment_items')
         .select(
-          'id, assignment_id, title, item_type, prompt_text, tts_text, expected_text, start_page, end_page, reference_audio_path, sort_order',
+          'id, assignment_id, title, item_type, prompt_text, tts_text, expected_text, start_page, end_page, reference_audio_path, region_id, sort_order',
         )
         .inFilter('assignment_id', assignmentIds)
         .order('sort_order', ascending: true);
     final itemRows = List<Map<String, dynamic>>.from(assignmentItemsResponse);
+
+    final regionIds = itemRows
+        .map((row) => row['region_id'] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList();
+
+    final regionById = <String, Map<String, dynamic>>{};
+    final pageById = <String, Map<String, dynamic>>{};
+    final referenceAudioByRegionId = <String, String>{};
+
+    if (regionIds.isNotEmpty) {
+      final regionsResponse = await _client
+          .from('material_page_regions')
+          .select(
+            'id, material_page_id, display_text, prompt_text, expected_text, tts_text, x, y, width, height',
+          )
+          .inFilter('id', regionIds);
+
+      final regionRows = List<Map<String, dynamic>>.from(regionsResponse);
+      final pageIds = regionRows
+          .map((row) => row['material_page_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+
+      for (final row in regionRows) {
+        final id = row['id'] as String?;
+        if (id != null) {
+          regionById[id] = row;
+        }
+      }
+
+      if (pageIds.isNotEmpty) {
+        final pagesResponse = await _client
+            .from('material_pages')
+            .select('id, page_number, image_path')
+            .inFilter('id', pageIds);
+
+        for (final row in List<Map<String, dynamic>>.from(pagesResponse)) {
+          final id = row['id'] as String?;
+          if (id != null) {
+            pageById[id] = row;
+          }
+        }
+      }
+
+      final assetRows = await _client
+          .from('material_region_assets')
+          .select('region_id, asset_role, storage_bucket, storage_path')
+          .inFilter('region_id', regionIds)
+          .eq('status', 'active')
+          .order('sort_order', ascending: true);
+
+      for (final row in List<Map<String, dynamic>>.from(assetRows)) {
+        final regionId = row['region_id'] as String?;
+        if (regionId == null || referenceAudioByRegionId.containsKey(regionId)) {
+          continue;
+        }
+        final role = row['asset_role'] as String?;
+        if (role == 'reference_audio' || role == 'ai_reference_audio') {
+          final bucket = row['storage_bucket'] as String?;
+          final path = row['storage_path'] as String?;
+          if (bucket != null && path != null) {
+            referenceAudioByRegionId[regionId] = '$bucket:$path';
+          }
+        }
+      }
+    }
 
     final materialById = <String, Map<String, dynamic>>{};
     if (materialIds.isNotEmpty) {
@@ -372,6 +441,9 @@ class SupabasePortalRepository implements PortalRepository {
               item,
               submissionFlowStatus,
               taskReviewByItemId[item['id'] as String? ?? ''],
+              regionById: regionById,
+              pageById: pageById,
+              referenceAudioByRegionId: referenceAudioByRegionId,
             ),
           )
           .toList();
@@ -516,8 +588,17 @@ class SupabasePortalRepository implements PortalRepository {
     Map<String, dynamic> row,
     SubmissionFlowStatus submissionFlowStatus,
     PortalTaskReview? review,
+    {required Map<String, Map<String, dynamic>> regionById,
+    required Map<String, Map<String, dynamic>> pageById,
+    required Map<String, String> referenceAudioByRegionId,}
   ) {
     final itemType = (row['item_type'] as String?) ?? 'sentence';
+    final regionId = row['region_id'] as String?;
+    final regionRow = regionId == null ? null : regionById[regionId];
+    final pageRow = regionRow == null
+        ? null
+        : pageById[regionRow['material_page_id'] as String? ?? ''];
+    final pageImagePath = pageRow?['image_path'] as String?;
 
     return PortalTask(
       id: row['id'] as String,
@@ -529,12 +610,32 @@ class SupabasePortalRepository implements PortalRepository {
       reviewStatus: _mapTaskReviewStatus(submissionFlowStatus),
       previewAsset: _previewAsset(itemType),
       review: review,
-      promptText: row['prompt_text'] as String?,
-      ttsText: row['tts_text'] as String?,
-      expectedText: row['expected_text'] as String?,
-      startPage: _asInt(row['start_page']),
-      endPage: _asInt(row['end_page']),
-      referenceAudioPath: row['reference_audio_path'] as String?,
+      promptText:
+          (row['prompt_text'] as String?) ??
+          (regionRow?['prompt_text'] as String?),
+      ttsText:
+          (row['tts_text'] as String?) ??
+          (regionRow?['tts_text'] as String?),
+      expectedText:
+          (row['expected_text'] as String?) ??
+          (regionRow?['expected_text'] as String?) ??
+          (regionRow?['display_text'] as String?),
+      startPage: _asInt(row['start_page']) ?? _asInt(pageRow?['page_number']),
+      endPage: _asInt(row['end_page']) ?? _asInt(pageRow?['page_number']),
+      referenceAudioPath:
+          (row['reference_audio_path'] as String?) ??
+          (regionId == null ? null : referenceAudioByRegionId[regionId]),
+      region: regionId == null || pageImagePath == null
+          ? null
+          : PortalTaskRegion(
+              id: regionId,
+              pageNumber: _asInt(pageRow?['page_number']) ?? 1,
+              pageImagePath: pageImagePath,
+              x: _asDouble(regionRow?['x']) ?? 0,
+              y: _asDouble(regionRow?['y']) ?? 0,
+              width: _asDouble(regionRow?['width']) ?? 0.2,
+              height: _asDouble(regionRow?['height']) ?? 0.1,
+            ),
     );
   }
 

@@ -290,6 +290,9 @@ class SupabasePortalRepository implements PortalRepository {
       final evaluationRow = submissionId == null
           ? null
           : evaluationBySubmissionId[submissionId];
+      final reviewSource = _mapReviewSource(
+        evaluationRow?['provider'] as String?,
+      );
       final evaluationJobRow = submissionId == null
           ? null
           : evaluationJobBySubmissionId[submissionId];
@@ -370,6 +373,7 @@ class SupabasePortalRepository implements PortalRepository {
           submissionFlowStatus,
           evaluationJobRow?['last_error'] as String?,
         ),
+        reviewSource: reviewSource,
       );
     }).toList();
   }
@@ -662,10 +666,15 @@ class SupabasePortalRepository implements PortalRepository {
 
     final provider = evaluationRow['provider'] as String?;
     final rawResult = _asMap(evaluationRow['raw_result']);
-    final source =
-        provider == 'teacher-review'
-            ? _asMap(rawResult?['previousAiReview'])
-            : rawResult;
+    final reviewSource = provider == 'teacher-review'
+        ? PortalTaskReviewSource.aiRetainedAfterTeacherReview
+        : PortalTaskReviewSource.ai;
+    final sourceLabel = provider == 'teacher-review'
+        ? 'AI 句子点评（老师已复核）'
+        : 'AI 句子点评';
+    final source = provider == 'teacher-review'
+        ? _asMap(rawResult?['previousAiReview'])
+        : rawResult;
     final taskReviews = source?['taskReviews'];
     if (taskReviews is! List) {
       return const {};
@@ -685,6 +694,8 @@ class SupabasePortalRepository implements PortalRepository {
         score: score,
         summaryFeedback: summaryFeedback,
         encouragement: (row?['encouragement'] as String?)?.trim() ?? '',
+        source: reviewSource,
+        sourceLabel: sourceLabel,
         pronunciationScore: _asDouble(row?['pronunciationScore']),
         fluencyScore: _asDouble(row?['fluencyScore']),
         completenessScore: _asDouble(row?['completenessScore']),
@@ -696,14 +707,22 @@ class SupabasePortalRepository implements PortalRepository {
     return result;
   }
 
+  PortalActivityReviewSource _mapReviewSource(String? provider) {
+    if (provider == null || provider.trim().isEmpty) {
+      return PortalActivityReviewSource.none;
+    }
+    if (provider == 'teacher-review') {
+      return PortalActivityReviewSource.teacherReviewed;
+    }
+    return PortalActivityReviewSource.aiOnly;
+  }
+
   Map<String, dynamic>? _asMap(dynamic value) {
     if (value is Map<String, dynamic>) {
       return value;
     }
     if (value is Map) {
-      return value.map(
-        (key, item) => MapEntry(key.toString(), item),
-      );
+      return value.map((key, item) => MapEntry(key.toString(), item));
     }
     return null;
   }

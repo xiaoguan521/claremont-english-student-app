@@ -752,7 +752,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     PortalActivity activity, {
     String? submittedTaskTitle,
   }) {
-    final currentIndex = activity.tasks.indexWhere((task) => task.id == _focusedTaskId);
+    final currentIndex = activity.tasks.indexWhere(
+      (task) => task.id == _focusedTaskId,
+    );
     final orderedTasks = activity.tasks;
     if (orderedTasks.isEmpty) {
       return;
@@ -900,13 +902,18 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       (task) => task.reviewStatus != TaskReviewStatus.checked,
       orElse: () => activity.tasks.first,
     );
-    final focusedTaskId = activity.tasks.any((task) => task.id == _focusedTaskId)
+    final focusedTaskId =
+        activity.tasks.any((task) => task.id == _focusedTaskId)
         ? _focusedTaskId!
         : autoFocusTask.id;
-    final focusTask = activity.tasks.firstWhere((task) => task.id == focusedTaskId);
+    final focusTask = activity.tasks.firstWhere(
+      (task) => task.id == focusedTaskId,
+    );
 
     if (focusTask.reviewStatus == TaskReviewStatus.checked &&
-        activity.tasks.any((task) => task.reviewStatus != TaskReviewStatus.checked)) {
+        activity.tasks.any(
+          (task) => task.reviewStatus != TaskReviewStatus.checked,
+        )) {
       _focusNextPendingTask(activity);
     }
 
@@ -933,6 +940,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             ),
             onOpenMaterial: () => _openReadingPage(activity),
           ),
+          if (_shouldShowOverallReviewSummary(activity)) ...[
+            const SizedBox(height: 14),
+            _OverallReviewSummary(activity: activity),
+          ],
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
             child: _autoAdvanceHint == null
@@ -947,7 +958,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           _SectionHeading(
             eyebrow: '当前句子',
             title: focusTask.reviewStatus == TaskReviewStatus.checked
-                ? '这句已经完成，下面直接看点评。'
+                ? (focusTask.review?.isTeacherReviewedReference == true
+                      ? '老师总评在上面，这里保留这一句的 AI 点评。'
+                      : '这句已经完成，下面直接看这一句的 AI 点评。')
                 : '先完成这一句，再继续下一句。',
             subtitle: '每次只专注一句，先听示范，再录音并提交。',
           ),
@@ -955,7 +968,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           Container(
             key: _focusedTaskAnchorKey,
             child: _TaskCard(
-              index: activity.tasks.indexWhere((task) => task.id == focusTask.id) + 1,
+              index:
+                  activity.tasks.indexWhere((task) => task.id == focusTask.id) +
+                  1,
               task: focusTask,
               submissionFlowStatus: activity.submissionFlowStatus,
               submissionStatusHint: activity.submissionStatusHint,
@@ -965,10 +980,12 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
               isRecording: _isRecording,
               isSpeaking: _speakingTaskId == _sampleSpeechKey(focusTask.id),
               isSamplePlaying: focusTask.hasReferenceAudio
-                  ? _referenceAudioKey(focusTask.referenceAudioPath!) == _playingAudioKey
+                  ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
+                        _playingAudioKey
                   : _speakingTaskId == _sampleSpeechKey(focusTask.id),
               isSampleLoading: focusTask.hasReferenceAudio
-                  ? _referenceAudioKey(focusTask.referenceAudioPath!) == _loadingAudioKey
+                  ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
+                        _loadingAudioKey
                   : false,
               isEncouragementPlaying:
                   (focusTask.review?.encouragement.trim().isNotEmpty == true &&
@@ -1001,8 +1018,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                   : () => _speakSample(focusTask),
               onPickAudio: _isRecording ? null : _pickAudioFile,
               onRecordAudio: _toggleRecording,
-              onClearSelectedAudio:
-                  _selectedAudio == null ? null : _clearSelectedAudio,
+              onClearSelectedAudio: _selectedAudio == null
+                  ? null
+                  : _clearSelectedAudio,
               onPlaySelectedAudio: _selectedAudio == null
                   ? null
                   : _togglePendingAudioPlayback,
@@ -1035,6 +1053,14 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     );
   }
 
+  bool _shouldShowOverallReviewSummary(PortalActivity activity) {
+    return activity.reviewSource != PortalActivityReviewSource.none &&
+        (((activity.latestFeedback ?? '').trim().isNotEmpty) ||
+            activity.latestScore != null ||
+            (activity.encouragement ?? '').trim().isNotEmpty ||
+            activity.strengths.isNotEmpty ||
+            activity.improvementPoints.isNotEmpty);
+  }
 }
 
 class _SectionHeading extends StatelessWidget {
@@ -1205,11 +1231,7 @@ class _TaskJourneyHeader extends StatelessWidget {
           if (isPhone) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                left,
-                const SizedBox(height: 16),
-                right,
-              ],
+              children: [left, const SizedBox(height: 16), right],
             );
           }
 
@@ -1221,6 +1243,92 @@ class _TaskJourneyHeader extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _OverallReviewSummary extends StatelessWidget {
+  const _OverallReviewSummary({required this.activity});
+
+  final PortalActivity activity;
+
+  @override
+  Widget build(BuildContext context) {
+    final isTeacherReview = activity.hasTeacherReviewedResult;
+    final accent = isTeacherReview
+        ? const Color(0xFF0F766E)
+        : const Color(0xFF7C3AED);
+    final background = isTeacherReview
+        ? const Color(0xFFEAFBF1)
+        : const Color(0xFFF3EEFF);
+    final heading = isTeacherReview ? '老师总评已经完成' : 'AI 已完成整份作业初评';
+    final subtitle = isTeacherReview
+        ? '上面是老师对整份作业的总结，下面每句继续保留 AI 句子点评，方便你逐句回看。'
+        : '下面每句显示的是 AI 句子点评，老师后面还可以继续复核。';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: accent.withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _ReviewBadge(
+                icon: isTeacherReview
+                    ? Icons.person_rounded
+                    : Icons.auto_awesome_rounded,
+                label: isTeacherReview ? '老师总评' : 'AI 总评',
+                color: accent,
+                background: background,
+              ),
+              if (activity.latestScore != null)
+                _ReviewBadge(
+                  icon: Icons.star_rounded,
+                  label:
+                      '${isTeacherReview ? '老师评分' : 'AI 总分'} ${activity.latestScore!.toStringAsFixed(0)}',
+                  color: const Color(0xFFF97316),
+                  background: const Color(0xFFFFEBD9),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            heading,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: const Color(0xFF1E293B),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          if ((activity.latestFeedback ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              activity.latestFeedback!,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: const Color(0xFF334155),
+                fontWeight: FontWeight.w700,
+                height: 1.55,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
+              height: 1.5,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1281,19 +1389,22 @@ class _TaskProgressStep extends StatelessWidget {
     final statusColor = switch (task.reviewStatus) {
       TaskReviewStatus.checked => const Color(0xFF16A34A),
       TaskReviewStatus.pendingReview => const Color(0xFFF97316),
-      TaskReviewStatus.inProgress => isFocused
-          ? const Color(0xFFEA580C)
-          : const Color(0xFF64748B),
+      TaskReviewStatus.inProgress =>
+        isFocused ? const Color(0xFFEA580C) : const Color(0xFF64748B),
     };
     final statusLabel = switch (task.reviewStatus) {
-      TaskReviewStatus.checked => task.review == null
-          ? '已完成'
-          : '已完成 · ${task.review!.score.toStringAsFixed(0)} 分',
+      TaskReviewStatus.checked =>
+        task.review == null
+            ? '已完成'
+            : '${task.review!.sourceLabel} · ${task.review!.score.toStringAsFixed(0)} 分',
       TaskReviewStatus.pendingReview => '等待点评',
       TaskReviewStatus.inProgress => isFocused ? '正在做这一句' : '下一句待完成',
     };
     final helperLabel = switch (task.reviewStatus) {
-      TaskReviewStatus.checked => '点评已经在上面展开了',
+      TaskReviewStatus.checked =>
+        task.review?.isTeacherReviewedReference == true
+            ? 'AI 句子点评已经在上面展开，老师总评在更上面'
+            : 'AI 句子点评已经在上面展开了',
       TaskReviewStatus.pendingReview => '老师和系统正在处理这句',
       TaskReviewStatus.inProgress => isFocused ? '现在先完成这一句' : '点这里切换到这一句',
     };
@@ -1320,7 +1431,9 @@ class _TaskProgressStep extends StatelessWidget {
                           : statusColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isFocused ? const Color(0xFFEA580C) : statusColor,
+                        color: isFocused
+                            ? const Color(0xFFEA580C)
+                            : statusColor,
                         width: isFocused ? 2 : 1.2,
                       ),
                     ),
@@ -1333,12 +1446,13 @@ class _TaskProgressStep extends StatelessWidget {
                           )
                         : Text(
                             '$index',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: isFocused
-                                  ? const Color(0xFFEA580C)
-                                  : statusColor,
-                              fontWeight: FontWeight.w900,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: isFocused
+                                      ? const Color(0xFFEA580C)
+                                      : statusColor,
+                                  fontWeight: FontWeight.w900,
+                                ),
                           ),
                   ),
                   if (!isLast)
@@ -1379,10 +1493,11 @@ class _TaskProgressStep extends StatelessWidget {
                         Expanded(
                           child: Text(
                             task.title,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: const Color(0xFF1E293B),
-                              fontWeight: FontWeight.w900,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: const Color(0xFF1E293B),
+                                  fontWeight: FontWeight.w900,
+                                ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -1397,10 +1512,11 @@ class _TaskProgressStep extends StatelessWidget {
                           ),
                           child: Text(
                             statusLabel,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: statusColor,
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w800,
+                                ),
                           ),
                         ),
                       ],
@@ -1436,12 +1552,13 @@ class _TaskProgressStep extends StatelessWidget {
                         Expanded(
                           child: Text(
                             helperLabel,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: isFocused
-                                  ? const Color(0xFF9A3412)
-                                  : const Color(0xFF475569),
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: isFocused
+                                      ? const Color(0xFF9A3412)
+                                      : const Color(0xFF475569),
+                                  fontWeight: FontWeight.w800,
+                                ),
                           ),
                         ),
                       ],
@@ -1588,6 +1705,7 @@ class _TaskReviewPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scoreLabel = review.score.toStringAsFixed(0);
+    final reviewBadgeLabel = review.sourceLabel;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -1603,12 +1721,21 @@ class _TaskReviewPanel extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              const _ReviewBadge(
-                icon: Icons.auto_awesome_rounded,
-                label: 'AI 点评',
-                color: Color(0xFF0F8B6D),
-                background: Color(0xFFDFF8EC),
+              _ReviewBadge(
+                icon: review.isTeacherReviewedReference
+                    ? Icons.auto_awesome_rounded
+                    : Icons.auto_awesome_rounded,
+                label: reviewBadgeLabel,
+                color: const Color(0xFF0F8B6D),
+                background: const Color(0xFFDFF8EC),
               ),
+              if (review.isTeacherReviewedReference)
+                const _ReviewBadge(
+                  icon: Icons.person_rounded,
+                  label: '老师已复核整份作业',
+                  color: Color(0xFF0369A1),
+                  background: Color(0xFFE0F2FE),
+                ),
               _ReviewBadge(
                 icon: Icons.star_rounded,
                 label: '本句得分 $scoreLabel',
@@ -2198,7 +2325,12 @@ class _TaskCard extends StatelessWidget {
   String _statusLabel(TaskReviewStatus status) {
     switch (status) {
       case TaskReviewStatus.checked:
-        return '这项任务已经有点评';
+        if (task.review == null) {
+          return '这项任务已经完成';
+        }
+        return task.review!.isTeacherReviewedReference
+            ? 'AI 句子点评已保留'
+            : task.review!.sourceLabel;
       case TaskReviewStatus.pendingReview:
         return '已经提交，老师正在查看';
       case TaskReviewStatus.inProgress:
@@ -2317,8 +2449,12 @@ class _InlineSubmissionSection extends StatelessWidget {
         ? '结束录音并保存'
         : hasSelectedAudio
         ? (isSubmitting
-              ? (submissionFlowStatus == SubmissionFlowStatus.failed ? '重新提交中' : '提交中')
-              : (submissionFlowStatus == SubmissionFlowStatus.failed ? '重新提交这一句' : '提交这一句'))
+              ? (submissionFlowStatus == SubmissionFlowStatus.failed
+                    ? '重新提交中'
+                    : '提交中')
+              : (submissionFlowStatus == SubmissionFlowStatus.failed
+                    ? '重新提交这一句'
+                    : '提交这一句'))
         : '开始录音';
     final primaryIcon = isSubmitting
         ? null

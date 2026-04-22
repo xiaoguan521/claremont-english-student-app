@@ -6,6 +6,10 @@ enum TaskReviewStatus { checked, pendingReview, inProgress }
 
 enum SubmissionFlowStatus { notStarted, queued, processing, completed, failed }
 
+enum PortalTaskReviewSource { ai, aiRetainedAfterTeacherReview }
+
+enum PortalActivityReviewSource { none, aiOnly, teacherReviewed }
+
 class PortalTask {
   const PortalTask({
     required this.id,
@@ -46,6 +50,8 @@ class PortalTaskReview {
     required this.score,
     required this.summaryFeedback,
     required this.encouragement,
+    this.source = PortalTaskReviewSource.ai,
+    this.sourceLabel = 'AI 句子点评',
     this.pronunciationScore,
     this.fluencyScore,
     this.completenessScore,
@@ -56,11 +62,16 @@ class PortalTaskReview {
   final double score;
   final String summaryFeedback;
   final String encouragement;
+  final PortalTaskReviewSource source;
+  final String sourceLabel;
   final double? pronunciationScore;
   final double? fluencyScore;
   final double? completenessScore;
   final List<String> strengths;
   final List<String> improvementPoints;
+
+  bool get isTeacherReviewedReference =>
+      source == PortalTaskReviewSource.aiRetainedAfterTeacherReview;
 }
 
 class PortalActivity {
@@ -90,6 +101,7 @@ class PortalActivity {
     this.materialPdfPath,
     this.materialPageCount,
     this.submissionStatusHint,
+    this.reviewSource = PortalActivityReviewSource.none,
   });
 
   final String id;
@@ -117,6 +129,7 @@ class PortalActivity {
   final String? materialPdfPath;
   final int? materialPageCount;
   final String? submissionStatusHint;
+  final PortalActivityReviewSource reviewSource;
 
   bool get hasTeacherFeedback =>
       submissionFlowStatus == SubmissionFlowStatus.completed &&
@@ -125,6 +138,13 @@ class PortalActivity {
           encouragement != null ||
           strengths.isNotEmpty ||
           improvementPoints.isNotEmpty);
+
+  bool get hasAiReview =>
+      reviewSource == PortalActivityReviewSource.aiOnly ||
+      reviewSource == PortalActivityReviewSource.teacherReviewed;
+
+  bool get hasTeacherReviewedResult =>
+      reviewSource == PortalActivityReviewSource.teacherReviewed;
 }
 
 final mockPortalActivities = [

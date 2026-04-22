@@ -2075,6 +2075,13 @@ class _TaskCard extends StatelessWidget {
     final statusLabel = _statusLabel(task.reviewStatus);
     final statusColor = _statusColor(task.reviewStatus);
     final sampleText = _sampleTextFor(task);
+    final samplePreviewLabel = isSampleLoading
+        ? '示范加载中'
+        : isSamplePlaying
+        ? '点一下停止示范'
+        : task.hasReferenceAudio
+        ? '点这里听示范音频'
+        : '点这里听示范';
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -2085,14 +2092,57 @@ class _TaskCard extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isPhone = constraints.maxWidth < 720;
-          final preview = Container(
-            width: isPhone ? double.infinity : 92,
-            height: 74,
-            decoration: BoxDecoration(
-              gradient: _previewGradient(task.kind),
+          final preview = Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onSpeakSample,
               borderRadius: BorderRadius.circular(18),
+              child: Ink(
+                width: isPhone ? double.infinity : 140,
+                height: 82,
+                decoration: BoxDecoration(
+                  gradient: _previewGradient(task.kind),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Stack(
+                  children: [
+                    Align(
+                      child: isSampleLoading
+                          ? const SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.6,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              isSamplePlaying
+                                  ? Icons.stop_circle_rounded
+                                  : _previewIcon(task.kind),
+                              color: Colors.white,
+                              size: 36,
+                            ),
+                    ),
+                    Positioned(
+                      left: 12,
+                      right: 12,
+                      bottom: 10,
+                      child: Text(
+                        samplePreviewLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.96),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            child: Icon(_previewIcon(task.kind), color: Colors.white, size: 36),
           );
 
           final details = Column(
@@ -2167,6 +2217,7 @@ class _TaskCard extends StatelessWidget {
                     _TaskInfoChip(
                       icon: Icons.menu_book_rounded,
                       label: _pageRangeLabel(task),
+                      onTap: onOpenReading,
                     ),
                   if (sampleText != null)
                     _TaskInfoChip(
@@ -2194,7 +2245,6 @@ class _TaskCard extends StatelessWidget {
                   isSelectedAudioLoading: isSelectedAudioLoading,
                   isStoredAudioPlaying: isStoredAudioPlaying,
                   isStoredAudioLoading: isStoredAudioLoading,
-                  onPickAudio: onPickAudio,
                   onRecordAudio: onRecordAudio,
                   onClearSelectedAudio: onClearSelectedAudio,
                   onPlaySelectedAudio: onPlaySelectedAudio,
@@ -2266,46 +2316,15 @@ class _TaskCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               header,
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  if (isFocusTask)
-                    const _ReviewBadge(
-                      icon: Icons.local_fire_department_rounded,
-                      label: '现在先做这一句',
-                      color: Color(0xFFEA580C),
-                      background: Color(0xFFFFEDD5),
-                    ),
-                  if (onOpenReading != null)
-                    OutlinedButton.icon(
-                      onPressed: onOpenReading,
-                      icon: const Icon(Icons.menu_book_rounded),
-                      label: const Text('打开教材'),
-                    ),
-                  if (onSpeakSample != null)
-                    OutlinedButton.icon(
-                      onPressed: onSpeakSample,
-                      icon: Icon(
-                        isSamplePlaying
-                            ? Icons.stop_circle_rounded
-                            : task.hasReferenceAudio
-                            ? Icons.play_circle_outline_rounded
-                            : Icons.record_voice_over_rounded,
-                      ),
-                      label: Text(
-                        isSampleLoading
-                            ? '加载中'
-                            : isSamplePlaying
-                            ? '停止示范'
-                            : task.hasReferenceAudio
-                            ? '听音频'
-                            : '听示范',
-                      ),
-                    ),
-                ],
-              ),
+              if (isFocusTask) ...[
+                const SizedBox(height: 16),
+                const _ReviewBadge(
+                  icon: Icons.local_fire_department_rounded,
+                  label: '现在先做这一句',
+                  color: Color(0xFFEA580C),
+                  background: Color(0xFFFFEDD5),
+                ),
+              ],
               if (task.review != null) ...[
                 const SizedBox(height: 16),
                 _TaskReviewPanel(
@@ -2390,7 +2409,6 @@ class _InlineSubmissionSection extends StatelessWidget {
     required this.isSelectedAudioLoading,
     required this.isStoredAudioPlaying,
     required this.isStoredAudioLoading,
-    this.onPickAudio,
     this.onRecordAudio,
     this.onClearSelectedAudio,
     this.onPlaySelectedAudio,
@@ -2408,7 +2426,6 @@ class _InlineSubmissionSection extends StatelessWidget {
   final bool isSelectedAudioLoading;
   final bool isStoredAudioPlaying;
   final bool isStoredAudioLoading;
-  final VoidCallback? onPickAudio;
   final VoidCallback? onRecordAudio;
   final VoidCallback? onClearSelectedAudio;
   final VoidCallback? onPlaySelectedAudio;
@@ -2433,7 +2450,7 @@ class _InlineSubmissionSection extends StatelessWidget {
     };
     final subtitle = switch (submissionFlowStatus) {
       SubmissionFlowStatus.notStarted =>
-        isRecording ? '读完后点击“结束录音并保存”，再提交给老师。' : '先听示范，再录音或选择音频，然后提交给老师。',
+        isRecording ? '读完后点击“结束录音并保存”，再提交给老师。' : '先听示范，再录音，然后提交给老师。',
       SubmissionFlowStatus.queued => submissionStatusHint ?? '已经提交成功，等待老师查看。',
       SubmissionFlowStatus.processing =>
         submissionStatusHint ?? '系统正在生成 AI 初评，请稍后刷新查看。',
@@ -2556,24 +2573,15 @@ class _InlineSubmissionSection extends StatelessWidget {
             label: Text(primaryLabel),
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              if (onPickAudio != null)
-                OutlinedButton.icon(
-                  onPressed: isRecording || isSubmitting ? null : onPickAudio,
-                  icon: const Icon(Icons.library_music_rounded),
-                  label: Text(hasSelectedAudio ? '换一段音频' : '选择已有音频'),
-                ),
-              if (hasSelectedAudio && onClearSelectedAudio != null)
-                TextButton.icon(
-                  onPressed: isSubmitting ? null : onClearSelectedAudio,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  label: const Text('删除这段音频'),
-                ),
-            ],
-          ),
+          if (hasSelectedAudio && onClearSelectedAudio != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: isSubmitting ? null : onClearSelectedAudio,
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('删除这段音频'),
+              ),
+            ),
         ],
       ),
     );
@@ -2581,18 +2589,24 @@ class _InlineSubmissionSection extends StatelessWidget {
 }
 
 class _TaskInfoChip extends StatelessWidget {
-  const _TaskInfoChip({required this.icon, required this.label});
+  const _TaskInfoChip({required this.icon, required this.label, this.onTap});
 
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: onTap == null
+            ? const Color(0xFFF8FAFC)
+            : const Color(0xFFEAFBF1),
         borderRadius: BorderRadius.circular(14),
+        border: onTap == null
+            ? null
+            : Border.all(color: const Color(0xFFD6F2E2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2606,7 +2620,28 @@ class _TaskInfoChip extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (onTap != null) ...[
+            const SizedBox(width: 6),
+            const Icon(
+              Icons.open_in_new_rounded,
+              size: 14,
+              color: const Color(0xFF2FA77D),
+            ),
+          ],
         ],
+      ),
+    );
+
+    if (onTap == null) {
+      return chip;
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: chip,
       ),
     );
   }

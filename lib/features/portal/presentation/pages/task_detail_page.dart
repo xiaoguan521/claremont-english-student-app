@@ -955,6 +955,47 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
               onSelectTask: _setFocusedTask,
               onOpenFullScreen: () =>
                   _openReadingPage(activity, task: focusTask),
+              bottomSheet: _TextbookFloatingPanel(
+                task: focusTask,
+                submissionFlowStatus: activity.submissionFlowStatus,
+                submissionStatusHint: activity.submissionStatusHint,
+                selectedAudioLabel: _selectedAudio?.name,
+                existingAudioLabel: activity.submissionAudioName,
+                isSubmitting: _isSubmitting,
+                isRecording: _isRecording,
+                isSamplePlaying: focusTask.hasReferenceAudio
+                    ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
+                          _playingAudioKey
+                    : _speakingTaskId == _sampleSpeechKey(focusTask.id),
+                isSampleLoading: focusTask.hasReferenceAudio
+                    ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
+                          _loadingAudioKey
+                    : false,
+                isSelectedAudioPlaying: selectedAudioKey == _playingAudioKey,
+                isSelectedAudioLoading: selectedAudioKey == _loadingAudioKey,
+                isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
+                isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
+                onOpenReading: activity.materialPdfPath == null
+                    ? null
+                    : () => _openReadingPage(activity, task: focusTask),
+                onSpeakSample: focusTask.hasReferenceAudio
+                    ? () => _toggleReferenceAudioPlayback(focusTask)
+                    : _sampleTextFor(focusTask) == null
+                    ? null
+                    : () => _speakSample(focusTask),
+                onPickAudio: _isRecording ? null : _pickAudioFile,
+                onRecordAudio: _toggleRecording,
+                onClearSelectedAudio: _selectedAudio == null
+                    ? null
+                    : _clearSelectedAudio,
+                onPlaySelectedAudio: _selectedAudio == null
+                    ? null
+                    : _togglePendingAudioPlayback,
+                onPlayStoredAudio: storedAudioKey == null
+                    ? null
+                    : () => _toggleStoredAudioPlayback(activity),
+                onPrimaryAction: () => _handlePrimaryAction(activity),
+              ),
             ),
           ),
           AnimatedSwitcher(
@@ -1053,6 +1094,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                   : () => _playEncouragement(focusTask),
               onPrimaryAction: () => _handlePrimaryAction(activity),
               isFocusTask: true,
+              showSubmissionSection: false,
             ),
           ),
         ],
@@ -1206,6 +1248,7 @@ class _TextbookStageCard extends StatefulWidget {
     required this.totalTasks,
     required this.onSelectTask,
     required this.onOpenFullScreen,
+    required this.bottomSheet,
   });
 
   final PortalActivity activity;
@@ -1216,6 +1259,7 @@ class _TextbookStageCard extends StatefulWidget {
   final int totalTasks;
   final ValueChanged<String> onSelectTask;
   final VoidCallback onOpenFullScreen;
+  final Widget bottomSheet;
 
   @override
   State<_TextbookStageCard> createState() => _TextbookStageCardState();
@@ -1347,59 +1391,80 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
           ),
           const SizedBox(height: 16),
           Container(
-            height: 460,
+            height: 560,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(26),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(26),
-              child: focusedPageImagePath != null
-                  ? _TextbookImageStage(
-                      pageImagePath: focusedPageImagePath,
-                      tasks: pageTasks,
-                      focusedTaskId: widget.focusedTaskId,
-                      onSelectTask: widget.onSelectTask,
-                    )
-                  : FutureBuilder<Uint8List>(
-                      future: _pdfFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState != ConnectionState.done) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 184),
+                      child: focusedPageImagePath != null
+                          ? _TextbookImageStage(
+                              pageImagePath: focusedPageImagePath,
+                              tasks: pageTasks,
+                              focusedTaskId: widget.focusedTaskId,
+                              onSelectTask: widget.onSelectTask,
+                            )
+                          : FutureBuilder<Uint8List>(
+                              future: _pdfFuture,
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState !=
+                                    ConnectionState.done) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                }
 
-                        if (snapshot.hasError || !snapshot.hasData) {
-                          return _PdfStateMessage(
-                            title: '教材暂时打不开',
-                            message: snapshot.error?.toString() ?? '请稍后重试。',
-                          );
-                        }
+                                if (snapshot.hasError || !snapshot.hasData) {
+                                  return _PdfStateMessage(
+                                    title: '教材暂时打不开',
+                                    message:
+                                        snapshot.error?.toString() ?? '请稍后重试。',
+                                  );
+                                }
 
-                        return Stack(
-                          children: [
-                            SfPdfViewer.memory(
-                              snapshot.data!,
-                              controller: _pdfController,
-                              canShowPaginationDialog: false,
-                              canShowScrollHead: false,
-                              onDocumentLoaded: (_) {
-                                _documentReady = true;
-                                _jumpToTaskPage();
+                                return Stack(
+                                  children: [
+                                    SfPdfViewer.memory(
+                                      snapshot.data!,
+                                      controller: _pdfController,
+                                      canShowPaginationDialog: false,
+                                      canShowScrollHead: false,
+                                      onDocumentLoaded: (_) {
+                                        _documentReady = true;
+                                        _jumpToTaskPage();
+                                      },
+                                    ),
+                                    Positioned(
+                                      right: 16,
+                                      bottom: 16,
+                                      child: FilledButton.tonalIcon(
+                                        onPressed: widget.onOpenFullScreen,
+                                        icon: const Icon(
+                                          Icons.open_in_full_rounded,
+                                        ),
+                                        label: const Text('放大看教材'),
+                                      ),
+                                    ),
+                                  ],
+                                );
                               },
                             ),
-                            Positioned(
-                              right: 16,
-                              bottom: 16,
-                              child: FilledButton.tonalIcon(
-                                onPressed: widget.onOpenFullScreen,
-                                icon: const Icon(Icons.open_in_full_rounded),
-                                label: const Text('放大看教材'),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
                     ),
+                  ),
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
+                    child: widget.bottomSheet,
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -1601,6 +1666,235 @@ class _SentenceSwitchStrip extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TextbookFloatingPanel extends StatelessWidget {
+  const _TextbookFloatingPanel({
+    required this.task,
+    required this.submissionFlowStatus,
+    required this.submissionStatusHint,
+    required this.selectedAudioLabel,
+    required this.existingAudioLabel,
+    required this.isSubmitting,
+    required this.isRecording,
+    required this.isSamplePlaying,
+    required this.isSampleLoading,
+    required this.isSelectedAudioPlaying,
+    required this.isSelectedAudioLoading,
+    required this.isStoredAudioPlaying,
+    required this.isStoredAudioLoading,
+    this.onOpenReading,
+    this.onSpeakSample,
+    this.onPickAudio,
+    this.onRecordAudio,
+    this.onClearSelectedAudio,
+    this.onPlaySelectedAudio,
+    this.onPlayStoredAudio,
+    required this.onPrimaryAction,
+  });
+
+  final PortalTask task;
+  final SubmissionFlowStatus submissionFlowStatus;
+  final String? submissionStatusHint;
+  final String? selectedAudioLabel;
+  final String? existingAudioLabel;
+  final bool isSubmitting;
+  final bool isRecording;
+  final bool isSamplePlaying;
+  final bool isSampleLoading;
+  final bool isSelectedAudioPlaying;
+  final bool isSelectedAudioLoading;
+  final bool isStoredAudioPlaying;
+  final bool isStoredAudioLoading;
+  final VoidCallback? onOpenReading;
+  final VoidCallback? onSpeakSample;
+  final VoidCallback? onPickAudio;
+  final VoidCallback? onRecordAudio;
+  final VoidCallback? onClearSelectedAudio;
+  final VoidCallback? onPlaySelectedAudio;
+  final VoidCallback? onPlayStoredAudio;
+  final VoidCallback onPrimaryAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final sampleText = _sampleTextFor(task);
+    final pageLabel = _pageRangeLabel(task);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isPhone = constraints.maxWidth < 720;
+          final header = isPhone
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            task.title,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: const Color(0xFF1E293B),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                        ),
+                        if (task.hasPageRange)
+                          _TaskInfoChip(
+                            icon: Icons.menu_book_rounded,
+                            label: pageLabel,
+                            onTap: onOpenReading,
+                          ),
+                      ],
+                    ),
+                    if (sampleText != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        sampleText,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: const Color(0xFF334155),
+                              fontWeight: FontWeight.w700,
+                              height: 1.35,
+                            ),
+                      ),
+                    ],
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            task.title,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: const Color(0xFF1E293B),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                          if (sampleText != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              sampleText,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFF334155),
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.35,
+                                  ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (task.hasPageRange)
+                      _TaskInfoChip(
+                        icon: Icons.menu_book_rounded,
+                        label: pageLabel,
+                        onTap: onOpenReading,
+                      ),
+                  ],
+                );
+
+          final actionChips = Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _TaskInfoChip(
+                icon: isSamplePlaying
+                    ? Icons.pause_circle_filled_rounded
+                    : task.hasReferenceAudio
+                    ? Icons.audiotrack_rounded
+                    : Icons.volume_up_rounded,
+                label: isSampleLoading
+                    ? '示范加载中'
+                    : isSamplePlaying
+                    ? '停止示范'
+                    : '点这里听示范',
+                onTap: onSpeakSample,
+              ),
+              if (selectedAudioLabel != null)
+                _TaskInfoChip(
+                  icon: isSelectedAudioPlaying
+                      ? Icons.stop_circle_rounded
+                      : Icons.play_circle_outline_rounded,
+                  label: isSelectedAudioLoading
+                      ? '音频加载中'
+                      : isSelectedAudioPlaying
+                      ? '停止试听'
+                      : '试听录音',
+                  onTap: onPlaySelectedAudio,
+                ),
+              if (existingAudioLabel != null &&
+                  submissionFlowStatus != SubmissionFlowStatus.notStarted)
+                _TaskInfoChip(
+                  icon: isStoredAudioPlaying
+                      ? Icons.stop_circle_rounded
+                      : Icons.play_circle_outline_rounded,
+                  label: isStoredAudioLoading
+                      ? '回放加载中'
+                      : isStoredAudioPlaying
+                      ? '停止回放'
+                      : '回听已提交',
+                  onTap: onPlayStoredAudio,
+                ),
+              if (selectedAudioLabel != null && onClearSelectedAudio != null)
+                _TaskInfoChip(
+                  icon: Icons.delete_outline_rounded,
+                  label: '删除录音',
+                  onTap: onClearSelectedAudio,
+                ),
+            ],
+          );
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              header,
+              const SizedBox(height: 12),
+              actionChips,
+              const SizedBox(height: 14),
+              _InlineSubmissionSection(
+                submissionFlowStatus: submissionFlowStatus,
+                submissionStatusHint: submissionStatusHint,
+                selectedAudioLabel: selectedAudioLabel,
+                existingAudioLabel: existingAudioLabel,
+                isSubmitting: isSubmitting,
+                isRecording: isRecording,
+                isSelectedAudioPlaying: isSelectedAudioPlaying,
+                isSelectedAudioLoading: isSelectedAudioLoading,
+                isStoredAudioPlaying: isStoredAudioPlaying,
+                isStoredAudioLoading: isStoredAudioLoading,
+                onRecordAudio: onRecordAudio,
+                onClearSelectedAudio: onClearSelectedAudio,
+                onPlaySelectedAudio: null,
+                onPlayStoredAudio: null,
+                onPrimaryAction: onPrimaryAction,
+                onPickAudio: onPickAudio,
+                compact: true,
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -2161,6 +2455,7 @@ class _TaskCard extends StatelessWidget {
     this.onPlayEncouragement,
     required this.onPrimaryAction,
     this.isFocusTask = false,
+    this.showSubmissionSection = true,
   });
 
   final int index;
@@ -2190,6 +2485,7 @@ class _TaskCard extends StatelessWidget {
   final VoidCallback? onClearSelectedAudio;
   final VoidCallback onPrimaryAction;
   final bool isFocusTask;
+  final bool showSubmissionSection;
 
   @override
   Widget build(BuildContext context) {
@@ -2351,24 +2647,26 @@ class _TaskCard extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 16),
-              _InlineSubmissionSection(
-                submissionFlowStatus: submissionFlowStatus,
-                submissionStatusHint: submissionStatusHint,
-                selectedAudioLabel: selectedAudioLabel,
-                existingAudioLabel: existingAudioLabel,
-                isSubmitting: isSubmitting,
-                isRecording: isRecording,
-                isSelectedAudioPlaying: isSelectedAudioPlaying,
-                isSelectedAudioLoading: isSelectedAudioLoading,
-                isStoredAudioPlaying: isStoredAudioPlaying,
-                isStoredAudioLoading: isStoredAudioLoading,
-                onRecordAudio: onRecordAudio,
-                onClearSelectedAudio: onClearSelectedAudio,
-                onPlaySelectedAudio: onPlaySelectedAudio,
-                onPlayStoredAudio: onPlayStoredAudio,
-                onPrimaryAction: onPrimaryAction,
-              ),
+              if (showSubmissionSection) ...[
+                const SizedBox(height: 16),
+                _InlineSubmissionSection(
+                  submissionFlowStatus: submissionFlowStatus,
+                  submissionStatusHint: submissionStatusHint,
+                  selectedAudioLabel: selectedAudioLabel,
+                  existingAudioLabel: existingAudioLabel,
+                  isSubmitting: isSubmitting,
+                  isRecording: isRecording,
+                  isSelectedAudioPlaying: isSelectedAudioPlaying,
+                  isSelectedAudioLoading: isSelectedAudioLoading,
+                  isStoredAudioPlaying: isStoredAudioPlaying,
+                  isStoredAudioLoading: isStoredAudioLoading,
+                  onRecordAudio: onRecordAudio,
+                  onClearSelectedAudio: onClearSelectedAudio,
+                  onPlaySelectedAudio: onPlaySelectedAudio,
+                  onPlayStoredAudio: onPlayStoredAudio,
+                  onPrimaryAction: onPrimaryAction,
+                ),
+              ],
             ],
           );
 
@@ -2502,10 +2800,12 @@ class _InlineSubmissionSection extends StatelessWidget {
     required this.isStoredAudioPlaying,
     required this.isStoredAudioLoading,
     this.onRecordAudio,
+    this.onPickAudio,
     this.onClearSelectedAudio,
     this.onPlaySelectedAudio,
     this.onPlayStoredAudio,
     required this.onPrimaryAction,
+    this.compact = false,
   });
 
   final SubmissionFlowStatus submissionFlowStatus;
@@ -2519,10 +2819,12 @@ class _InlineSubmissionSection extends StatelessWidget {
   final bool isStoredAudioPlaying;
   final bool isStoredAudioLoading;
   final VoidCallback? onRecordAudio;
+  final VoidCallback? onPickAudio;
   final VoidCallback? onClearSelectedAudio;
   final VoidCallback? onPlaySelectedAudio;
   final VoidCallback? onPlayStoredAudio;
   final VoidCallback onPrimaryAction;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -2592,10 +2894,10 @@ class _InlineSubmissionSection extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(compact ? 14 : 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(20),
+        color: compact ? const Color(0xFFF7FAF8) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(compact ? 18 : 20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2653,35 +2955,74 @@ class _InlineSubmissionSection extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 14),
-          FilledButton.icon(
-            onPressed: primaryAction,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
-              backgroundColor: const Color(0xFFFF8F4D),
-              foregroundColor: Colors.white,
-            ),
-            icon: isSubmitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+          if (compact)
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: primaryAction,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      backgroundColor: const Color(0xFFFF8F4D),
+                      foregroundColor: Colors.white,
                     ),
-                  )
-                : Icon(primaryIcon),
-            label: Text(primaryLabel),
-          ),
-          const SizedBox(height: 12),
-          if (hasSelectedAudio && onClearSelectedAudio != null)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: isSubmitting ? null : onClearSelectedAudio,
-                icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text('删除这段音频'),
+                    icon: isSubmitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Icon(primaryIcon),
+                    label: Text(primaryLabel),
+                  ),
+                ),
+                if (!hasSelectedAudio && onPickAudio != null) ...[
+                  const SizedBox(width: 10),
+                  OutlinedButton.icon(
+                    onPressed: isSubmitting ? null : onPickAudio,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 50),
+                    ),
+                    icon: const Icon(Icons.audio_file_rounded),
+                    label: const Text('选音频'),
+                  ),
+                ],
+              ],
+            )
+          else ...[
+            FilledButton.icon(
+              onPressed: primaryAction,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                backgroundColor: const Color(0xFFFF8F4D),
+                foregroundColor: Colors.white,
               ),
+              icon: isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Icon(primaryIcon),
+              label: Text(primaryLabel),
             ),
+            const SizedBox(height: 12),
+            if (hasSelectedAudio && onClearSelectedAudio != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: isSubmitting ? null : onClearSelectedAudio,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('删除这段音频'),
+                ),
+              ),
+          ],
         ],
       ),
     );

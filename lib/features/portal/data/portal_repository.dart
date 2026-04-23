@@ -289,7 +289,9 @@ class SupabasePortalRepository implements PortalRepository {
         if (bucket == null || path == null) {
           continue;
         }
-        final resolvedPath = bucket == 'asset' ? 'asset:$path' : '$bucket:$path';
+        final resolvedPath = bucket == 'asset'
+            ? 'asset:$path'
+            : '$bucket:$path';
         if ((role == 'reference_audio' || role == 'ai_reference_audio') &&
             !referenceAudioByRegionId.containsKey(regionId)) {
           referenceAudioByRegionId[regionId] = resolvedPath;
@@ -493,7 +495,9 @@ class SupabasePortalRepository implements PortalRepository {
         submissionAudioPath: audioAssetRow?['storage_path'] as String?,
         description: row['description'] as String?,
         materialTitle: materialRow?['title'] as String?,
-        materialPdfPath: materialRow?['pdf_path'] as String?,
+        materialPdfPath: _normalizeAssetReference(
+          materialRow?['pdf_path'] as String?,
+        ),
         materialPageCount: _asInt(materialRow?['page_count']),
         submissionStatusHint: _submissionStatusHint(
           submissionFlowStatus,
@@ -595,19 +599,21 @@ class SupabasePortalRepository implements PortalRepository {
   PortalTask _mapTask(
     Map<String, dynamic> row,
     SubmissionFlowStatus submissionFlowStatus,
-    PortalTaskReview? review,
-    {required Map<String, Map<String, dynamic>> regionById,
+    PortalTaskReview? review, {
+    required Map<String, Map<String, dynamic>> regionById,
     required Map<String, Map<String, dynamic>> pageById,
     required Map<String, String> referenceAudioByRegionId,
-    required Map<String, String> teachingVideoByRegionId,}
-  ) {
+    required Map<String, String> teachingVideoByRegionId,
+  }) {
     final itemType = (row['item_type'] as String?) ?? 'sentence';
     final regionId = row['region_id'] as String?;
     final regionRow = regionId == null ? null : regionById[regionId];
     final pageRow = regionRow == null
         ? null
         : pageById[regionRow['material_page_id'] as String? ?? ''];
-    final pageImagePath = pageRow?['image_path'] as String?;
+    final pageImagePath = _normalizeAssetReference(
+      pageRow?['image_path'] as String?,
+    );
 
     return PortalTask(
       id: row['id'] as String,
@@ -623,8 +629,7 @@ class SupabasePortalRepository implements PortalRepository {
           (row['prompt_text'] as String?) ??
           (regionRow?['prompt_text'] as String?),
       ttsText:
-          (row['tts_text'] as String?) ??
-          (regionRow?['tts_text'] as String?),
+          (row['tts_text'] as String?) ?? (regionRow?['tts_text'] as String?),
       expectedText:
           (row['expected_text'] as String?) ??
           (regionRow?['expected_text'] as String?) ??
@@ -632,11 +637,13 @@ class SupabasePortalRepository implements PortalRepository {
       startPage: _asInt(row['start_page']) ?? _asInt(pageRow?['page_number']),
       endPage: _asInt(row['end_page']) ?? _asInt(pageRow?['page_number']),
       referenceAudioPath:
-          (row['reference_audio_path'] as String?) ??
-          (regionId == null ? null : referenceAudioByRegionId[regionId]),
+          _normalizeAssetReference(row['reference_audio_path'] as String?) ??
+          _normalizeAssetReference(
+            regionId == null ? null : referenceAudioByRegionId[regionId],
+          ),
       teachingVideoPath: regionId == null
           ? null
-          : teachingVideoByRegionId[regionId],
+          : _normalizeAssetReference(teachingVideoByRegionId[regionId]),
       region: regionId == null || pageImagePath == null
           ? null
           : PortalTaskRegion(
@@ -930,6 +937,17 @@ class SupabasePortalRepository implements PortalRepository {
     }
     final segments = path.split('/');
     return segments.isEmpty ? null : segments.last;
+  }
+
+  String? _normalizeAssetReference(String? reference) {
+    final trimmed = reference?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return trimmed;
+    }
+
+    return trimmed
+        .replaceFirst('asset:assets/textbook/', 'asset:assets/textbooks/')
+        .replaceFirst('assets/textbook/', 'assets/textbooks/');
   }
 
   String _sanitizeFileName(String value) {

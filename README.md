@@ -49,6 +49,14 @@ flutter run
 
 - `supabase/functions/admin-create-user`
 
+## 教材导入
+
+PU Start 已开始从手写 seed 迁到 manifest 规范：
+
+- 规范文档：`docs/pu-start-textbook-import-spec.md`
+- 当前清单：`assets/textbooks/power-up/manifest.json`
+- 校验命令：`npm run validate:textbook-manifest`
+
 ## GitHub Actions
 
 工作流文件：

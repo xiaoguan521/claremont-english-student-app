@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "textbook": {
+    "key": "pu-start",
+    "series": "Power Up",
+    "level": "Starter",
+    "title": "PU Start",
+    "description": "Power Up Starter textbook import manifest for page-level homework.",
+    "assetRoot": "assets/textbooks/power-up",
+    "mediaRoot": "assets/media/power-up",
+    "pageWidth": 2355,
+    "pageHeight": 2967
+  },
+  "target": {
+    "schoolCode": "claremont-demo",
+    "className": "精品英语 H 班"
+  },
+  "pages": [
+    {
+      "key": "p004",
+      "pageNumber": 4,
+      "materialTitle": "PU Start · Hello",
+      "materialDescription": "Power Up Starter Unit 的问候试点页，支持教材页内点句子、听示范、看动画和录音提交。",
+      "pdf": "asset:assets/textbooks/power-up/page-4.pdf",
+      "image": "asset:assets/textbooks/power-up/page-4.png",
+      "width": 2355,
+      "height": 2967,
+      "regions": [
+        {
+          "key": "p004-hello",
+          "type": "dialogue",
+          "sortOrder": 1,
+          "x": 0.28,
+          "y": 0.06,
+          "width": 0.3,
+          "height": 0.1,
+          "displayText": "Hello.",
+          "promptText": "先听示范，再大声说 Hello。",
+          "expectedText": "Hello.",
+          "ttsText": "Hello.",
+          "assets": [
+            {
+              "role": "reference_audio",
+              "type": "audio",
+              "path": "asset:assets/media/power-up/page-4-ex1.mp3",
+              "mimeType": "audio/mpeg",
+              "durationMs": 58220,
+              "provider": "power-up-local"
+            },
+            {
+              "role": "teaching_video",
+              "type": "video",
+              "path": "asset:assets/media/power-up/page-4-demo.mp4",
+              "mimeType": "video/mp4",
+              "provider": "power-up-local"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "p006",
+      "pageNumber": 6,
+      "materialTitle": "PU Start · Numbers 1-6",
+      "materialDescription": "Power Up Starter Unit 的数字练习页，支持边看教材边数数字并提交录音。",
+      "pdf": "asset:assets/textbooks/power-up/page-6.pdf",
+      "image": "asset:assets/textbooks/power-up/page-6.png",
+      "width": 2355,
+      "height": 2967,
+      "regions": [
+        {
+          "key": "p006-numbers-1-6",
+          "type": "sentence",
+          "sortOrder": 1,
+          "x": 0.1,
+          "y": 0.14,
+          "width": 0.82,
+          "height": 0.46,
+          "displayText": "One, two, three, four, five, six.",
+          "promptText": "先看着气球，再跟着示范数一数 1 到 6。",
+          "expectedText": "One, two, three, four, five, six.",
+          "ttsText": "One, two, three, four, five, six.",
+          "assets": [
+            {
+              "role": "reference_audio",
+              "type": "audio",
+              "path": "asset:assets/media/power-up/page-6-ex1.mp3",
+              "mimeType": "audio/mpeg",
+              "durationMs": 27890,
+              "provider": "power-up-local"
+            },
+            {
+              "role": "teaching_video",
+              "type": "video",
+              "path": "asset:assets/media/power-up/page-6-demo.mp4",
+              "mimeType": "video/mp4",
+              "provider": "power-up-local"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "assignments": [
+    {
+      "key": "pu-start-hello",
+      "title": "PU Start 问候练习",
+      "description": "在课本页里点击 Hello，先听示范，再录音提交。",
+      "dueOffsetDays": 4,
+      "items": [
+        {
+          "regionKey": "p004-hello",
+          "title": "Hello 练习",
+          "itemType": "sentence"
+        }
+      ]
+    },
+    {
+      "key": "pu-start-numbers-1-6",
+      "title": "PU Start 数字 1-6",
+      "description": "在教材页里点数字区域，边听边数，再录音提交。",
+      "dueOffsetDays": 5,
+      "items": [
+        {
+          "regionKey": "p006-numbers-1-6",
+          "title": "数字 1-6",
+          "itemType": "sentence"
+        }
+      ]
+    }
+  ]
+}

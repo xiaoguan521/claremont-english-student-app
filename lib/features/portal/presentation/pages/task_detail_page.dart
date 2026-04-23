@@ -662,8 +662,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     }
 
     if (resolvedReference.bucketId == 'asset') {
-      final assetPath = resolvedReference.path;
-      final bytes = await rootBundle.load(assetPath);
+      final assetPath = _normalizeBundledAssetPath(resolvedReference.path);
+      final bytes = await _loadBundledAssetBytes(assetPath);
       final tempDir = await getTemporaryDirectory();
       final fileName = assetPath.split('/').last;
       final targetPath =
@@ -702,8 +702,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     }
 
     if (resolvedReference.bucketId == 'asset') {
-      final assetPath = resolvedReference.path;
-      final bytes = await rootBundle.load(assetPath);
+      final assetPath = _normalizeBundledAssetPath(resolvedReference.path);
+      final bytes = await _loadBundledAssetBytes(assetPath);
       final tempDir = await getTemporaryDirectory();
       final fileName = assetPath.split('/').last;
       final targetPath =
@@ -1626,8 +1626,7 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
     }
 
     if (pdfPath.startsWith('asset:')) {
-      final bytes = await rootBundle.load(pdfPath.substring('asset:'.length));
-      return bytes.buffer.asUint8List();
+      return _loadBundledAssetBytes(pdfPath.substring('asset:'.length));
     }
 
     return Supabase.instance.client.storage.from('materials').download(pdfPath);
@@ -2024,27 +2023,43 @@ class _StageImage extends StatelessWidget {
 
   final String path;
 
-  @override
-  Widget build(BuildContext context) {
+  Future<Uint8List> _loadImageBytes() async {
     if (path.startsWith('asset:')) {
-      return Image.asset(path.substring('asset:'.length), fit: BoxFit.contain);
+      return _loadBundledAssetBytes(path.substring('asset:'.length));
     }
 
+    final reference = _resolveStorageReference(
+      path,
+      defaultBucket: 'material-pages',
+    );
+    if (reference.bucketId == 'asset') {
+      return _loadBundledAssetBytes(reference.path);
+    }
+
+    return Supabase.instance.client.storage
+        .from(reference.bucketId)
+        .download(reference.path);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return FutureBuilder<Uint8List>(
-      future: Supabase.instance.client.storage
-          .from('material-pages')
-          .download(path),
+      future: _loadImageBytes(),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError || !snapshot.hasData) {
-          return _PdfStateMessage(
+          return const _PdfStateMessage(
             title: '教材页暂时打不开',
-            message: snapshot.error?.toString() ?? '请稍后重试。',
+            message: '这页教材图片还没有准备好，请稍后再试，或先切换到别的句子继续练习。',
           );
         }
-        return Image.memory(snapshot.data!, fit: BoxFit.contain);
+        return Image.memory(
+          snapshot.data!,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+        );
       },
     );
   }
@@ -2596,7 +2611,9 @@ class _TeachingVideoDialogState extends State<_TeachingVideoDialog> {
   Future<VideoPlayerController> _buildController() async {
     if (widget.rawReference.startsWith('asset:')) {
       return VideoPlayerController.asset(
-        widget.rawReference.substring('asset:'.length),
+        _normalizeBundledAssetPath(
+          widget.rawReference.substring('asset:'.length),
+        ),
       );
     }
 
@@ -3812,15 +3829,55 @@ String? _sampleTextFor(PortalTask task) {
   return null;
 }
 
+Future<Uint8List> _loadBundledAssetBytes(String assetPath) async {
+  final trimmedPath = assetPath.trim();
+  final candidates = <String>{
+    trimmedPath,
+    _normalizeBundledAssetPath(trimmedPath),
+  };
+  Object? lastError;
+
+  for (final candidate in candidates) {
+    if (candidate.isEmpty) {
+      continue;
+    }
+    try {
+      final bytes = await rootBundle.load(candidate);
+      return bytes.buffer.asUint8List();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? FlutterError('Unable to load asset: "$trimmedPath".');
+}
+
+String _normalizeBundledAssetPath(String rawPath) {
+  final trimmed = rawPath.trim();
+  if (trimmed.startsWith('assets/textbook/')) {
+    return 'assets/textbooks/${trimmed.substring('assets/textbook/'.length)}';
+  }
+  return trimmed;
+}
+
 _StorageAudioReference _resolveStorageReference(
   String rawReference, {
   required String defaultBucket,
 }) {
   final trimmed = rawReference.trim();
+  if (trimmed.startsWith('assets/')) {
+    return _StorageAudioReference(
+      bucketId: 'asset',
+      path: _normalizeBundledAssetPath(trimmed),
+    );
+  }
   if (trimmed.contains(':')) {
     final index = trimmed.indexOf(':');
     final bucketId = trimmed.substring(0, index).trim();
-    final path = trimmed.substring(index + 1).trim();
+    var path = trimmed.substring(index + 1).trim();
+    if (bucketId == 'asset') {
+      path = _normalizeBundledAssetPath(path);
+    }
     if (bucketId.isNotEmpty && path.isNotEmpty) {
       return _StorageAudioReference(bucketId: bucketId, path: path);
     }

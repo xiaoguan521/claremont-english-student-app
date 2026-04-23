@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "validate:textbook-manifest": "node scripts/validate_textbook_manifest.mjs"
+  },
   "devDependencies": {
     "supabase": "^2.92.1"
   }

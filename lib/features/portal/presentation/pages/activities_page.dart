@@ -55,15 +55,16 @@ class ActivitiesPage extends ConsumerWidget {
           activitiesAsync.valueOrNull ?? const <PortalActivity>[];
       final allActivities =
           allActivitiesAsync.valueOrNull ?? const <PortalActivity>[];
-      final summary = summaryAsync.valueOrNull ?? const PortalSummary(
-        activeClasses: 0,
-        totalActivities: 0,
-        completedActivities: 0,
-        inProgressActivities: 0,
-        pendingTasks: 0,
-      );
-      final selectedDate =
-          selectedDateAsync.valueOrNull ?? today;
+      final summary =
+          summaryAsync.valueOrNull ??
+          const PortalSummary(
+            activeClasses: 0,
+            totalActivities: 0,
+            completedActivities: 0,
+            inProgressActivities: 0,
+            pendingTasks: 0,
+          );
+      final selectedDate = selectedDateAsync.valueOrNull ?? today;
       final calendarDates = calendarDatesAsync.valueOrNull ?? <DateTime>[today];
       final activityCountByDate = <DateTime, int>{};
       for (final activity in allActivities) {
@@ -72,7 +73,11 @@ class ActivitiesPage extends ConsumerWidget {
           continue;
         }
         final normalized = DateTime(dueDate.year, dueDate.month, dueDate.day);
-        activityCountByDate.update(normalized, (value) => value + 1, ifAbsent: () => 1);
+        activityCountByDate.update(
+          normalized,
+          (value) => value + 1,
+          ifAbsent: () => 1,
+        );
       }
 
       content = LayoutBuilder(
@@ -105,6 +110,8 @@ class ActivitiesPage extends ConsumerWidget {
                 );
 
           if (isLandscapePhone) {
+            final railWidth = (constraints.maxWidth * 0.22).clamp(176.0, 236.0);
+            final gap = constraints.maxWidth < 900 ? 10.0 : 14.0;
             return Column(
               children: [
                 _HomeworkCalendarStrip(
@@ -112,9 +119,9 @@ class ActivitiesPage extends ConsumerWidget {
                   selectedDate: selectedDate,
                   today: today,
                   activityCountByDate: activityCountByDate,
-                  onSelectDate: (date) => ref
-                      .read(selectedActivityDateProvider.notifier)
-                      .state = date,
+                  onSelectDate: (date) =>
+                      ref.read(selectedActivityDateProvider.notifier).state =
+                          date,
                 ),
                 const SizedBox(height: 14),
                 Expanded(
@@ -122,7 +129,7 @@ class ActivitiesPage extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SizedBox(
-                        width: 236,
+                        width: railWidth,
                         child: SingleChildScrollView(
                           child: _ActionRail(
                             summary: summary,
@@ -130,17 +137,24 @@ class ActivitiesPage extends ConsumerWidget {
                             today: today,
                             isCompact: true,
                             onResetToToday: !_isSameDay(selectedDate, today)
-                                ? () => ref
-                                      .read(selectedActivityDateProvider.notifier)
-                                      .state = today
+                                ? () =>
+                                      ref
+                                              .read(
+                                                selectedActivityDateProvider
+                                                    .notifier,
+                                              )
+                                              .state =
+                                          today
                                 : null,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: gap),
                       Expanded(
                         child: Container(
-                          padding: const EdgeInsets.all(18),
+                          padding: EdgeInsets.all(
+                            constraints.maxWidth < 900 ? 14 : 18,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.82),
                             borderRadius: BorderRadius.circular(28),
@@ -152,31 +166,19 @@ class ActivitiesPage extends ConsumerWidget {
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           _isSameDay(selectedDate, today)
-                                              ? '今天的作业'
-                                              : '${_formatDateLabel(selectedDate)} 的作业',
+                                              ? '今天'
+                                              : _formatDateLabel(selectedDate),
                                           style: Theme.of(context)
                                               .textTheme
                                               .headlineSmall
                                               ?.copyWith(
                                                 color: const Color(0xFF1E293B),
                                                 fontWeight: FontWeight.w900,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          activities.isEmpty
-                                              ? '这一天没有安排新的作业。'
-                                              : '点右侧卡片继续做题，漏掉的作业也可以补做。',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyLarge
-                                              ?.copyWith(
-                                                color: const Color(0xFF64748B),
-                                                fontWeight: FontWeight.w700,
                                               ),
                                         ),
                                       ],
@@ -226,9 +228,9 @@ class ActivitiesPage extends ConsumerWidget {
                     selectedDate: selectedDate,
                     today: today,
                     activityCountByDate: activityCountByDate,
-                    onSelectDate: (date) => ref
-                        .read(selectedActivityDateProvider.notifier)
-                        .state = date,
+                    onSelectDate: (date) =>
+                        ref.read(selectedActivityDateProvider.notifier).state =
+                            date,
                   ),
                   const SizedBox(height: 16),
                   _ActionRail(
@@ -237,9 +239,13 @@ class ActivitiesPage extends ConsumerWidget {
                     today: today,
                     isCompact: true,
                     onResetToToday: !_isSameDay(selectedDate, today)
-                        ? () => ref
-                            .read(selectedActivityDateProvider.notifier)
-                            .state = today
+                        ? () =>
+                              ref
+                                      .read(
+                                        selectedActivityDateProvider.notifier,
+                                      )
+                                      .state =
+                                  today
                         : null,
                   ),
                   const SizedBox(height: 16),
@@ -256,9 +262,9 @@ class ActivitiesPage extends ConsumerWidget {
                 selectedDate: selectedDate,
                 today: today,
                 activityCountByDate: activityCountByDate,
-                onSelectDate: (date) => ref
-                    .read(selectedActivityDateProvider.notifier)
-                    .state = date,
+                onSelectDate: (date) =>
+                    ref.read(selectedActivityDateProvider.notifier).state =
+                        date,
               ),
               const SizedBox(height: 18),
               Expanded(
@@ -274,9 +280,14 @@ class ActivitiesPage extends ConsumerWidget {
                           today: today,
                           isCompact: isShortViewport,
                           onResetToToday: !_isSameDay(selectedDate, today)
-                              ? () => ref
-                                  .read(selectedActivityDateProvider.notifier)
-                                  .state = today
+                              ? () =>
+                                    ref
+                                            .read(
+                                              selectedActivityDateProvider
+                                                  .notifier,
+                                            )
+                                            .state =
+                                        today
                               : null,
                         ),
                       ),
@@ -457,7 +468,9 @@ class _HomeworkCalendarStrip extends StatelessWidget {
                   Text(
                     '${date.month}/${date.day}',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                      color: isSelected
+                          ? Colors.white
+                          : const Color(0xFF1E293B),
                       fontWeight: FontWeight.w900,
                     ),
                   ),

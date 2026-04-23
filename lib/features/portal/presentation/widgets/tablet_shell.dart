@@ -137,67 +137,90 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brandChip = Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isCompact ? 12 : 16,
-        vertical: isCompact ? 10 : 12,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: isCompact ? 40 : 42,
-            height: isCompact ? 40 : 42,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.auto_stories_rounded,
-              color: Color(0xFF309A7A),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  brandName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: isCompact ? 16 : null,
+    final brandChip = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: isLandscapePhone ? 220 : 360),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isLandscapePhone
+              ? 10
+              : isCompact
+              ? 12
+              : 16,
+          vertical: isLandscapePhone
+              ? 8
+              : isCompact
+              ? 10
+              : 12,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: isLandscapePhone
+                  ? 34
+                  : isCompact
+                  ? 40
+                  : 42,
+              height: isLandscapePhone
+                  ? 34
+                  : isCompact
+                  ? 40
+                  : 42,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
                   ),
-                ),
-                if (brandSubtitle != null)
+                ],
+              ),
+              child: const Icon(
+                Icons.auto_stories_rounded,
+                color: Color(0xFF309A7A),
+              ),
+            ),
+            SizedBox(width: isLandscapePhone ? 8 : 12),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Text(
-                    brandSubtitle!,
+                    brandName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontWeight: FontWeight.w600,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: isLandscapePhone
+                          ? 15
+                          : isCompact
+                          ? 16
+                          : null,
                     ),
                   ),
-              ],
+                  if (brandSubtitle != null && !isLandscapePhone)
+                    Text(
+                      brandSubtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
 
@@ -235,10 +258,27 @@ class _TopBar extends StatelessWidget {
       );
     }
 
+    if (isLandscapePhone) {
+      return Row(
+        children: [
+          brandChip,
+          const Spacer(),
+          if ((actions?.isNotEmpty ?? false))
+            Flexible(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                reverse: true,
+                child: Row(children: actions!),
+              ),
+            ),
+        ],
+      );
+    }
+
     return Row(
       children: [
         brandChip,
-        SizedBox(width: isLandscapePhone ? 12 : 18),
+        const SizedBox(width: 18),
         titleChip,
         const Spacer(),
         ...?actions,

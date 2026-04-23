@@ -64,6 +64,8 @@ class HomePage extends ConsumerWidget {
                     highlightedClassName: highlightedActivity.className,
                     highlightedDateLabel: highlightedActivity.dateLabel,
                     summary: summary,
+                    maxWidth: constraints.maxWidth,
+                    maxHeight: constraints.maxHeight,
                   )
                 : isPhone
                 ? _PhoneHomeLayout(
@@ -186,6 +188,8 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
     required this.highlightedClassName,
     required this.highlightedDateLabel,
     required this.summary,
+    required this.maxWidth,
+    required this.maxHeight,
   });
 
   final SchoolContext schoolContext;
@@ -195,15 +199,21 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
   final String highlightedClassName;
   final String highlightedDateLabel;
   final PortalSummary summary;
+  final double maxWidth;
+  final double maxHeight;
 
   @override
   Widget build(BuildContext context) {
     final displayName = _studentDisplayName(currentUserEmail);
+    final sideWidth = maxWidth < 880 ? 204.0 : 228.0;
+    final railWidth = maxWidth < 880 ? 216.0 : 248.0;
+    final gap = maxWidth < 880 ? 10.0 : 14.0;
     return SizedBox(
-      height: 418,
+      height: maxHeight.clamp(360.0, 460.0),
       child: Column(
         children: [
           _FeatureTopBar(
+            isCompact: maxWidth < 920,
             onOpenFeature: (title, description, accent, icon) {
               _showComingSoonSheet(
                 context,
@@ -220,7 +230,7 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(
-                  width: 236,
+                  width: sideWidth,
                   child: Column(
                     children: [
                       Expanded(
@@ -241,7 +251,7 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 14),
+                SizedBox(width: gap),
                 Expanded(
                   flex: 5,
                   child: _LandscapeTaskBoard(
@@ -253,9 +263,9 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
                     summary: summary,
                   ),
                 ),
-                const SizedBox(width: 14),
+                SizedBox(width: gap),
                 SizedBox(
-                  width: 252,
+                  width: railWidth,
                   child: _LandscapeReadingRail(
                     schoolContext: schoolContext,
                     highlightedActivityId: highlightedActivityId,
@@ -272,7 +282,7 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
 }
 
 class _FeatureTopBar extends StatelessWidget {
-  const _FeatureTopBar({required this.onOpenFeature});
+  const _FeatureTopBar({required this.onOpenFeature, this.isCompact = false});
 
   final void Function(
     String title,
@@ -281,6 +291,7 @@ class _FeatureTopBar extends StatelessWidget {
     IconData icon,
   )
   onOpenFeature;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
@@ -320,27 +331,37 @@ class _FeatureTopBar extends StatelessWidget {
     return Row(
       children: [
         const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.80),
-            borderRadius: BorderRadius.circular(26),
-          ),
-          child: Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 10,
-            runSpacing: 8,
-            children: items
-                .map(
-                  (item) => _FeatureBubble(
-                    title: item.$1,
-                    accent: item.$3,
-                    icon: item.$4,
-                    onTap: () =>
-                        onOpenFeature(item.$1, item.$2, item.$3, item.$4),
-                  ),
-                )
-                .toList(),
+        Flexible(
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isCompact ? 10 : 16,
+              vertical: isCompact ? 8 : 10,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.80),
+              borderRadius: BorderRadius.circular(26),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              reverse: true,
+              child: Row(
+                children: items
+                    .map(
+                      (item) => Padding(
+                        padding: EdgeInsets.only(right: isCompact ? 8 : 10),
+                        child: _FeatureBubble(
+                          title: item.$1,
+                          accent: item.$3,
+                          icon: item.$4,
+                          compact: isCompact,
+                          onTap: () =>
+                              onOpenFeature(item.$1, item.$2, item.$3, item.$4),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
           ),
         ),
       ],
@@ -354,12 +375,14 @@ class _FeatureBubble extends StatelessWidget {
     required this.accent,
     required this.icon,
     required this.onTap,
+    this.compact = false,
   });
 
   final String title;
   final Color accent;
   final IconData icon;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -367,8 +390,11 @@ class _FeatureBubble extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(22),
       child: Container(
-        width: 92,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        width: compact ? 80 : 92,
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 6 : 8,
+          vertical: compact ? 8 : 10,
+        ),
         decoration: BoxDecoration(
           color: accent.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(22),
@@ -377,21 +403,22 @@ class _FeatureBubble extends StatelessWidget {
         child: Column(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: compact ? 36 : 42,
+              height: compact ? 36 : 42,
               decoration: BoxDecoration(
                 color: accent,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(icon, color: Colors.white, size: 22),
+              child: Icon(icon, color: Colors.white, size: compact ? 18 : 22),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: compact ? 6 : 8),
             Text(
               title,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: const Color(0xFF334155),
                 fontWeight: FontWeight.w900,
+                fontSize: compact ? 11 : null,
               ),
             ),
           ],

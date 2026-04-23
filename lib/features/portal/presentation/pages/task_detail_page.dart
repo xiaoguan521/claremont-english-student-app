@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -538,6 +539,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   Future<void> _openReadingPage(
     PortalActivity activity, {
     PortalTask? task,
+    bool startFullscreen = false,
   }) async {
     if ((activity.materialPdfPath ?? '').trim().isEmpty) {
       _showMessage('老师还没有上传教材 PDF。');
@@ -546,7 +548,11 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ReadingPage(activity: activity, task: task),
+        builder: (_) => ReadingPage(
+          activity: activity,
+          task: task,
+          startFullscreen: startFullscreen,
+        ),
       ),
     );
   }
@@ -1035,8 +1041,11 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                   1,
               totalTasks: activity.tasks.length,
               onSelectTask: _setFocusedTask,
-              onOpenFullScreen: () =>
-                  _openReadingPage(activity, task: focusTask),
+              onOpenFullScreen: () => _openReadingPage(
+                activity,
+                task: focusTask,
+                startFullscreen: true,
+              ),
               compact: isLandscapePhone,
               bottomSheet: _TextbookFloatingPanel(
                 task: focusTask,
@@ -1131,6 +1140,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           );
 
           if (isLandscapePhone) {
+            final reviewWidth = constraints.maxWidth < 920 ? 292.0 : 332.0;
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1139,7 +1149,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                   child: SingleChildScrollView(child: stageCard),
                 ),
                 const SizedBox(width: 16),
-                SizedBox(width: 340, child: reviewPanel),
+                SizedBox(width: reviewWidth, child: reviewPanel),
               ],
             );
           }
@@ -1167,13 +1177,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
               ],
               const SizedBox(height: 16),
               _SectionHeading(
-                eyebrow: '当前句子',
                 title: focusTask.reviewStatus == TaskReviewStatus.checked
-                    ? '这一句的点评就在下面。'
-                    : '先看这一句，再录音提交。',
-                subtitle: focusTask.reviewStatus == TaskReviewStatus.checked
-                    ? '绿色标签表示 AI 初评；如果老师已经复核，会额外标明老师已复核。'
-                    : '上方是教材，下方这张卡只处理当前这一句的示范、录音和提交。',
+                    ? '这一句完成了'
+                    : '做这一句',
               ),
               const SizedBox(height: 12),
               Container(
@@ -1262,15 +1268,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 }
 
 class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({
-    required this.eyebrow,
-    required this.title,
-    required this.subtitle,
-  });
+  const _SectionHeading({required this.title});
 
-  final String eyebrow;
   final String title;
-  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -1278,26 +1278,10 @@ class _SectionHeading extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          eyebrow,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: const Color(0xFF2FA77D),
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
           title,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             color: const Color(0xFF1E293B),
             fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: const Color(0xFF64748B),
-            fontWeight: FontWeight.w700,
           ),
         ),
       ],
@@ -1383,11 +1367,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _SectionHeading(
-                eyebrow: '学习进度',
-                title: '点教材里的句子继续做题',
-                subtitle: '右侧只显示当前句子的点评和状态，不再整页跳来跳去。',
-              ),
+              const _SectionHeading(title: '句子列表'),
               if (tasks.length > 1) ...[
                 const SizedBox(height: 12),
                 _SentenceSwitchStrip(
@@ -1592,6 +1572,7 @@ class _TextbookStageCard extends StatefulWidget {
 class _TextbookStageCardState extends State<_TextbookStageCard> {
   late final PdfViewerController _pdfController;
   late Future<Uint8List?> _pdfFuture;
+  late Future<_EmbeddedTextbookLayoutData> _layoutFuture;
   bool _documentReady = false;
 
   @override
@@ -1599,6 +1580,7 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
     super.initState();
     _pdfController = PdfViewerController();
     _reloadPdf();
+    _reloadLayout();
   }
 
   @override
@@ -1606,7 +1588,12 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
     super.didUpdateWidget(oldWidget);
     if (widget.activity.materialPdfPath != oldWidget.activity.materialPdfPath) {
       _reloadPdf();
+      _reloadLayout();
       return;
+    }
+    if (widget.task.region?.pageImagePath !=
+        oldWidget.task.region?.pageImagePath) {
+      _reloadLayout();
     }
     if (widget.task.startPage != oldWidget.task.startPage ||
         widget.task.endPage != oldWidget.task.endPage) {
@@ -1617,6 +1604,10 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
   void _reloadPdf() {
     _documentReady = false;
     _pdfFuture = _loadPdfBytes();
+  }
+
+  void _reloadLayout() {
+    _layoutFuture = _loadEmbeddedTextbookLayout();
   }
 
   Future<Uint8List?> _loadPdfBytes() async {
@@ -1630,6 +1621,19 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
     }
 
     return Supabase.instance.client.storage.from('materials').download(pdfPath);
+  }
+
+  Future<_EmbeddedTextbookLayoutData> _loadEmbeddedTextbookLayout() async {
+    final pageImagePath = widget.task.region?.pageImagePath;
+    if (pageImagePath != null && pageImagePath.trim().isNotEmpty) {
+      final imageData = await _loadStageImageData(pageImagePath);
+      return _EmbeddedTextbookLayoutData(
+        viewportAspectRatio: imageData.width / imageData.height,
+        stageImageData: imageData,
+      );
+    }
+
+    return const _EmbeddedTextbookLayoutData(viewportAspectRatio: 0.72);
   }
 
   void _jumpToTaskPage() {
@@ -1675,8 +1679,7 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
             ),
     );
 
-    final contentHeight = widget.compact ? 430.0 : 560.0;
-    final stageBottomInset = widget.compact ? 160.0 : 184.0;
+    final stageBottomInset = widget.compact ? 154.0 : 184.0;
 
     return Container(
       padding: EdgeInsets.all(widget.compact ? 16 : 20),
@@ -1715,33 +1718,25 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            '先在这页课本里看内容，再在下面完成这一句的示范、录音和提交。',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
+          SizedBox(height: widget.compact ? 10 : 12),
           const Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
               _StageLegendChip(
-                label: '橙色：当前句子',
+                label: '当前',
                 background: Color(0xFFFFEDD5),
                 foreground: Color(0xFFEA580C),
                 icon: Icons.radio_button_checked_rounded,
               ),
               _StageLegendChip(
-                label: '绿色：已完成',
+                label: '已完成',
                 background: Color(0xFFEAFBF1),
                 foreground: Color(0xFF16A34A),
                 icon: Icons.check_circle_rounded,
               ),
               _StageLegendChip(
-                label: '白色：待完成',
+                label: '待完成',
                 background: Color(0xFFFFFFFF),
                 foreground: Color(0xFF64748B),
                 icon: Icons.panorama_fish_eye_rounded,
@@ -1749,95 +1744,161 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
             ],
           ),
           SizedBox(height: widget.compact ? 12 : 16),
-          Container(
-            height: contentHeight,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(26),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(26),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(0, 0, 0, stageBottomInset),
-                      child: focusedPageImagePath != null
-                          ? _TextbookImageStage(
-                              pageImagePath: focusedPageImagePath,
-                              tasks: pageTasks,
-                              focusedTaskId: widget.focusedTaskId,
-                              onSelectTask: widget.onSelectTask,
-                            )
-                          : FutureBuilder<Uint8List?>(
-                              future: _pdfFuture,
-                              builder: (context, snapshot) {
-                                if (snapshot.connectionState !=
-                                    ConnectionState.done) {
-                                  return const Center(
-                                    child: CircularProgressIndicator(),
-                                  );
-                                }
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final fallbackAspectRatio = widget.compact ? 0.82 : 0.72;
+              final minVisibleHeight = widget.compact ? 260.0 : 360.0;
+              final maxVisibleHeight = widget.compact ? 760.0 : 1180.0;
 
-                                if (snapshot.hasError) {
-                                  return _PdfStateMessage(
-                                    title: '教材暂时打不开',
-                                    message:
-                                        snapshot.error?.toString() ?? '请稍后重试。',
-                                  );
-                                }
+              return FutureBuilder<_EmbeddedTextbookLayoutData>(
+                future: _layoutFuture,
+                builder: (context, snapshot) {
+                  final viewportAspectRatio =
+                      snapshot.data?.viewportAspectRatio ?? fallbackAspectRatio;
+                  final visibleHeight =
+                      (constraints.maxWidth / viewportAspectRatio).clamp(
+                        minVisibleHeight,
+                        maxVisibleHeight,
+                      );
+                  final contentHeight = visibleHeight + stageBottomInset;
 
-                                if (!snapshot.hasData ||
-                                    snapshot.data == null) {
-                                  return const _PdfStateMessage(
-                                    title: '这句课本内容还在准备中',
-                                    message: '老师还没有把这一页教材传上来，先切到别的句子继续练习吧。',
-                                  );
-                                }
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    height: contentHeight,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(26),
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                0,
+                                0,
+                                0,
+                                stageBottomInset,
+                              ),
+                              child: focusedPageImagePath != null
+                                  ? _TextbookImageStage(
+                                      pageImagePath: focusedPageImagePath,
+                                      stageImageData:
+                                          snapshot.data?.stageImageData,
+                                      tasks: pageTasks,
+                                      focusedTaskId: widget.focusedTaskId,
+                                      onSelectTask: widget.onSelectTask,
+                                    )
+                                  : FutureBuilder<Uint8List?>(
+                                      future: _pdfFuture,
+                                      builder: (context, snapshot) {
+                                        if (snapshot.connectionState !=
+                                            ConnectionState.done) {
+                                          return const Center(
+                                            child: CircularProgressIndicator(),
+                                          );
+                                        }
 
-                                return Stack(
-                                  children: [
-                                    SfPdfViewer.memory(
-                                      snapshot.data!,
-                                      controller: _pdfController,
-                                      canShowPaginationDialog: false,
-                                      canShowScrollHead: false,
-                                      onDocumentLoaded: (_) {
-                                        _documentReady = true;
-                                        _jumpToTaskPage();
+                                        if (snapshot.hasError) {
+                                          return _PdfStateMessage(
+                                            title: '教材暂时打不开',
+                                            message:
+                                                snapshot.error?.toString() ??
+                                                '请稍后重试。',
+                                          );
+                                        }
+
+                                        if (!snapshot.hasData ||
+                                            snapshot.data == null) {
+                                          return const _PdfStateMessage(
+                                            title: '这句课本内容还在准备中',
+                                            message:
+                                                '老师还没有把这一页教材传上来，先切到别的句子继续练习吧。',
+                                          );
+                                        }
+
+                                        return Stack(
+                                          children: [
+                                            SfPdfViewer.memory(
+                                              snapshot.data!,
+                                              controller: _pdfController,
+                                              canShowPaginationDialog: false,
+                                              canShowScrollHead: false,
+                                              onDocumentLoaded: (_) {
+                                                _documentReady = true;
+                                                _jumpToTaskPage();
+                                              },
+                                            ),
+                                          ],
+                                        );
                                       },
                                     ),
-                                    Positioned(
-                                      right: 16,
-                                      bottom: 16,
-                                      child: FilledButton.tonalIcon(
-                                        onPressed: widget.onOpenFullScreen,
-                                        icon: const Icon(
-                                          Icons.open_in_full_rounded,
+                            ),
+                          ),
+                          if ((widget.activity.materialPdfPath ?? '')
+                              .trim()
+                              .isNotEmpty)
+                            Positioned(
+                              top: 16,
+                              right: 16,
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: widget.onOpenFullScreen,
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.34,
+                                      ),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.18,
                                         ),
-                                        label: const Text('放大看教材'),
                                       ),
                                     ),
-                                  ],
-                                );
-                              },
+                                    child: const Icon(
+                                      Icons.open_in_full_rounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
+                          Positioned(
+                            left: 16,
+                            right: 16,
+                            bottom: 16,
+                            child: widget.bottomSheet,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 16,
-                    child: widget.bottomSheet,
-                  ),
-                ],
-              ),
-            ),
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
     );
   }
+}
+
+class _EmbeddedTextbookLayoutData {
+  const _EmbeddedTextbookLayoutData({
+    required this.viewportAspectRatio,
+    this.stageImageData,
+  });
+
+  final double viewportAspectRatio;
+  final _StageImageData? stageImageData;
 }
 
 class _TextbookImageStage extends StatelessWidget {
@@ -1846,205 +1907,28 @@ class _TextbookImageStage extends StatelessWidget {
     required this.tasks,
     required this.focusedTaskId,
     required this.onSelectTask,
+    this.stageImageData,
   });
 
   final String pageImagePath;
   final List<PortalTask> tasks;
   final String focusedTaskId;
   final ValueChanged<String> onSelectTask;
+  final _StageImageData? stageImageData;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _StageImage(path: pageImagePath),
-        for (final task in tasks)
-          if (task.region != null)
-            Positioned.fill(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final region = task.region!;
-                  final left = constraints.maxWidth * region.x;
-                  final top = constraints.maxHeight * region.y;
-                  final width = constraints.maxWidth * region.width;
-                  final height = constraints.maxHeight * region.height;
-                  final isFocused = task.id == focusedTaskId;
-                  final isDone = task.reviewStatus == TaskReviewStatus.checked;
-                  final overlayColor = isFocused
-                      ? const Color(0x33F97316)
-                      : isDone
-                      ? const Color(0x2816A34A)
-                      : const Color(0x12FFFFFF);
-                  final borderColor = isFocused
-                      ? const Color(0xFFEA580C)
-                      : isDone
-                      ? const Color(0xFF16A34A)
-                      : const Color(0x88FFFFFF);
-                  final chipBackground = isFocused
-                      ? const Color(0xFFFFF7ED)
-                      : isDone
-                      ? const Color(0xFFEAFBF1)
-                      : Colors.white.withValues(alpha: 0.94);
-                  final chipForeground = isFocused
-                      ? const Color(0xFFEA580C)
-                      : isDone
-                      ? const Color(0xFF15803D)
-                      : const Color(0xFF1E293B);
-                  final statusLabel = isFocused
-                      ? '当前'
-                      : isDone
-                      ? '已完成'
-                      : '待完成';
-
-                  return Stack(
-                    children: [
-                      Positioned(
-                        left: left,
-                        top: top,
-                        width: width,
-                        height: height,
-                        child: GestureDetector(
-                          onTap: () => onSelectTask(task.id),
-                          child: AnimatedScale(
-                            duration: const Duration(milliseconds: 180),
-                            scale: isFocused ? 1.015 : 1,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              decoration: BoxDecoration(
-                                color: overlayColor,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: borderColor,
-                                  width: isFocused ? 3.2 : 2.2,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color:
-                                        (isFocused
-                                                ? const Color(0xFFEA580C)
-                                                : isDone
-                                                ? const Color(0xFF16A34A)
-                                                : Colors.black)
-                                            .withValues(
-                                              alpha: isFocused ? 0.20 : 0.08,
-                                            ),
-                                    blurRadius: isFocused ? 18 : 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Stack(
-                                children: [
-                                  Align(
-                                    alignment: Alignment.topLeft,
-                                    child: Container(
-                                      margin: const EdgeInsets.all(8),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: chipBackground,
-                                        borderRadius: BorderRadius.circular(
-                                          999,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        statusLabel,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: chipForeground,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                      ),
-                                    ),
-                                  ),
-                                  Align(
-                                    alignment: Alignment.bottomLeft,
-                                    child: Container(
-                                      margin: const EdgeInsets.all(8),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.96,
-                                        ),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        task.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: const Color(0xFF1E293B),
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                      ),
-                                    ),
-                                  ),
-                                  if (isDone)
-                                    const Positioned(
-                                      right: 10,
-                                      bottom: 10,
-                                      child: Icon(
-                                        Icons.check_circle_rounded,
-                                        color: Color(0xFF16A34A),
-                                        size: 24,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-      ],
-    );
-  }
-}
-
-class _StageImage extends StatelessWidget {
-  const _StageImage({required this.path});
-
-  final String path;
-
-  Future<Uint8List> _loadImageBytes() async {
-    if (path.startsWith('asset:')) {
-      return _loadBundledAssetBytes(path.substring('asset:'.length));
+    if (stageImageData != null) {
+      return _TextbookImageStageBody(
+        data: stageImageData!,
+        tasks: tasks,
+        focusedTaskId: focusedTaskId,
+        onSelectTask: onSelectTask,
+      );
     }
 
-    final reference = _resolveStorageReference(
-      path,
-      defaultBucket: 'material-pages',
-    );
-    if (reference.bucketId == 'asset') {
-      return _loadBundledAssetBytes(reference.path);
-    }
-
-    return Supabase.instance.client.storage
-        .from(reference.bucketId)
-        .download(reference.path);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List>(
-      future: _loadImageBytes(),
+    return FutureBuilder<_StageImageData>(
+      future: _loadStageImageData(pageImagePath),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
@@ -2055,14 +1939,279 @@ class _StageImage extends StatelessWidget {
             message: '这页教材图片还没有准备好，请稍后再试，或先切换到别的句子继续练习。',
           );
         }
-        return Image.memory(
-          snapshot.data!,
-          fit: BoxFit.contain,
-          gaplessPlayback: true,
+
+        return _TextbookImageStageBody(
+          data: snapshot.data!,
+          tasks: tasks,
+          focusedTaskId: focusedTaskId,
+          onSelectTask: onSelectTask,
         );
       },
     );
   }
+}
+
+class _TextbookImageStageBody extends StatelessWidget {
+  const _TextbookImageStageBody({
+    required this.data,
+    required this.tasks,
+    required this.focusedTaskId,
+    required this.onSelectTask,
+  });
+
+  final _StageImageData data;
+  final List<PortalTask> tasks;
+  final String focusedTaskId;
+  final ValueChanged<String> onSelectTask;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final maxHeight = constraints.maxHeight;
+        final imageAspect = data.width / data.height;
+        final viewportAspect = maxWidth / maxHeight;
+        final imageWidth = viewportAspect > imageAspect
+            ? maxHeight * imageAspect
+            : maxWidth;
+        final imageHeight = viewportAspect > imageAspect
+            ? maxHeight
+            : maxWidth / imageAspect;
+        final imageLeft = (maxWidth - imageWidth) / 2;
+        final imageTop = (maxHeight - imageHeight) / 2;
+
+        return Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              boundaryMargin: const EdgeInsets.all(180),
+              clipBehavior: Clip.none,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned(
+                    left: imageLeft,
+                    top: imageTop,
+                    width: imageWidth,
+                    height: imageHeight,
+                    child: Image.memory(
+                      data.bytes,
+                      fit: BoxFit.fill,
+                      gaplessPlayback: true,
+                    ),
+                  ),
+                  for (final task in tasks)
+                    if (task.region != null)
+                      _TextbookRegionOverlay(
+                        task: task,
+                        focusedTaskId: focusedTaskId,
+                        imageLeft: imageLeft,
+                        imageTop: imageTop,
+                        imageWidth: imageWidth,
+                        imageHeight: imageHeight,
+                        onSelectTask: onSelectTask,
+                      ),
+                ],
+              ),
+            ),
+            Positioned(
+              right: 12,
+              top: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '双指放大 · 拖动看全页',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TextbookRegionOverlay extends StatelessWidget {
+  const _TextbookRegionOverlay({
+    required this.task,
+    required this.focusedTaskId,
+    required this.imageLeft,
+    required this.imageTop,
+    required this.imageWidth,
+    required this.imageHeight,
+    required this.onSelectTask,
+  });
+
+  final PortalTask task;
+  final String focusedTaskId;
+  final double imageLeft;
+  final double imageTop;
+  final double imageWidth;
+  final double imageHeight;
+  final ValueChanged<String> onSelectTask;
+
+  @override
+  Widget build(BuildContext context) {
+    final region = task.region!;
+    final left = imageLeft + imageWidth * region.x;
+    final top = imageTop + imageHeight * region.y;
+    final width = imageWidth * region.width;
+    final height = imageHeight * region.height;
+    final isFocused = task.id == focusedTaskId;
+    final isDone = task.reviewStatus == TaskReviewStatus.checked;
+    final overlayColor = isFocused
+        ? const Color(0x33F97316)
+        : isDone
+        ? const Color(0x2816A34A)
+        : const Color(0x12FFFFFF);
+    final borderColor = isFocused
+        ? const Color(0xFFEA580C)
+        : isDone
+        ? const Color(0xFF16A34A)
+        : const Color(0x88FFFFFF);
+    final chipBackground = isFocused
+        ? const Color(0xFFFFF7ED)
+        : isDone
+        ? const Color(0xFFEAFBF1)
+        : Colors.white.withValues(alpha: 0.94);
+    final chipForeground = isFocused
+        ? const Color(0xFFEA580C)
+        : isDone
+        ? const Color(0xFF15803D)
+        : const Color(0xFF1E293B);
+    final statusLabel = isFocused
+        ? '当前'
+        : isDone
+        ? '完成'
+        : '待做';
+
+    return Positioned(
+      left: left,
+      top: top,
+      width: width,
+      height: height,
+      child: GestureDetector(
+        onTap: () => onSelectTask(task.id),
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 180),
+          scale: isFocused ? 1.015 : 1,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            decoration: BoxDecoration(
+              color: overlayColor,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: borderColor, width: isFocused ? 3 : 2),
+              boxShadow: [
+                BoxShadow(
+                  color:
+                      (isFocused
+                              ? const Color(0xFFEA580C)
+                              : isDone
+                              ? const Color(0xFF16A34A)
+                              : Colors.black)
+                          .withValues(alpha: isFocused ? 0.18 : 0.07),
+                  blurRadius: isFocused ? 18 : 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.topLeft,
+                  child: Container(
+                    margin: const EdgeInsets.all(7),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: chipBackground,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: chipForeground,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+                if (isDone)
+                  const Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF16A34A),
+                      size: 22,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StageImageData {
+  const _StageImageData({
+    required this.bytes,
+    required this.width,
+    required this.height,
+  });
+
+  final Uint8List bytes;
+  final double width;
+  final double height;
+}
+
+Future<_StageImageData> _loadStageImageData(String path) async {
+  final bytes = await _loadStageImageBytes(path);
+  final codec = await ui.instantiateImageCodec(bytes);
+  final frame = await codec.getNextFrame();
+  final image = frame.image;
+  return _StageImageData(
+    bytes: bytes,
+    width: image.width.toDouble(),
+    height: image.height.toDouble(),
+  );
+}
+
+Future<Uint8List> _loadStageImageBytes(String path) {
+  if (path.startsWith('asset:')) {
+    return _loadBundledAssetBytes(path.substring('asset:'.length));
+  }
+
+  final reference = _resolveStorageReference(
+    path,
+    defaultBucket: 'material-pages',
+  );
+  if (reference.bucketId == 'asset') {
+    return _loadBundledAssetBytes(reference.path);
+  }
+
+  return Supabase.instance.client.storage
+      .from(reference.bucketId)
+      .download(reference.path);
 }
 
 class _StageLegendChip extends StatelessWidget {
@@ -2219,7 +2368,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
     final sampleText = _sampleTextFor(task);
     final pageLabel = _pageRangeLabel(task);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.98),
         borderRadius: BorderRadius.circular(24),
@@ -2233,7 +2382,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isPhone = constraints.maxWidth < 720;
+          final isPhone = constraints.maxWidth < 760;
           final header = isPhone
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2255,11 +2404,12 @@ class _TextbookFloatingPanel extends StatelessWidget {
                             icon: Icons.menu_book_rounded,
                             label: pageLabel,
                             onTap: onOpenReading,
+                            iconOnly: true,
                           ),
                       ],
                     ),
                     if (sampleText != null) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Text(
                         sampleText,
                         style: Theme.of(context).textTheme.titleMedium
@@ -2288,7 +2438,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
                                 ),
                           ),
                           if (sampleText != null) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             Text(
                               sampleText,
                               style: Theme.of(context).textTheme.titleMedium
@@ -2307,6 +2457,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
                         icon: Icons.menu_book_rounded,
                         label: pageLabel,
                         onTap: onOpenReading,
+                        iconOnly: true,
                       ),
                   ],
                 );
@@ -2322,17 +2473,19 @@ class _TextbookFloatingPanel extends StatelessWidget {
                     ? Icons.audiotrack_rounded
                     : Icons.volume_up_rounded,
                 label: isSampleLoading
-                    ? '示范加载中'
+                    ? '加载中'
                     : isSamplePlaying
-                    ? '停止示范'
-                    : '点这里听示范',
+                    ? '停止'
+                    : '示范',
                 onTap: onSpeakSample,
+                iconOnly: true,
               ),
               if (task.hasTeachingVideo)
                 _TaskInfoChip(
                   icon: Icons.smart_display_rounded,
-                  label: '看动画',
+                  label: '视频',
                   onTap: onOpenVideo,
+                  iconOnly: true,
                 ),
               if (selectedAudioLabel != null)
                 _TaskInfoChip(
@@ -2340,11 +2493,12 @@ class _TextbookFloatingPanel extends StatelessWidget {
                       ? Icons.stop_circle_rounded
                       : Icons.play_circle_outline_rounded,
                   label: isSelectedAudioLoading
-                      ? '音频加载中'
+                      ? '加载中'
                       : isSelectedAudioPlaying
-                      ? '停止试听'
-                      : '试听录音',
+                      ? '停止'
+                      : '试听',
                   onTap: onPlaySelectedAudio,
+                  iconOnly: true,
                 ),
               if (existingAudioLabel != null &&
                   submissionFlowStatus != SubmissionFlowStatus.notStarted)
@@ -2353,17 +2507,19 @@ class _TextbookFloatingPanel extends StatelessWidget {
                       ? Icons.stop_circle_rounded
                       : Icons.play_circle_outline_rounded,
                   label: isStoredAudioLoading
-                      ? '回放加载中'
+                      ? '加载中'
                       : isStoredAudioPlaying
-                      ? '停止回放'
-                      : '回听已提交',
+                      ? '停止'
+                      : '回听',
                   onTap: onPlayStoredAudio,
+                  iconOnly: true,
                 ),
               if (selectedAudioLabel != null && onClearSelectedAudio != null)
                 _TaskInfoChip(
                   icon: Icons.delete_outline_rounded,
-                  label: '删除录音',
+                  label: '删除',
                   onTap: onClearSelectedAudio,
+                  iconOnly: true,
                 ),
             ],
           );
@@ -2391,59 +2547,11 @@ class _TextbookFloatingPanel extends StatelessWidget {
                 onPlaySelectedAudio: null,
                 onPlayStoredAudio: null,
                 onPrimaryAction: onPrimaryAction,
-                onPickAudio: onPickAudio,
                 compact: true,
               ),
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _LabeledTextBlock extends StatelessWidget {
-  const _LabeledTextBlock({
-    required this.label,
-    required this.text,
-    required this.background,
-    this.foreground = const Color(0xFF475569),
-  });
-
-  final String label;
-  final String text;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            text,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w700,
-              height: 1.4,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -2501,8 +2609,9 @@ class _AudioInfoCard extends StatelessWidget {
           );
           final action = onAction == null
               ? null
-              : OutlinedButton.icon(
+              : _RoundOutlineIconButton(
                   onPressed: onAction,
+                  tooltip: isLoading ? '加载中' : (isPlaying ? '停止播放' : '播放录音'),
                   icon: isLoading
                       ? const SizedBox(
                           width: 16,
@@ -2513,15 +2622,18 @@ class _AudioInfoCard extends StatelessWidget {
                           isPlaying
                               ? Icons.stop_circle_rounded
                               : Icons.play_circle_outline_rounded,
+                          color: const Color(0xFF0F766E),
                         ),
-                  label: Text(isLoading ? '加载中' : (isPlaying ? '停止' : '播放')),
                 );
           final deleteAction = onDelete == null
               ? null
-              : OutlinedButton.icon(
+              : _RoundOutlineIconButton(
                   onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  label: const Text('删除'),
+                  tooltip: '删除录音',
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Color(0xFFDC2626),
+                  ),
                 );
 
           if (isPhone) {
@@ -2621,6 +2733,23 @@ class _TeachingVideoDialogState extends State<_TeachingVideoDialog> {
     return VideoPlayerController.file(File(path));
   }
 
+  Future<void> _togglePlayback() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      return;
+    }
+
+    if (controller.value.isPlaying) {
+      await controller.pause();
+    } else {
+      await controller.play();
+    }
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void dispose() {
     _controller?.dispose();
@@ -2685,39 +2814,109 @@ class _TeachingVideoDialogState extends State<_TeachingVideoDialog> {
                     );
                   }
                   final controller = _controller!;
-                  return Column(
-                    children: [
-                      AspectRatio(
-                        aspectRatio: controller.value.aspectRatio == 0
-                            ? 16 / 9
-                            : controller.value.aspectRatio,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: VideoPlayer(controller),
-                        ),
+                  return AspectRatio(
+                    aspectRatio: controller.value.aspectRatio == 0
+                        ? 16 / 9
+                        : controller.value.aspectRatio,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          DecoratedBox(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFF112331),
+                                  Color(0xFF1E293B),
+                                  Color(0xFF0F172A),
+                                ],
+                              ),
+                            ),
+                            child: VideoPlayer(controller),
+                          ),
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _togglePlayback,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                color: controller.value.isPlaying
+                                    ? Colors.black.withValues(alpha: 0.02)
+                                    : Colors.black.withValues(alpha: 0.14),
+                                child: Center(
+                                  child: AnimatedScale(
+                                    duration: const Duration(milliseconds: 180),
+                                    scale: controller.value.isPlaying ? 0.9 : 1,
+                                    child: AnimatedOpacity(
+                                      duration: const Duration(
+                                        milliseconds: 180,
+                                      ),
+                                      opacity: controller.value.isPlaying
+                                          ? 0
+                                          : 1,
+                                      child: Container(
+                                        width: 96,
+                                        height: 96,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.92,
+                                          ),
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.18,
+                                              ),
+                                              blurRadius: 24,
+                                              offset: const Offset(0, 10),
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Icon(
+                                          Icons.play_arrow_rounded,
+                                          size: 56,
+                                          color: Color(0xFFFF8F4D),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 14,
+                            bottom: 14,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 180),
+                              opacity: controller.value.isPlaying ? 1 : 0.84,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.46),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
+                                  child: Icon(
+                                    controller.value.isPlaying
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                    size: 20,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 14),
-                      FilledButton.icon(
-                        onPressed: () async {
-                          if (controller.value.isPlaying) {
-                            await controller.pause();
-                          } else {
-                            await controller.play();
-                          }
-                          if (mounted) {
-                            setState(() {});
-                          }
-                        },
-                        icon: Icon(
-                          controller.value.isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                        ),
-                        label: Text(
-                          controller.value.isPlaying ? '暂停动画' : '播放动画',
-                        ),
-                      ),
-                    ],
+                    ),
                   );
                 },
               ),
@@ -2747,13 +2946,10 @@ class _TaskReviewPanel extends StatelessWidget {
     final canPlayEncouragement =
         onPlayEncouragement != null && review.encouragement.trim().isNotEmpty;
     final reviewBadgeLabel = isEncouragementLoading
-        ? 'AI 初评生成中'
+        ? '生成中'
         : isEncouragementPlaying
-        ? '停止鼓励语'
-        : 'AI 初评';
-    final subheading = review.isTeacherReviewedReference
-        ? '下面是这一句的 AI 初评，老师已经看过整份作业。'
-        : '下面是这一句的 AI 初评。';
+        ? '停止'
+        : 'AI';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -2765,44 +2961,6 @@ class _TaskReviewPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            review.isTeacherReviewedReference ? '这一句的 AI 点评' : 'AI 句子点评',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF0F172A),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subheading,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w700,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: review.isTeacherReviewedReference
-                  ? const Color(0xFFE0F2FE)
-                  : const Color(0xFFEAFBF1),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              review.isTeacherReviewedReference
-                  ? '点评来源：AI 初评，老师已复核整份作业'
-                  : '点评来源：AI 初评',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: review.isTeacherReviewedReference
-                    ? const Color(0xFF0369A1)
-                    : const Color(0xFF0F8B6D),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -2821,13 +2979,13 @@ class _TaskReviewPanel extends StatelessWidget {
               if (review.isTeacherReviewedReference)
                 const _ReviewBadge(
                   icon: Icons.person_rounded,
-                  label: '老师已复核整份作业',
+                  label: '老师已看',
                   color: Color(0xFF0369A1),
                   background: Color(0xFFE0F2FE),
                 ),
               _ReviewBadge(
                 icon: Icons.star_rounded,
-                label: '本句得分 $scoreLabel',
+                label: '$scoreLabel 分',
                 color: const Color(0xFFF97316),
                 background: const Color(0xFFFFEBD9),
               ),
@@ -2837,11 +2995,11 @@ class _TaskReviewPanel extends StatelessWidget {
                 ),
               if (review.fluencyScore != null)
                 _ReviewMetricChip(
-                  label: '流利度 ${review.fluencyScore!.toStringAsFixed(0)}',
+                  label: '流利 ${review.fluencyScore!.toStringAsFixed(0)}',
                 ),
               if (review.completenessScore != null)
                 _ReviewMetricChip(
-                  label: '完整度 ${review.completenessScore!.toStringAsFixed(0)}',
+                  label: '完整 ${review.completenessScore!.toStringAsFixed(0)}',
                 ),
             ],
           ),
@@ -2859,21 +3017,21 @@ class _TaskReviewPanel extends StatelessWidget {
             builder: (context, constraints) {
               final isPhone = constraints.maxWidth < 720;
               final strengthsCard = _ReviewListCard(
-                title: '这句读得好的地方',
+                title: '读得好',
                 icon: Icons.thumb_up_alt_rounded,
                 background: const Color(0xFFEAFBF1),
                 foreground: const Color(0xFF0F8B6D),
                 items: review.strengths.isEmpty
-                    ? const ['这句已经认真开口读出来了。']
+                    ? const ['愿意开口读。']
                     : review.strengths,
               );
               final improvementCard = _ReviewListCard(
-                title: '下次可以继续加强',
+                title: '再练练',
                 icon: Icons.flag_rounded,
                 background: const Color(0xFFFFF4E8),
                 foreground: const Color(0xFFB45309),
                 items: review.improvementPoints.isEmpty
-                    ? const ['再跟着示范多读一遍，会更顺。']
+                    ? const ['再跟示范读一遍。']
                     : review.improvementPoints,
               );
 
@@ -3164,10 +3322,8 @@ class _TaskCard extends StatelessWidget {
     final samplePreviewLabel = isSampleLoading
         ? '示范加载中'
         : isSamplePlaying
-        ? '点一下停止示范'
-        : task.hasReferenceAudio
-        ? '点这里听示范音频'
-        : '点这里听示范';
+        ? '停止示范'
+        : '播放示范';
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -3178,54 +3334,38 @@ class _TaskCard extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isPhone = constraints.maxWidth < 720;
-          final preview = Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onSpeakSample,
-              borderRadius: BorderRadius.circular(18),
-              child: Ink(
-                width: isPhone ? double.infinity : 140,
-                height: 82,
-                decoration: BoxDecoration(
-                  gradient: _previewGradient(task.kind),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Stack(
-                  children: [
-                    Align(
-                      child: isSampleLoading
-                          ? const SizedBox(
-                              width: 28,
-                              height: 28,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.6,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(
-                              isSamplePlaying
-                                  ? Icons.stop_circle_rounded
-                                  : _previewIcon(task.kind),
+          final preview = Tooltip(
+            message: samplePreviewLabel,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onSpeakSample,
+                borderRadius: BorderRadius.circular(18),
+                child: Ink(
+                  width: isPhone ? double.infinity : 140,
+                  height: 82,
+                  decoration: BoxDecoration(
+                    gradient: _previewGradient(task.kind),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Center(
+                    child: isSampleLoading
+                        ? const SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.6,
                               color: Colors.white,
-                              size: 36,
                             ),
-                    ),
-                    Positioned(
-                      left: 12,
-                      right: 12,
-                      bottom: 10,
-                      child: Text(
-                        samplePreviewLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.96),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
+                          )
+                        : Icon(
+                            isSamplePlaying
+                                ? Icons.stop_circle_rounded
+                                : _previewIcon(task.kind),
+                            color: Colors.white,
+                            size: 36,
+                          ),
+                  ),
                 ),
               ),
             ),
@@ -3241,29 +3381,33 @@ class _TaskCard extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                '学习方式：${task.previewAsset}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF64748B),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
               if ((task.promptText ?? '').trim().isNotEmpty) ...[
                 const SizedBox(height: 10),
-                _LabeledTextBlock(
-                  label: '老师提示',
-                  text: task.promptText!,
-                  background: const Color(0xFFF8FAFC),
+                Text(
+                  task.promptText!,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF475569),
+                    fontWeight: FontWeight.w700,
+                    height: 1.45,
+                  ),
                 ),
               ],
               if (sampleText != null) ...[
                 const SizedBox(height: 10),
-                _LabeledTextBlock(
-                  label: '这句原文',
-                  text: sampleText,
-                  background: const Color(0xFFF7F7FF),
-                  foreground: const Color(0xFF1E293B),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F7FF),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    sampleText,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ],
               if (task.review != null) ...[
@@ -3302,6 +3446,7 @@ class _TaskCard extends StatelessWidget {
                       icon: Icons.menu_book_rounded,
                       label: _pageRangeLabel(task),
                       onTap: onOpenReading,
+                      iconOnly: true,
                     ),
                   if (sampleText != null)
                     _TaskInfoChip(
@@ -3311,14 +3456,17 @@ class _TaskCard extends StatelessWidget {
                           ? Icons.audiotrack_rounded
                           : Icons.volume_up_rounded,
                       label: task.hasReferenceAudio
-                          ? (isSamplePlaying ? '示范音频播放中' : '可播放示范音频')
-                          : (isSpeaking ? '示范朗读播放中' : '可播放示范朗读'),
+                          ? (isSamplePlaying ? '停止示范' : '示范')
+                          : (isSpeaking ? '停止示范' : '示范'),
+                      onTap: onSpeakSample,
+                      iconOnly: true,
                     ),
                   if (task.hasTeachingVideo)
                     _TaskInfoChip(
                       icon: Icons.smart_display_rounded,
-                      label: '可播放配套动画',
+                      label: '动画',
                       onTap: onOpenVideo,
+                      iconOnly: true,
                     ),
                 ],
               ),
@@ -3414,11 +3562,11 @@ class _TaskCard extends StatelessWidget {
   String _statusLabel(TaskReviewStatus status) {
     switch (status) {
       case TaskReviewStatus.checked:
-        return '这一句的 AI 点评已生成';
+        return '已点评';
       case TaskReviewStatus.pendingReview:
-        return '已经提交，等待 AI 和老师处理';
+        return '等待点评';
       case TaskReviewStatus.inProgress:
-        return '先听示范，再录音提交';
+        return '去完成';
     }
   }
 
@@ -3475,7 +3623,6 @@ class _InlineSubmissionSection extends StatelessWidget {
     required this.isStoredAudioPlaying,
     required this.isStoredAudioLoading,
     this.onRecordAudio,
-    this.onPickAudio,
     this.onClearSelectedAudio,
     this.onPlaySelectedAudio,
     this.onPlayStoredAudio,
@@ -3494,7 +3641,6 @@ class _InlineSubmissionSection extends StatelessWidget {
   final bool isStoredAudioPlaying;
   final bool isStoredAudioLoading;
   final VoidCallback? onRecordAudio;
-  final VoidCallback? onPickAudio;
   final VoidCallback? onClearSelectedAudio;
   final VoidCallback? onPlaySelectedAudio;
   final VoidCallback? onPlayStoredAudio;
@@ -3504,11 +3650,11 @@ class _InlineSubmissionSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusLabel = switch (submissionFlowStatus) {
-      SubmissionFlowStatus.notStarted => isRecording ? '录音进行中' : '还没有提交',
-      SubmissionFlowStatus.queued => '等待老师点评',
-      SubmissionFlowStatus.processing => '评分处理中',
-      SubmissionFlowStatus.failed => isRecording ? '录音进行中' : '需要重新提交',
-      SubmissionFlowStatus.completed => 'AI 点评已生成',
+      SubmissionFlowStatus.notStarted => isRecording ? '录音中' : '未提交',
+      SubmissionFlowStatus.queued => '已提交',
+      SubmissionFlowStatus.processing => '评分中',
+      SubmissionFlowStatus.failed => isRecording ? '录音中' : '重试',
+      SubmissionFlowStatus.completed => '已点评',
     };
     final statusColor = switch (submissionFlowStatus) {
       SubmissionFlowStatus.notStarted => const Color(0xFF2563EB),
@@ -3518,15 +3664,11 @@ class _InlineSubmissionSection extends StatelessWidget {
       SubmissionFlowStatus.completed => const Color(0xFF16A34A),
     };
     final subtitle = switch (submissionFlowStatus) {
-      SubmissionFlowStatus.notStarted =>
-        isRecording ? '读完后点击“结束录音并保存”，再提交给老师。' : '先听示范，再录音，然后提交给老师。',
-      SubmissionFlowStatus.queued => submissionStatusHint ?? '已经提交成功，等待老师查看。',
-      SubmissionFlowStatus.processing =>
-        submissionStatusHint ?? '系统正在生成 AI 初评，请稍后刷新查看。',
-      SubmissionFlowStatus.failed =>
-        submissionStatusHint ?? '这次没有完成自动处理，你可以重新提交一次。',
-      SubmissionFlowStatus.completed =>
-        '这一句的 AI 点评已经显示在上面了，如果想读得更好，可以重新录音后再次提交。',
+      SubmissionFlowStatus.notStarted => '',
+      SubmissionFlowStatus.queued => '',
+      SubmissionFlowStatus.processing => '',
+      SubmissionFlowStatus.failed => '',
+      SubmissionFlowStatus.completed => '',
     };
     final canSubmit =
         submissionFlowStatus == SubmissionFlowStatus.notStarted ||
@@ -3534,20 +3676,20 @@ class _InlineSubmissionSection extends StatelessWidget {
         submissionFlowStatus == SubmissionFlowStatus.completed;
     final hasSelectedAudio = (selectedAudioLabel ?? '').trim().isNotEmpty;
     final primaryLabel = isRecording
-        ? '结束录音并保存'
+        ? (compact ? '停止' : '结束录音')
         : hasSelectedAudio
         ? (isSubmitting
               ? (submissionFlowStatus == SubmissionFlowStatus.failed
-                    ? '重新提交中'
+                    ? '重交中'
                     : submissionFlowStatus == SubmissionFlowStatus.completed
-                    ? '再次提交中'
+                    ? '再交中'
                     : '提交中')
               : (submissionFlowStatus == SubmissionFlowStatus.failed
-                    ? '重新提交这一句'
+                    ? (compact ? '重交' : '重新提交')
                     : submissionFlowStatus == SubmissionFlowStatus.completed
-                    ? '再次提交这一句'
-                    : '提交这一句'))
-        : '开始录音';
+                    ? (compact ? '再交' : '再次提交')
+                    : (compact ? '提交' : '提交这一句')))
+        : (compact ? '录音' : '开始录音');
     final primaryIcon = isSubmitting
         ? null
         : isRecording
@@ -3597,20 +3739,22 @@ class _InlineSubmissionSection extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF64748B),
-                  fontWeight: FontWeight.w700,
+              if (!compact && subtitle.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF64748B),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
           if (selectedAudioLabel != null) ...[
             const SizedBox(height: 12),
             _AudioInfoCard(
-              title: '准备提交的音频',
+              title: '待提交',
               fileName: selectedAudioLabel!,
               onAction: onPlaySelectedAudio,
               onDelete: onClearSelectedAudio,
@@ -3622,7 +3766,7 @@ class _InlineSubmissionSection extends StatelessWidget {
               submissionFlowStatus != SubmissionFlowStatus.notStarted) ...[
             const SizedBox(height: 12),
             _AudioInfoCard(
-              title: '已上传的音频',
+              title: '已提交',
               fileName: existingAudioLabel!,
               onAction: onPlayStoredAudio,
               isPlaying: isStoredAudioPlaying,
@@ -3654,17 +3798,6 @@ class _InlineSubmissionSection extends StatelessWidget {
                     label: Text(primaryLabel),
                   ),
                 ),
-                if (!hasSelectedAudio && onPickAudio != null) ...[
-                  const SizedBox(width: 10),
-                  OutlinedButton.icon(
-                    onPressed: isSubmitting ? null : onPickAudio,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(0, 50),
-                    ),
-                    icon: const Icon(Icons.audio_file_rounded),
-                    label: const Text('选音频'),
-                  ),
-                ],
               ],
             )
           else ...[
@@ -3691,10 +3824,13 @@ class _InlineSubmissionSection extends StatelessWidget {
             if (hasSelectedAudio && onClearSelectedAudio != null)
               Align(
                 alignment: Alignment.centerLeft,
-                child: TextButton.icon(
+                child: _RoundOutlineIconButton(
                   onPressed: isSubmitting ? null : onClearSelectedAudio,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  label: const Text('删除这段音频'),
+                  tooltip: '删除这段音频',
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Color(0xFFDC2626),
+                  ),
                 ),
               ),
           ],
@@ -3705,24 +3841,58 @@ class _InlineSubmissionSection extends StatelessWidget {
 }
 
 class _TaskInfoChip extends StatelessWidget {
-  const _TaskInfoChip({required this.icon, required this.label, this.onTap});
+  const _TaskInfoChip({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.iconOnly = false,
+  });
 
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context) {
+    final chipColor = onTap == null
+        ? const Color(0xFFF8FAFC)
+        : const Color(0xFFEAFBF1);
+    final borderColor = onTap == null ? null : const Color(0xFFD6F2E2);
+
+    if (iconOnly) {
+      final chip = Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: chipColor,
+          borderRadius: BorderRadius.circular(14),
+          border: borderColor == null ? null : Border.all(color: borderColor),
+        ),
+        child: Icon(icon, size: 18, color: const Color(0xFF2FA77D)),
+      );
+
+      final wrapped = Tooltip(message: label, child: chip);
+      if (onTap == null) {
+        return wrapped;
+      }
+
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: wrapped,
+        ),
+      );
+    }
+
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: onTap == null
-            ? const Color(0xFFF8FAFC)
-            : const Color(0xFFEAFBF1),
+        color: chipColor,
         borderRadius: BorderRadius.circular(14),
-        border: onTap == null
-            ? null
-            : Border.all(color: const Color(0xFFD6F2E2)),
+        border: borderColor == null ? null : Border.all(color: borderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -3776,28 +3946,70 @@ class _HeaderAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(22),
+    final size = MediaQuery.sizeOf(context);
+    final iconOnly = size.width > size.height && size.height < 640;
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: iconOnly ? 12 : 16,
+            vertical: 12,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 18),
+              if (!iconOnly) ...[
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
+      ),
+    );
+  }
+}
+
+class _RoundOutlineIconButton extends StatelessWidget {
+  const _RoundOutlineIconButton({
+    required this.tooltip,
+    required this.icon,
+    this.onPressed,
+  });
+
+  final String tooltip;
+  final Widget icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(42, 42),
+          maximumSize: const Size(42, 42),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
+        child: icon,
       ),
     );
   }

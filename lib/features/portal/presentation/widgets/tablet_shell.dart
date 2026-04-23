@@ -46,6 +46,7 @@ class TabletShell extends StatelessWidget {
                       constraints.maxHeight < 640;
                   final isCompact =
                       constraints.maxWidth < 640 || isLandscapePhone;
+                  final showBottomNav = !isLandscapePhone;
                   return Padding(
                     padding: EdgeInsets.fromLTRB(
                       isLandscapePhone
@@ -88,18 +89,20 @@ class TabletShell extends StatelessWidget {
                               : 20,
                         ),
                         Expanded(child: child),
-                        SizedBox(
-                          height: isLandscapePhone
-                              ? 8
-                              : isCompact
-                              ? 12
-                              : 18,
-                        ),
-                        _BottomSectionNav(
-                          activeSection: activeSection,
-                          isCompact: isCompact,
-                          isLandscapePhone: isLandscapePhone,
-                        ),
+                        if (showBottomNav) ...[
+                          SizedBox(
+                            height: isLandscapePhone
+                                ? 8
+                                : isCompact
+                                ? 12
+                                : 18,
+                          ),
+                          _BottomSectionNav(
+                            activeSection: activeSection,
+                            isCompact: isCompact,
+                            isLandscapePhone: isLandscapePhone,
+                          ),
+                        ],
                       ],
                     ),
                   );

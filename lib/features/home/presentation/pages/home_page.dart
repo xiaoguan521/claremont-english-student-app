@@ -199,78 +199,80 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayName = _studentDisplayName(currentUserEmail);
-    return Column(
-      children: [
-        _FeatureStrip(
-          onOpenFeature: (title, description, accent, icon) {
-            _showComingSoonSheet(
-              context,
-              title: title,
-              description: description,
-              accent: accent,
-              icon: icon,
-            );
-          },
-        ),
-        const SizedBox(height: 14),
-        SizedBox(
-          height: 404,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                width: 236,
-                child: Column(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: _LandscapeStudentCard(
-                        displayName: displayName,
-                        currentUserEmail: currentUserEmail,
-                        summary: summary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      flex: 2,
-                      child: _LandscapeShortcutPanel(
-                        highlightedActivityId: highlightedActivityId,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                flex: 5,
-                child: _LandscapeTaskBoard(
-                  schoolContext: schoolContext,
-                  highlightedActivityId: highlightedActivityId,
-                  highlightedActivityTitle: highlightedActivityTitle,
-                  highlightedClassName: highlightedClassName,
-                  highlightedDateLabel: highlightedDateLabel,
-                  summary: summary,
-                ),
-              ),
-              const SizedBox(width: 14),
-              SizedBox(
-                width: 252,
-                child: _LandscapeReadingRail(
-                  schoolContext: schoolContext,
-                  highlightedActivityId: highlightedActivityId,
-                  summary: summary,
-                ),
-              ),
-            ],
+    return SizedBox(
+      height: 418,
+      child: Column(
+        children: [
+          _FeatureTopBar(
+            onOpenFeature: (title, description, accent, icon) {
+              _showComingSoonSheet(
+                context,
+                title: title,
+                description: description,
+                accent: accent,
+                icon: icon,
+              );
+            },
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 236,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: _LandscapeStudentCard(
+                          displayName: displayName,
+                          currentUserEmail: currentUserEmail,
+                          summary: summary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        flex: 2,
+                        child: _LandscapeShortcutPanel(
+                          highlightedActivityId: highlightedActivityId,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  flex: 5,
+                  child: _LandscapeTaskBoard(
+                    schoolContext: schoolContext,
+                    highlightedActivityId: highlightedActivityId,
+                    highlightedActivityTitle: highlightedActivityTitle,
+                    highlightedClassName: highlightedClassName,
+                    highlightedDateLabel: highlightedDateLabel,
+                    summary: summary,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                SizedBox(
+                  width: 252,
+                  child: _LandscapeReadingRail(
+                    schoolContext: schoolContext,
+                    highlightedActivityId: highlightedActivityId,
+                    summary: summary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _FeatureStrip extends StatelessWidget {
-  const _FeatureStrip({required this.onOpenFeature});
+class _FeatureTopBar extends StatelessWidget {
+  const _FeatureTopBar({required this.onOpenFeature});
 
   final void Function(
     String title,
@@ -315,34 +317,33 @@ class _FeatureStrip extends StatelessWidget {
       ),
     ];
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.84),
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Wrap(
-              alignment: WrapAlignment.end,
-              spacing: 12,
-              runSpacing: 10,
-              children: items
-                  .map(
-                    (item) => _FeatureBubble(
-                      title: item.$1,
-                      accent: item.$3,
-                      icon: item.$4,
-                      onTap: () =>
-                          onOpenFeature(item.$1, item.$2, item.$3, item.$4),
-                    ),
-                  )
-                  .toList(),
-            ),
+    return Row(
+      children: [
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.80),
+            borderRadius: BorderRadius.circular(26),
           ),
-        ],
-      ),
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 10,
+            runSpacing: 8,
+            children: items
+                .map(
+                  (item) => _FeatureBubble(
+                    title: item.$1,
+                    accent: item.$3,
+                    icon: item.$4,
+                    onTap: () =>
+                        onOpenFeature(item.$1, item.$2, item.$3, item.$4),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ],
     );
   }
 }

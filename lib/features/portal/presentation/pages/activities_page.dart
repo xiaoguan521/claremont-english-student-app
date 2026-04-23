@@ -78,6 +78,9 @@ class ActivitiesPage extends ConsumerWidget {
       content = LayoutBuilder(
         builder: (context, constraints) {
           final isPhone = constraints.maxWidth < 760;
+          final isLandscapePhone =
+              constraints.maxWidth > constraints.maxHeight &&
+              constraints.maxWidth < 1100;
           final isShortViewport = constraints.maxHeight < 760;
           final list = activities.isEmpty
               ? _ActivitiesStateMessage(
@@ -100,6 +103,119 @@ class ActivitiesPage extends ConsumerWidget {
                     return _ActivityRow(activity: activity);
                   },
                 );
+
+          if (isLandscapePhone) {
+            return Column(
+              children: [
+                _HomeworkCalendarStrip(
+                  dates: calendarDates,
+                  selectedDate: selectedDate,
+                  today: today,
+                  activityCountByDate: activityCountByDate,
+                  onSelectDate: (date) => ref
+                      .read(selectedActivityDateProvider.notifier)
+                      .state = date,
+                ),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 236,
+                        child: SingleChildScrollView(
+                          child: _ActionRail(
+                            summary: summary,
+                            selectedDate: selectedDate,
+                            today: today,
+                            isCompact: true,
+                            onResetToToday: !_isSameDay(selectedDate, today)
+                                ? () => ref
+                                      .read(selectedActivityDateProvider.notifier)
+                                      .state = today
+                                : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.82),
+                            borderRadius: BorderRadius.circular(28),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _isSameDay(selectedDate, today)
+                                              ? '今天的作业'
+                                              : '${_formatDateLabel(selectedDate)} 的作业',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .headlineSmall
+                                              ?.copyWith(
+                                                color: const Color(0xFF1E293B),
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          activities.isEmpty
+                                              ? '这一天没有安排新的作业。'
+                                              : '点右侧卡片继续做题，漏掉的作业也可以补做。',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyLarge
+                                              ?.copyWith(
+                                                color: const Color(0xFF64748B),
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF2E4),
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: Text(
+                                      '${activities.length} 份作业',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            color: const Color(0xFFFF8F4D),
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Expanded(child: list),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }
 
           if (isPhone) {
             return SingleChildScrollView(
@@ -741,7 +857,7 @@ class _TopToolButton extends StatelessWidget {
     final backgroundColor = isPrimary
         ? const Color(0xFFFF8F4D)
         : Colors.white.withValues(alpha: 0.18);
-    final foregroundColor = Colors.white;
+    const foregroundColor = Colors.white;
 
     return InkWell(
       onTap: onTap,

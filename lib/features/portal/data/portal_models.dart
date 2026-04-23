@@ -44,6 +44,7 @@ class PortalTask {
     this.startPage,
     this.endPage,
     this.referenceAudioPath,
+    this.teachingVideoPath,
     this.region,
   });
 
@@ -59,11 +60,13 @@ class PortalTask {
   final int? startPage;
   final int? endPage;
   final String? referenceAudioPath;
+  final String? teachingVideoPath;
   final PortalTaskRegion? region;
 
   bool get hasTtsText => (ttsText ?? '').trim().isNotEmpty;
   bool get hasPageRange => startPage != null || endPage != null;
   bool get hasReferenceAudio => (referenceAudioPath ?? '').trim().isNotEmpty;
+  bool get hasTeachingVideo => (teachingVideoPath ?? '').trim().isNotEmpty;
   bool get hasReview => review != null;
   bool get hasRegion => region != null;
 }
@@ -198,7 +201,7 @@ final mockPortalActivities = [
     materialPdfPath: 'demo-materials/module-7.pdf',
     materialPageCount: 8,
     tasks: [
-      PortalTask(
+      const PortalTask(
         id: 'h-1',
         title: '8 能和不能',
         kind: TaskKind.dubbing,
@@ -210,7 +213,7 @@ final mockPortalActivities = [
         startPage: 1,
         endPage: 1,
       ),
-      PortalTask(
+      const PortalTask(
         id: 'h-2',
         title: 'Module 7-2',
         kind: TaskKind.recording,
@@ -222,7 +225,7 @@ final mockPortalActivities = [
         startPage: 2,
         endPage: 2,
       ),
-      PortalTask(
+      const PortalTask(
         id: 'h-3',
         title: 'Module 7-3',
         kind: TaskKind.recording,
@@ -234,7 +237,7 @@ final mockPortalActivities = [
         startPage: 3,
         endPage: 3,
       ),
-      PortalTask(
+      const PortalTask(
         id: 'h-4',
         title: 'Module 8-1',
         kind: TaskKind.phonics,
@@ -266,7 +269,7 @@ final mockPortalActivities = [
     materialPdfPath: 'demo-materials/module-5.pdf',
     materialPageCount: 10,
     tasks: [
-      PortalTask(
+      const PortalTask(
         id: 'z-1',
         title: 'Module 5-1',
         kind: TaskKind.recording,
@@ -278,7 +281,7 @@ final mockPortalActivities = [
         startPage: 1,
         endPage: 1,
       ),
-      PortalTask(
+      const PortalTask(
         id: 'z-2',
         title: 'Module 5-2',
         kind: TaskKind.recording,
@@ -290,7 +293,7 @@ final mockPortalActivities = [
         startPage: 2,
         endPage: 2,
       ),
-      PortalTask(
+      const PortalTask(
         id: 'z-3',
         title: '课堂短剧',
         kind: TaskKind.dubbing,
@@ -324,7 +327,7 @@ final mockPortalActivities = [
     materialPdfPath: 'demo-materials/module-3.pdf',
     materialPageCount: 6,
     tasks: [
-      PortalTask(
+      const PortalTask(
         id: 't-1',
         title: 'Module 3-1',
         kind: TaskKind.recording,
@@ -336,7 +339,7 @@ final mockPortalActivities = [
         startPage: 1,
         endPage: 1,
       ),
-      PortalTask(
+      const PortalTask(
         id: 't-2',
         title: 'Module 3-2',
         kind: TaskKind.recording,
@@ -348,7 +351,7 @@ final mockPortalActivities = [
         startPage: 2,
         endPage: 2,
       ),
-      PortalTask(
+      const PortalTask(
         id: 't-3',
         title: '元音拼读',
         kind: TaskKind.phonics,

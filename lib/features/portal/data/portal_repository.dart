@@ -233,6 +233,7 @@ class SupabasePortalRepository implements PortalRepository {
     final regionById = <String, Map<String, dynamic>>{};
     final pageById = <String, Map<String, dynamic>>{};
     final referenceAudioByRegionId = <String, String>{};
+    final teachingVideoByRegionId = <String, String>{};
 
     if (regionIds.isNotEmpty) {
       final regionsResponse = await _client
@@ -279,16 +280,22 @@ class SupabasePortalRepository implements PortalRepository {
 
       for (final row in List<Map<String, dynamic>>.from(assetRows)) {
         final regionId = row['region_id'] as String?;
-        if (regionId == null || referenceAudioByRegionId.containsKey(regionId)) {
+        if (regionId == null) {
           continue;
         }
         final role = row['asset_role'] as String?;
-        if (role == 'reference_audio' || role == 'ai_reference_audio') {
-          final bucket = row['storage_bucket'] as String?;
-          final path = row['storage_path'] as String?;
-          if (bucket != null && path != null) {
-            referenceAudioByRegionId[regionId] = '$bucket:$path';
-          }
+        final bucket = row['storage_bucket'] as String?;
+        final path = row['storage_path'] as String?;
+        if (bucket == null || path == null) {
+          continue;
+        }
+        final resolvedPath = bucket == 'asset' ? 'asset:$path' : '$bucket:$path';
+        if ((role == 'reference_audio' || role == 'ai_reference_audio') &&
+            !referenceAudioByRegionId.containsKey(regionId)) {
+          referenceAudioByRegionId[regionId] = resolvedPath;
+        } else if ((role == 'teaching_video' || role == 'practice_video') &&
+            !teachingVideoByRegionId.containsKey(regionId)) {
+          teachingVideoByRegionId[regionId] = resolvedPath;
         }
       }
     }
@@ -444,6 +451,7 @@ class SupabasePortalRepository implements PortalRepository {
               regionById: regionById,
               pageById: pageById,
               referenceAudioByRegionId: referenceAudioByRegionId,
+              teachingVideoByRegionId: teachingVideoByRegionId,
             ),
           )
           .toList();
@@ -590,7 +598,8 @@ class SupabasePortalRepository implements PortalRepository {
     PortalTaskReview? review,
     {required Map<String, Map<String, dynamic>> regionById,
     required Map<String, Map<String, dynamic>> pageById,
-    required Map<String, String> referenceAudioByRegionId,}
+    required Map<String, String> referenceAudioByRegionId,
+    required Map<String, String> teachingVideoByRegionId,}
   ) {
     final itemType = (row['item_type'] as String?) ?? 'sentence';
     final regionId = row['region_id'] as String?;
@@ -625,6 +634,9 @@ class SupabasePortalRepository implements PortalRepository {
       referenceAudioPath:
           (row['reference_audio_path'] as String?) ??
           (regionId == null ? null : referenceAudioByRegionId[regionId]),
+      teachingVideoPath: regionId == null
+          ? null
+          : teachingVideoByRegionId[regionId],
       region: regionId == null || pageImagePath == null
           ? null
           : PortalTaskRegion(

@@ -52,6 +52,7 @@ dependencies:
   google_fonts: ^8.0.2
   file_picker: ^8.0.0
   flutter_tts: ^4.2.3
+  video_player: ^2.9.5
   app_links: ^6.3.2
   path_provider: ^2.1.4
   permission_handler: ^11.4.0
@@ -97,6 +98,7 @@ flutter:
   assets:
     - .env
     - assets/textbooks/
+    - assets/media/
 
   # To add assets to your application, add an assets section, like this:
   #   - images/a_dot_burr.jpeg

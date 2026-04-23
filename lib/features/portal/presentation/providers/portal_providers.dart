@@ -23,13 +23,14 @@ final activityCalendarDatesProvider = FutureProvider<List<DateTime>>((
 ) async {
   final activities = await ref.watch(portalActivitiesProvider.future);
   final today = ref.watch(todayActivityDateProvider);
-  final dates = activities
-      .map((activity) => activity.dueDate)
-      .whereType<DateTime>()
-      .map(_normalizeDate)
-      .toSet()
-      .toList()
-    ..sort();
+  final dates =
+      activities
+          .map((activity) => activity.dueDate)
+          .whereType<DateTime>()
+          .map(_normalizeDate)
+          .toSet()
+          .toList()
+        ..sort();
 
   if (!dates.any((date) => _isSameDate(date, today))) {
     dates.add(today);
@@ -66,7 +67,9 @@ final activitiesForSelectedDateProvider = FutureProvider<List<PortalActivity>>((
   );
 });
 
-final highlightedActivityProvider = FutureProvider<PortalActivity>((ref) async {
+final highlightedActivityProvider = FutureProvider<PortalActivity?>((
+  ref,
+) async {
   final activities = await ref.watch(portalActivitiesProvider.future);
   final today = ref.watch(todayActivityDateProvider);
   final todayActivities = _activitiesForDate(
@@ -74,9 +77,11 @@ final highlightedActivityProvider = FutureProvider<PortalActivity>((ref) async {
     selectedDate: today,
     today: today,
   );
-  final visibleActivities = todayActivities.isNotEmpty ? todayActivities : activities;
+  final visibleActivities = todayActivities.isNotEmpty
+      ? todayActivities
+      : activities;
   if (activities.isEmpty) {
-    throw StateError('暂无打卡活动');
+    return null;
   }
   visibleActivities.sort(_activityPriorityCompare);
   return visibleActivities.first;
@@ -98,7 +103,9 @@ final portalSummaryProvider = FutureProvider<PortalSummary>((ref) async {
   );
 });
 
-final selectedDatePortalSummaryProvider = FutureProvider<PortalSummary>((ref) async {
+final selectedDatePortalSummaryProvider = FutureProvider<PortalSummary>((
+  ref,
+) async {
   final activities = await ref.watch(activitiesForSelectedDateProvider.future);
   return _buildSummary(activities);
 });
@@ -132,7 +139,8 @@ PortalSummary _buildSummary(List<PortalActivity> activities) {
   );
 }
 
-DateTime _normalizeDate(DateTime date) => DateTime(date.year, date.month, date.day);
+DateTime _normalizeDate(DateTime date) =>
+    DateTime(date.year, date.month, date.day);
 
 bool _isSameDate(DateTime left, DateTime right) {
   return left.year == right.year &&
@@ -151,8 +159,7 @@ List<PortalActivity> _activitiesForDate(
       return _isSameDate(selectedDate, today);
     }
     return _isSameDate(_normalizeDate(dueDate), selectedDate);
-  }).toList()
-    ..sort(_activityPriorityCompare);
+  }).toList()..sort(_activityPriorityCompare);
 }
 
 int _activityPriorityCompare(PortalActivity left, PortalActivity right) {

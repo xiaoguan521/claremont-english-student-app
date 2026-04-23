@@ -107,6 +107,76 @@ class HomePage extends ConsumerWidget {
   }
 }
 
+void _showComingSoonSheet(
+  BuildContext context, {
+  required String title,
+  required String description,
+  required Color accent,
+  required IconData icon,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (context) {
+      return Container(
+        margin: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.18),
+              blurRadius: 26,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Icon(icon, color: accent, size: 36),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: const Color(0xFF1E293B),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF64748B),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.go('/activities');
+              },
+              icon: const Icon(Icons.play_circle_fill_rounded),
+              label: const Text('先去完成作业'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 class _LandscapePhoneHomeLayout extends StatelessWidget {
   const _LandscapePhoneHomeLayout({
     required this.schoolContext,
@@ -129,55 +199,202 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayName = _studentDisplayName(currentUserEmail);
-    return SizedBox(
-      height: 420,
+    return Column(
+      children: [
+        _FeatureStrip(
+          onOpenFeature: (title, description, accent, icon) {
+            _showComingSoonSheet(
+              context,
+              title: title,
+              description: description,
+              accent: accent,
+              icon: icon,
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 404,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 236,
+                child: Column(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: _LandscapeStudentCard(
+                        displayName: displayName,
+                        currentUserEmail: currentUserEmail,
+                        summary: summary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      flex: 2,
+                      child: _LandscapeShortcutPanel(
+                        highlightedActivityId: highlightedActivityId,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                flex: 5,
+                child: _LandscapeTaskBoard(
+                  schoolContext: schoolContext,
+                  highlightedActivityId: highlightedActivityId,
+                  highlightedActivityTitle: highlightedActivityTitle,
+                  highlightedClassName: highlightedClassName,
+                  highlightedDateLabel: highlightedDateLabel,
+                  summary: summary,
+                ),
+              ),
+              const SizedBox(width: 14),
+              SizedBox(
+                width: 252,
+                child: _LandscapeReadingRail(
+                  schoolContext: schoolContext,
+                  highlightedActivityId: highlightedActivityId,
+                  summary: summary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FeatureStrip extends StatelessWidget {
+  const _FeatureStrip({required this.onOpenFeature});
+
+  final void Function(
+    String title,
+    String description,
+    Color accent,
+    IconData icon,
+  )
+  onOpenFeature;
+
+  @override
+  Widget build(BuildContext context) {
+    const items = [
+      (
+        '背单词',
+        '单词乐园正在准备中，后面会用小游戏帮你记住今天的新单词。',
+        Color(0xFFFFC533),
+        Icons.translate_rounded,
+      ),
+      (
+        '视频配音',
+        '视频配音正在准备中，后面会把动画里的句子做成跟读练习。',
+        Color(0xFFFF8C5A),
+        Icons.ondemand_video_rounded,
+      ),
+      (
+        '快乐听',
+        '快乐听正在准备中，后面会给你更多有趣的听力素材。',
+        Color(0xFF6EA8FF),
+        Icons.headphones_rounded,
+      ),
+      (
+        '练口语',
+        '练口语正在准备中，后面会给你更多闯关式口语练习。',
+        Color(0xFFFFB255),
+        Icons.record_voice_over_rounded,
+      ),
+      (
+        '创作作品',
+        '创作作品正在准备中，以后你可以在这里保存自己的朗读作品。',
+        Color(0xFF71D49A),
+        Icons.wb_sunny_rounded,
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(28),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 220,
-            child: Column(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: _LandscapeStudentCard(
-                    displayName: displayName,
-                    currentUserEmail: currentUserEmail,
-                    summary: summary,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  flex: 2,
-                  child: _LandscapeShortcutPanel(
-                    highlightedActivityId: highlightedActivityId,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 14),
           Expanded(
-            flex: 5,
-            child: _LandscapeTaskBoard(
-              schoolContext: schoolContext,
-              highlightedActivityId: highlightedActivityId,
-              highlightedActivityTitle: highlightedActivityTitle,
-              highlightedClassName: highlightedClassName,
-              highlightedDateLabel: highlightedDateLabel,
-              summary: summary,
-            ),
-          ),
-          const SizedBox(width: 14),
-          SizedBox(
-            width: 244,
-            child: _LandscapeReadingRail(
-              schoolContext: schoolContext,
-              highlightedActivityId: highlightedActivityId,
-              summary: summary,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 12,
+              runSpacing: 10,
+              children: items
+                  .map(
+                    (item) => _FeatureBubble(
+                      title: item.$1,
+                      accent: item.$3,
+                      icon: item.$4,
+                      onTap: () =>
+                          onOpenFeature(item.$1, item.$2, item.$3, item.$4),
+                    ),
+                  )
+                  .toList(),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FeatureBubble extends StatelessWidget {
+  const _FeatureBubble({
+    required this.title,
+    required this.accent,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String title;
+  final Color accent;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        width: 92,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: accent.withValues(alpha: 0.18)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: accent,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF334155),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -249,8 +466,15 @@ class _LandscapeStudentCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2FB98B).withValues(alpha: 0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,12 +500,14 @@ class _LandscapeStudentCard extends StatelessWidget {
                 width: 54,
                 height: 54,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFE7F0FF),
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF8FD2FF), Color(0xFF6EE7C8)],
+                  ),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.person_rounded,
-                  color: Color(0xFF64748B),
+                  color: Colors.white,
                   size: 30,
                 ),
               ),
@@ -319,7 +545,7 @@ class _LandscapeStudentCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _LandscapeMetric(
-                  icon: Icons.star_rounded,
+                  icon: Icons.stars_rounded,
                   color: const Color(0xFFF5B019),
                   value: '${summary.totalActivities}',
                   label: '任务',
@@ -405,7 +631,7 @@ class _LandscapeShortcutPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(30),
       ),
       child: GridView.count(
@@ -428,10 +654,16 @@ class _LandscapeShortcutPanel extends StatelessWidget {
             onTap: () => context.go('/activities/$highlightedActivityId'),
           ),
           _LandscapeShortcutButton(
-            icon: Icons.school_rounded,
-            label: '学校',
+            icon: Icons.notifications_active_rounded,
+            label: '提醒',
             accent: const Color(0xFF55C38A),
-            onTap: () => context.go('/home'),
+            onTap: () => _showComingSoonSheet(
+              context,
+              title: '学习提醒',
+              description: '学习提醒正在准备中，以后老师发来消息会先在这里提醒你。',
+              accent: const Color(0xFF55C38A),
+              icon: Icons.notifications_active_rounded,
+            ),
           ),
           _LandscapeShortcutButton(
             icon: Icons.stars_rounded,
@@ -510,7 +742,7 @@ class _LandscapeTaskBoard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.82),
+        color: Colors.white.withValues(alpha: 0.86),
         borderRadius: BorderRadius.circular(34),
       ),
       child: Row(
@@ -533,21 +765,44 @@ class _LandscapeTaskBoard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.assignment_rounded,
-                      color: Colors.white,
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.24),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.assignment_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '今日主线',
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ),
+                    ],
                   ),
                   const Spacer(),
                   Text(
-                    '今日课表',
+                    '今天先完成这份作业',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: Colors.white.withValues(alpha: 0.92),
                       fontWeight: FontWeight.w800,
@@ -580,7 +835,7 @@ class _LandscapeTaskBoard extends StatelessWidget {
                     ),
                     onPressed: () =>
                         context.go('/activities/$highlightedActivityId'),
-                    child: const Text('开始今天课表'),
+                    child: const Text('开始今日任务'),
                   ),
                 ],
               ),
@@ -597,7 +852,7 @@ class _LandscapeTaskBoard extends StatelessWidget {
                       Expanded(
                         child: _LandscapeFeatureCard(
                           title: '今日任务',
-                          subtitle: '今天安排的作业',
+                          subtitle: '点进去继续完成今天的学习',
                           value: '${summary.totalActivities}',
                           accent: const Color(0xFF73B7FF),
                           icon: Icons.auto_stories_rounded,
@@ -608,7 +863,7 @@ class _LandscapeTaskBoard extends StatelessWidget {
                       Expanded(
                         child: _LandscapeFeatureCard(
                           title: '点评中心',
-                          subtitle: '查看老师和 AI 点评',
+                          subtitle: '完成作业后回来查看点评',
                           value: '${summary.completedActivities}',
                           accent: const Color(0xFFFF8F4D),
                           icon: Icons.rate_review_rounded,
@@ -623,7 +878,7 @@ class _LandscapeTaskBoard extends StatelessWidget {
                 Expanded(
                   child: _LandscapeFeatureCard(
                     title: '任务中心',
-                    subtitle: '继续未完成的学习任务',
+                    subtitle: '还有这些内容等你完成',
                     value: '${summary.pendingTasks}',
                     accent: const Color(0xFF59C38C),
                     icon: Icons.checklist_rounded,
@@ -796,7 +1051,7 @@ class _LandscapeReadingRail extends StatelessWidget {
       children: [
         Expanded(
           child: _LandscapeShelfCard(
-            title: '跟读绘本',
+            title: '课本跟读',
             subtitle: '点进去继续今天的课本阅读',
             accent: const Color(0xFF71B7FF),
             icon: Icons.auto_stories_rounded,

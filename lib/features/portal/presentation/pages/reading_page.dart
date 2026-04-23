@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -18,7 +17,7 @@ class ReadingPage extends StatefulWidget {
 
 class _ReadingPageState extends State<ReadingPage> {
   late final PdfViewerController _pdfController;
-  late final Future<Uint8List> _pdfFuture;
+  late final Future<Uint8List?> _pdfFuture;
 
   @override
   void initState() {
@@ -27,10 +26,15 @@ class _ReadingPageState extends State<ReadingPage> {
     _pdfFuture = _loadPdfBytes();
   }
 
-  Future<Uint8List> _loadPdfBytes() async {
+  Future<Uint8List?> _loadPdfBytes() async {
     final pdfPath = widget.activity.materialPdfPath;
     if (pdfPath == null || pdfPath.trim().isEmpty) {
-      throw StateError('老师还没有上传教材 PDF。');
+      return null;
+    }
+
+    if (pdfPath.startsWith('asset:')) {
+      final bytes = await rootBundle.load(pdfPath.substring('asset:'.length));
+      return bytes.buffer.asUint8List();
     }
 
     return Supabase.instance.client.storage.from('materials').download(pdfPath);
@@ -110,17 +114,24 @@ class _ReadingPageState extends State<ReadingPage> {
                 borderRadius: BorderRadius.circular(28),
                 child: Material(
                   color: Colors.white,
-                  child: FutureBuilder<Uint8List>(
+                  child: FutureBuilder<Uint8List?>(
                     future: _pdfFuture,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState != ConnectionState.done) {
                         return const Center(child: CircularProgressIndicator());
                       }
 
-                      if (snapshot.hasError || !snapshot.hasData) {
+                      if (snapshot.hasError) {
                         return _PdfStateMessage(
                           title: '教材暂时打不开',
                           message: snapshot.error?.toString() ?? '请稍后重试。',
+                        );
+                      }
+
+                      if (!snapshot.hasData || snapshot.data == null) {
+                        return const _PdfStateMessage(
+                          title: '这份教材还在准备中',
+                          message: '老师还没有上传这一页的教材，先去完成别的任务吧。',
                         );
                       }
 

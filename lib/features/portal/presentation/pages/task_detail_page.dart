@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +13,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../school/presentation/providers/school_context_provider.dart';
 import '../../data/portal_models.dart';
@@ -38,6 +38,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   final GlobalKey _focusedTaskAnchorKey = GlobalKey();
   final GlobalKey _textbookAnchorKey = GlobalKey();
   final Map<String, String> _storedAudioCache = {};
+  final Map<String, String> _storedVideoCache = {};
   final List<StreamSubscription<dynamic>> _playerSubscriptions = [];
 
   Timer? _statusRefreshTimer;
@@ -510,6 +511,30 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     );
   }
 
+  Future<void> _openTeachingVideo(PortalTask task) async {
+    final videoPath = task.teachingVideoPath;
+    if (videoPath == null || videoPath.trim().isEmpty) {
+      _showMessage('这句暂时还没有配套动画。');
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _TeachingVideoDialog(
+        title: task.title,
+        rawReference: videoPath,
+        onResolveStoragePath: (reference) => _resolveStorageVideoPath(
+          reference,
+          defaultBucket: 'teaching-video',
+        ),
+      ),
+    );
+  }
+
   Future<void> _openReadingPage(
     PortalActivity activity, {
     PortalTask? task,
@@ -636,6 +661,20 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return cachedPath;
     }
 
+    if (resolvedReference.bucketId == 'asset') {
+      final assetPath = resolvedReference.path;
+      final bytes = await rootBundle.load(assetPath);
+      final tempDir = await getTemporaryDirectory();
+      final fileName = assetPath.split('/').last;
+      final targetPath =
+          '${tempDir.path}/asset-audio-${DateTime.now().millisecondsSinceEpoch}-$fileName';
+      await File(
+        targetPath,
+      ).writeAsBytes(bytes.buffer.asUint8List(), flush: true);
+      _storedAudioCache[cacheKey] = targetPath;
+      return targetPath;
+    }
+
     final bytes = await Supabase.instance.client.storage
         .from(resolvedReference.bucketId)
         .download(resolvedReference.path);
@@ -645,6 +684,46 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         '${tempDir.path}/${resolvedReference.bucketId.replaceAll(RegExp(r"[^a-zA-Z0-9_-]"), "_")}-$fileName';
     await File(targetPath).writeAsBytes(bytes, flush: true);
     _storedAudioCache[cacheKey] = targetPath;
+    return targetPath;
+  }
+
+  Future<String> _resolveStorageVideoPath(
+    String storageReference, {
+    required String defaultBucket,
+  }) async {
+    final resolvedReference = _resolveStorageReference(
+      storageReference,
+      defaultBucket: defaultBucket,
+    );
+    final cacheKey = '${resolvedReference.bucketId}:${resolvedReference.path}';
+    final cachedPath = _storedVideoCache[cacheKey];
+    if (cachedPath != null && await File(cachedPath).exists()) {
+      return cachedPath;
+    }
+
+    if (resolvedReference.bucketId == 'asset') {
+      final assetPath = resolvedReference.path;
+      final bytes = await rootBundle.load(assetPath);
+      final tempDir = await getTemporaryDirectory();
+      final fileName = assetPath.split('/').last;
+      final targetPath =
+          '${tempDir.path}/asset-video-${DateTime.now().millisecondsSinceEpoch}-$fileName';
+      await File(
+        targetPath,
+      ).writeAsBytes(bytes.buffer.asUint8List(), flush: true);
+      _storedVideoCache[cacheKey] = targetPath;
+      return targetPath;
+    }
+
+    final bytes = await Supabase.instance.client.storage
+        .from(resolvedReference.bucketId)
+        .download(resolvedReference.path);
+    final tempDir = await getTemporaryDirectory();
+    final fileName = resolvedReference.path.split('/').last;
+    final targetPath =
+        '${tempDir.path}/${resolvedReference.bucketId.replaceAll(RegExp(r"[^a-zA-Z0-9_-]"), "_")}-video-$fileName';
+    await File(targetPath).writeAsBytes(bytes, flush: true);
+    _storedVideoCache[cacheKey] = targetPath;
     return targetPath;
   }
 
@@ -952,10 +1031,12 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
               task: focusTask,
               focusedTaskId: focusedTaskId,
               taskIndex:
-                  activity.tasks.indexWhere((task) => task.id == focusTask.id) + 1,
+                  activity.tasks.indexWhere((task) => task.id == focusTask.id) +
+                  1,
               totalTasks: activity.tasks.length,
               onSelectTask: _setFocusedTask,
-              onOpenFullScreen: () => _openReadingPage(activity, task: focusTask),
+              onOpenFullScreen: () =>
+                  _openReadingPage(activity, task: focusTask),
               compact: isLandscapePhone,
               bottomSheet: _TextbookFloatingPanel(
                 task: focusTask,
@@ -985,6 +1066,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                     : _sampleTextFor(focusTask) == null
                     ? null
                     : () => _speakSample(focusTask),
+                onOpenVideo: focusTask.hasTeachingVideo
+                    ? () => _openTeachingVideo(focusTask)
+                    : null,
                 onPickAudio: _isRecording ? null : _pickAudioFile,
                 onRecordAudio: _toggleRecording,
                 onClearSelectedAudio: _selectedAudio == null
@@ -1026,6 +1110,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                 : _sampleTextFor(focusTask) == null
                 ? null
                 : () => _speakSample(focusTask),
+            onOpenVideo: focusTask.hasTeachingVideo
+                ? () => _openTeachingVideo(focusTask)
+                : null,
             onPickAudio: _isRecording ? null : _pickAudioFile,
             onRecordAudio: _toggleRecording,
             onClearSelectedAudio: _selectedAudio == null
@@ -1047,7 +1134,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(flex: 6, child: SingleChildScrollView(child: stageCard)),
+                Expanded(
+                  flex: 6,
+                  child: SingleChildScrollView(child: stageCard),
+                ),
                 const SizedBox(width: 16),
                 SizedBox(width: 340, child: reviewPanel),
               ],
@@ -1090,7 +1180,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                 key: _focusedTaskAnchorKey,
                 child: _TaskCard(
                   index:
-                      activity.tasks.indexWhere((task) => task.id == focusTask.id) +
+                      activity.tasks.indexWhere(
+                        (task) => task.id == focusTask.id,
+                      ) +
                       1,
                   task: focusTask,
                   submissionFlowStatus: activity.submissionFlowStatus,
@@ -1109,7 +1201,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                             _loadingAudioKey
                       : false,
                   isEncouragementPlaying:
-                      (focusTask.review?.encouragement.trim().isNotEmpty == true &&
+                      (focusTask.review?.encouragement.trim().isNotEmpty ==
+                              true &&
                           _generatedSampleAudioKey(
                                 _encouragementSpeechKey(focusTask.id),
                                 schoolContext.schoolId ?? 'local',
@@ -1118,7 +1211,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                               _playingAudioKey) ||
                       _speakingTaskId == _encouragementSpeechKey(focusTask.id),
                   isEncouragementLoading:
-                      focusTask.review?.encouragement.trim().isNotEmpty == true &&
+                      focusTask.review?.encouragement.trim().isNotEmpty ==
+                          true &&
                       _generatedSampleAudioKey(
                             _encouragementSpeechKey(focusTask.id),
                             schoolContext.schoolId ?? 'local',
@@ -1137,6 +1231,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                       : _sampleTextFor(focusTask) == null
                       ? null
                       : () => _speakSample(focusTask),
+                  onOpenVideo: focusTask.hasTeachingVideo
+                      ? () => _openTeachingVideo(focusTask)
+                      : null,
                   onPickAudio: _isRecording ? null : _pickAudioFile,
                   onRecordAudio: _toggleRecording,
                   onClearSelectedAudio: _selectedAudio == null
@@ -1228,6 +1325,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
     required this.sampleSpeechKeyForTask,
     this.onOpenReading,
     this.onSpeakSample,
+    this.onOpenVideo,
     this.onPickAudio,
     this.onRecordAudio,
     this.onClearSelectedAudio,
@@ -1255,6 +1353,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
   final String sampleSpeechKeyForTask;
   final VoidCallback? onOpenReading;
   final VoidCallback? onSpeakSample;
+  final VoidCallback? onOpenVideo;
   final VoidCallback? onPickAudio;
   final VoidCallback? onRecordAudio;
   final VoidCallback? onClearSelectedAudio;
@@ -1307,7 +1406,10 @@ class _LandscapeReviewColumn extends StatelessWidget {
               key: focusedTaskAnchorKey,
               child: _TaskCard(
                 index:
-                    activity.tasks.indexWhere((task) => task.id == focusTask.id) + 1,
+                    activity.tasks.indexWhere(
+                      (task) => task.id == focusTask.id,
+                    ) +
+                    1,
                 task: focusTask,
                 submissionFlowStatus: activity.submissionFlowStatus,
                 submissionStatusHint: activity.submissionStatusHint,
@@ -1325,7 +1427,8 @@ class _LandscapeReviewColumn extends StatelessWidget {
                           loadingAudioKey
                     : false,
                 isEncouragementPlaying:
-                    (focusTask.review?.encouragement.trim().isNotEmpty == true &&
+                    (focusTask.review?.encouragement.trim().isNotEmpty ==
+                            true &&
                         _generatedSampleAudioKey(
                               _encouragementSpeechKey(focusTask.id),
                               schoolContext.schoolId ?? 'local',
@@ -1347,6 +1450,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
                 isStoredAudioLoading: storedAudioKey == loadingAudioKey,
                 onOpenReading: onOpenReading,
                 onSpeakSample: onSpeakSample,
+                onOpenVideo: onOpenVideo,
                 onPickAudio: onPickAudio,
                 onRecordAudio: onRecordAudio,
                 onClearSelectedAudio: onClearSelectedAudio,
@@ -1487,7 +1591,7 @@ class _TextbookStageCard extends StatefulWidget {
 
 class _TextbookStageCardState extends State<_TextbookStageCard> {
   late final PdfViewerController _pdfController;
-  late Future<Uint8List> _pdfFuture;
+  late Future<Uint8List?> _pdfFuture;
   bool _documentReady = false;
 
   @override
@@ -1515,10 +1619,15 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
     _pdfFuture = _loadPdfBytes();
   }
 
-  Future<Uint8List> _loadPdfBytes() async {
+  Future<Uint8List?> _loadPdfBytes() async {
     final pdfPath = widget.activity.materialPdfPath;
     if (pdfPath == null || pdfPath.trim().isEmpty) {
-      throw StateError('老师还没有上传教材 PDF。');
+      return null;
+    }
+
+    if (pdfPath.startsWith('asset:')) {
+      final bytes = await rootBundle.load(pdfPath.substring('asset:'.length));
+      return bytes.buffer.asUint8List();
     }
 
     return Supabase.instance.client.storage.from('materials').download(pdfPath);
@@ -1550,19 +1659,24 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
   Widget build(BuildContext context) {
     final pageLabel = _pageRangeLabel(widget.task);
     final focusedPageImagePath = widget.task.region?.pageImagePath;
-    final pageTasks = focusedPageImagePath == null
-        ? const <PortalTask>[]
-        : widget.tasks
-              .where((task) => task.region?.pageImagePath == focusedPageImagePath)
-              .toList()
-            ..sort(
-              (left, right) =>
-                  (left.region?.pageNumber ?? 0) == (right.region?.pageNumber ?? 0)
-                  ? left.title.compareTo(right.title)
-                  : (left.region?.pageNumber ?? 0).compareTo(
-                      right.region?.pageNumber ?? 0,
-                    ),
-            );
+    final pageTasks =
+        focusedPageImagePath == null
+              ? const <PortalTask>[]
+              : widget.tasks
+                    .where(
+                      (task) =>
+                          task.region?.pageImagePath == focusedPageImagePath,
+                    )
+                    .toList()
+          ..sort(
+            (left, right) =>
+                (left.region?.pageNumber ?? 0) ==
+                    (right.region?.pageNumber ?? 0)
+                ? left.title.compareTo(right.title)
+                : (left.region?.pageNumber ?? 0).compareTo(
+                    right.region?.pageNumber ?? 0,
+                  ),
+          );
 
     final contentHeight = widget.compact ? 430.0 : 560.0;
     final stageBottomInset = widget.compact ? 160.0 : 184.0;
@@ -1658,7 +1772,7 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
                               focusedTaskId: widget.focusedTaskId,
                               onSelectTask: widget.onSelectTask,
                             )
-                          : FutureBuilder<Uint8List>(
+                          : FutureBuilder<Uint8List?>(
                               future: _pdfFuture,
                               builder: (context, snapshot) {
                                 if (snapshot.connectionState !=
@@ -1668,11 +1782,19 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
                                   );
                                 }
 
-                                if (snapshot.hasError || !snapshot.hasData) {
+                                if (snapshot.hasError) {
                                   return _PdfStateMessage(
                                     title: '教材暂时打不开',
                                     message:
                                         snapshot.error?.toString() ?? '请稍后重试。',
+                                  );
+                                }
+
+                                if (!snapshot.hasData ||
+                                    snapshot.data == null) {
+                                  return const _PdfStateMessage(
+                                    title: '这句课本内容还在准备中',
+                                    message: '老师还没有把这一页教材传上来，先切到别的句子继续练习吧。',
                                   );
                                 }
 
@@ -1801,12 +1923,15 @@ class _TextbookImageStage extends StatelessWidget {
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: (isFocused
-                                            ? const Color(0xFFEA580C)
-                                            : isDone
-                                            ? const Color(0xFF16A34A)
-                                            : Colors.black)
-                                        .withValues(alpha: isFocused ? 0.20 : 0.08),
+                                    color:
+                                        (isFocused
+                                                ? const Color(0xFFEA580C)
+                                                : isDone
+                                                ? const Color(0xFF16A34A)
+                                                : Colors.black)
+                                            .withValues(
+                                              alpha: isFocused ? 0.20 : 0.08,
+                                            ),
                                     blurRadius: isFocused ? 18 : 10,
                                     offset: const Offset(0, 4),
                                   ),
@@ -1824,13 +1949,17 @@ class _TextbookImageStage extends StatelessWidget {
                                       ),
                                       decoration: BoxDecoration(
                                         color: chipBackground,
-                                        borderRadius: BorderRadius.circular(999),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
                                       ),
                                       child: Text(
                                         statusLabel,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context).textTheme.bodySmall
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
                                             ?.copyWith(
                                               color: chipForeground,
                                               fontWeight: FontWeight.w900,
@@ -1847,14 +1976,18 @@ class _TextbookImageStage extends StatelessWidget {
                                         vertical: 6,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.96),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.96,
+                                        ),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
                                         task.title,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context).textTheme.bodySmall
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
                                             ?.copyWith(
                                               color: const Color(0xFF1E293B),
                                               fontWeight: FontWeight.w900,
@@ -1896,14 +2029,13 @@ class _StageImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (path.startsWith('asset:')) {
-      return Image.asset(
-        path.substring('asset:'.length),
-        fit: BoxFit.contain,
-      );
+      return Image.asset(path.substring('asset:'.length), fit: BoxFit.contain);
     }
 
     return FutureBuilder<Uint8List>(
-      future: Supabase.instance.client.storage.from('material-pages').download(path),
+      future: Supabase.instance.client.storage
+          .from('material-pages')
+          .download(path),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
@@ -2037,6 +2169,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
     required this.isStoredAudioLoading,
     this.onOpenReading,
     this.onSpeakSample,
+    this.onOpenVideo,
     this.onPickAudio,
     this.onRecordAudio,
     this.onClearSelectedAudio,
@@ -2060,6 +2193,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
   final bool isStoredAudioLoading;
   final VoidCallback? onOpenReading;
   final VoidCallback? onSpeakSample;
+  final VoidCallback? onOpenVideo;
   final VoidCallback? onPickAudio;
   final VoidCallback? onRecordAudio;
   final VoidCallback? onClearSelectedAudio;
@@ -2181,6 +2315,12 @@ class _TextbookFloatingPanel extends StatelessWidget {
                     : '点这里听示范',
                 onTap: onSpeakSample,
               ),
+              if (task.hasTeachingVideo)
+                _TaskInfoChip(
+                  icon: Icons.smart_display_rounded,
+                  label: '看动画',
+                  onTap: onOpenVideo,
+                ),
               if (selectedAudioLabel != null)
                 _TaskInfoChip(
                   icon: isSelectedAudioPlaying
@@ -2406,6 +2546,168 @@ class _AudioInfoCard extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _TeachingVideoDialog extends StatefulWidget {
+  const _TeachingVideoDialog({
+    required this.title,
+    required this.rawReference,
+    required this.onResolveStoragePath,
+  });
+
+  final String title;
+  final String rawReference;
+  final Future<String> Function(String reference) onResolveStoragePath;
+
+  @override
+  State<_TeachingVideoDialog> createState() => _TeachingVideoDialogState();
+}
+
+class _TeachingVideoDialogState extends State<_TeachingVideoDialog> {
+  VideoPlayerController? _controller;
+  Future<void>? _initializeFuture;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _prepareController();
+  }
+
+  Future<void> _prepareController() async {
+    try {
+      final controller = await _buildController();
+      _controller = controller;
+      _initializeFuture = controller.initialize().then((_) async {
+        await controller.setLooping(true);
+      });
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (_) {
+      _errorMessage = '这段动画暂时打不开，请稍后再试。';
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  Future<VideoPlayerController> _buildController() async {
+    if (widget.rawReference.startsWith('asset:')) {
+      return VideoPlayerController.asset(
+        widget.rawReference.substring('asset:'.length),
+      );
+    }
+
+    final path = await widget.onResolveStoragePath(widget.rawReference);
+    return VideoPlayerController.file(File(path));
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 760),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${widget.title} · 配套动画',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_errorMessage != null)
+              _PdfStateMessage(title: '动画暂时打不开', message: _errorMessage!)
+            else if (_initializeFuture == null || _controller == null)
+              const SizedBox(
+                height: 260,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              FutureBuilder<void>(
+                future: _initializeFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const SizedBox(
+                      height: 260,
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return const _PdfStateMessage(
+                      title: '动画暂时打不开',
+                      message: '这段动画还没有准备好，请稍后再试。',
+                    );
+                  }
+                  final controller = _controller!;
+                  return Column(
+                    children: [
+                      AspectRatio(
+                        aspectRatio: controller.value.aspectRatio == 0
+                            ? 16 / 9
+                            : controller.value.aspectRatio,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: VideoPlayer(controller),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      FilledButton.icon(
+                        onPressed: () async {
+                          if (controller.value.isPlaying) {
+                            await controller.pause();
+                          } else {
+                            await controller.play();
+                          }
+                          if (mounted) {
+                            setState(() {});
+                          }
+                        },
+                        icon: Icon(
+                          controller.value.isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                        ),
+                        label: Text(
+                          controller.value.isPlaying ? '暂停动画' : '播放动画',
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -2797,6 +3099,7 @@ class _TaskCard extends StatelessWidget {
     required this.isEncouragementLoading,
     this.onOpenReading,
     this.onSpeakSample,
+    this.onOpenVideo,
     this.onPickAudio,
     this.onRecordAudio,
     this.onClearSelectedAudio,
@@ -2827,6 +3130,7 @@ class _TaskCard extends StatelessWidget {
   final bool isEncouragementLoading;
   final VoidCallback? onOpenReading;
   final VoidCallback? onSpeakSample;
+  final VoidCallback? onOpenVideo;
   final VoidCallback? onPickAudio;
   final VoidCallback? onRecordAudio;
   final VoidCallback? onPlaySelectedAudio;
@@ -2994,6 +3298,12 @@ class _TaskCard extends StatelessWidget {
                       label: task.hasReferenceAudio
                           ? (isSamplePlaying ? '示范音频播放中' : '可播放示范音频')
                           : (isSpeaking ? '示范朗读播放中' : '可播放示范朗读'),
+                    ),
+                  if (task.hasTeachingVideo)
+                    _TaskInfoChip(
+                      icon: Icons.smart_display_rounded,
+                      label: '可播放配套动画',
+                      onTap: onOpenVideo,
                     ),
                 ],
               ),

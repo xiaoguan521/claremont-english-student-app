@@ -41,13 +41,33 @@ class TabletShell extends StatelessWidget {
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final isCompact = constraints.maxWidth < 640;
+                  final isLandscapePhone =
+                      constraints.maxWidth > constraints.maxHeight &&
+                      constraints.maxHeight < 640;
+                  final isCompact =
+                      constraints.maxWidth < 640 || isLandscapePhone;
                   return Padding(
                     padding: EdgeInsets.fromLTRB(
-                      isCompact ? 16 : 28,
-                      isCompact ? 14 : 22,
-                      isCompact ? 16 : 28,
-                      isCompact ? 14 : 18,
+                      isLandscapePhone
+                          ? 14
+                          : isCompact
+                          ? 16
+                          : 28,
+                      isLandscapePhone
+                          ? 10
+                          : isCompact
+                          ? 14
+                          : 22,
+                      isLandscapePhone
+                          ? 14
+                          : isCompact
+                          ? 16
+                          : 28,
+                      isLandscapePhone
+                          ? 8
+                          : isCompact
+                          ? 14
+                          : 18,
                     ),
                     child: Column(
                       children: [
@@ -58,13 +78,27 @@ class TabletShell extends StatelessWidget {
                           brandSubtitle: brandSubtitle,
                           actions: actions,
                           isCompact: isCompact,
+                          isLandscapePhone: isLandscapePhone,
                         ),
-                        SizedBox(height: isCompact ? 14 : 20),
+                        SizedBox(
+                          height: isLandscapePhone
+                              ? 10
+                              : isCompact
+                              ? 14
+                              : 20,
+                        ),
                         Expanded(child: child),
-                        SizedBox(height: isCompact ? 12 : 18),
+                        SizedBox(
+                          height: isLandscapePhone
+                              ? 8
+                              : isCompact
+                              ? 12
+                              : 18,
+                        ),
                         _BottomSectionNav(
                           activeSection: activeSection,
                           isCompact: isCompact,
+                          isLandscapePhone: isLandscapePhone,
                         ),
                       ],
                     ),
@@ -86,6 +120,7 @@ class _TopBar extends StatelessWidget {
   final String? brandSubtitle;
   final List<Widget>? actions;
   final bool isCompact;
+  final bool isLandscapePhone;
 
   const _TopBar({
     required this.title,
@@ -94,6 +129,7 @@ class _TopBar extends StatelessWidget {
     this.brandSubtitle,
     this.actions,
     required this.isCompact,
+    required this.isLandscapePhone,
   });
 
   @override
@@ -181,7 +217,7 @@ class _TopBar extends StatelessWidget {
       ),
     );
 
-    if (isCompact) {
+    if (isCompact && !isLandscapePhone) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -199,7 +235,7 @@ class _TopBar extends StatelessWidget {
     return Row(
       children: [
         brandChip,
-        const SizedBox(width: 18),
+        SizedBox(width: isLandscapePhone ? 12 : 18),
         titleChip,
         const Spacer(),
         ...?actions,
@@ -211,10 +247,12 @@ class _TopBar extends StatelessWidget {
 class _BottomSectionNav extends StatelessWidget {
   final TabletSection activeSection;
   final bool isCompact;
+  final bool isLandscapePhone;
 
   const _BottomSectionNav({
     required this.activeSection,
     required this.isCompact,
+    required this.isLandscapePhone,
   });
 
   @override
@@ -223,8 +261,16 @@ class _BottomSectionNav extends StatelessWidget {
       child: Container(
         constraints: const BoxConstraints(maxWidth: 560),
         padding: EdgeInsets.symmetric(
-          horizontal: isCompact ? 12 : 18,
-          vertical: isCompact ? 10 : 12,
+          horizontal: isLandscapePhone
+              ? 10
+              : isCompact
+              ? 12
+              : 18,
+          vertical: isLandscapePhone
+              ? 8
+              : isCompact
+              ? 10
+              : 12,
         ),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.86),

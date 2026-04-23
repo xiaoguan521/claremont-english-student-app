@@ -42,8 +42,21 @@ class HomePage extends ConsumerWidget {
           builder: (context, constraints) {
             final isPhone = constraints.maxWidth < 700;
             final isWide = constraints.maxWidth >= 1160;
+            final isLandscapePhone =
+                constraints.maxWidth > constraints.maxHeight &&
+                constraints.maxWidth < 1100;
             final content = isWide
                 ? _WideHomeLayout(
+                    schoolContext: schoolContext,
+                    currentUserEmail: currentUserEmail,
+                    highlightedActivityId: highlightedActivity.id,
+                    highlightedActivityTitle: highlightedActivity.title,
+                    highlightedClassName: highlightedActivity.className,
+                    highlightedDateLabel: highlightedActivity.dateLabel,
+                    summary: summary,
+                  )
+                : isLandscapePhone
+                ? _LandscapePhoneHomeLayout(
                     schoolContext: schoolContext,
                     currentUserEmail: currentUserEmail,
                     highlightedActivityId: highlightedActivity.id,
@@ -94,6 +107,82 @@ class HomePage extends ConsumerWidget {
   }
 }
 
+class _LandscapePhoneHomeLayout extends StatelessWidget {
+  const _LandscapePhoneHomeLayout({
+    required this.schoolContext,
+    required this.currentUserEmail,
+    required this.highlightedActivityId,
+    required this.highlightedActivityTitle,
+    required this.highlightedClassName,
+    required this.highlightedDateLabel,
+    required this.summary,
+  });
+
+  final SchoolContext schoolContext;
+  final String? currentUserEmail;
+  final String highlightedActivityId;
+  final String highlightedActivityTitle;
+  final String highlightedClassName;
+  final String highlightedDateLabel;
+  final PortalSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = _studentDisplayName(currentUserEmail);
+    return SizedBox(
+      height: 420,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 220,
+            child: Column(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _LandscapeStudentCard(
+                    displayName: displayName,
+                    currentUserEmail: currentUserEmail,
+                    summary: summary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  flex: 2,
+                  child: _LandscapeShortcutPanel(
+                    highlightedActivityId: highlightedActivityId,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            flex: 5,
+            child: _LandscapeTaskBoard(
+              schoolContext: schoolContext,
+              highlightedActivityId: highlightedActivityId,
+              highlightedActivityTitle: highlightedActivityTitle,
+              highlightedClassName: highlightedClassName,
+              highlightedDateLabel: highlightedDateLabel,
+              summary: summary,
+            ),
+          ),
+          const SizedBox(width: 14),
+          SizedBox(
+            width: 244,
+            child: _LandscapeReadingRail(
+              schoolContext: schoolContext,
+              highlightedActivityId: highlightedActivityId,
+              summary: summary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PhoneHomeLayout extends StatelessWidget {
   const _PhoneHomeLayout({
     required this.schoolContext,
@@ -140,6 +229,691 @@ class _PhoneHomeLayout extends StatelessWidget {
         const SizedBox(height: 16),
         _SchoolPanel(schoolContext: schoolContext, isCompact: true),
       ],
+    );
+  }
+}
+
+class _LandscapeStudentCard extends StatelessWidget {
+  const _LandscapeStudentCard({
+    required this.displayName,
+    required this.currentUserEmail,
+    required this.summary,
+  });
+
+  final String displayName;
+  final String? currentUserEmail;
+  final PortalSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF72B8FF).withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '个人中心',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: const Color(0xFF2B6CB0),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE7F0FF),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person_rounded,
+                  color: Color(0xFF64748B),
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: const Color(0xFF1E293B),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      currentUserEmail ?? '学生账号',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Row(
+            children: [
+              Expanded(
+                child: _LandscapeMetric(
+                  icon: Icons.star_rounded,
+                  color: const Color(0xFFF5B019),
+                  value: '${summary.totalActivities}',
+                  label: '任务',
+                ),
+              ),
+              Expanded(
+                child: _LandscapeMetric(
+                  icon: Icons.local_fire_department_rounded,
+                  color: const Color(0xFFFF8F4D),
+                  value: '${summary.pendingTasks}',
+                  label: '待做',
+                ),
+              ),
+              Expanded(
+                child: _LandscapeMetric(
+                  icon: Icons.workspace_premium_rounded,
+                  color: const Color(0xFF55C38A),
+                  value: '${summary.completedActivities}',
+                  label: '完成',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LandscapeMetric extends StatelessWidget {
+  const _LandscapeMetric({
+    required this.icon,
+    required this.color,
+    required this.value,
+    required this.label,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Icon(icon, color: color),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            color: const Color(0xFF1E293B),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: const Color(0xFF64748B),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LandscapeShortcutPanel extends StatelessWidget {
+  const _LandscapeShortcutPanel({required this.highlightedActivityId});
+
+  final String highlightedActivityId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: GridView.count(
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        childAspectRatio: 1.65,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        children: [
+          _LandscapeShortcutButton(
+            icon: Icons.menu_book_rounded,
+            label: '作业',
+            accent: const Color(0xFF72B8FF),
+            onTap: () => context.go('/activities'),
+          ),
+          _LandscapeShortcutButton(
+            icon: Icons.rate_review_rounded,
+            label: '反馈',
+            accent: const Color(0xFFFF8F4D),
+            onTap: () => context.go('/activities/$highlightedActivityId'),
+          ),
+          _LandscapeShortcutButton(
+            icon: Icons.school_rounded,
+            label: '学校',
+            accent: const Color(0xFF55C38A),
+            onTap: () => context.go('/home'),
+          ),
+          _LandscapeShortcutButton(
+            icon: Icons.stars_rounded,
+            label: '更多',
+            accent: const Color(0xFFF3C14B),
+            onTap: () => context.go('/explore'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LandscapeShortcutButton extends StatelessWidget {
+  const _LandscapeShortcutButton({
+    required this.icon,
+    required this.label,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: accent.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: accent, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: const Color(0xFF334155),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LandscapeTaskBoard extends StatelessWidget {
+  const _LandscapeTaskBoard({
+    required this.schoolContext,
+    required this.highlightedActivityId,
+    required this.highlightedActivityTitle,
+    required this.highlightedClassName,
+    required this.highlightedDateLabel,
+    required this.summary,
+  });
+
+  final SchoolContext schoolContext;
+  final String highlightedActivityId;
+  final String highlightedActivityTitle;
+  final String highlightedClassName;
+  final String highlightedDateLabel;
+  final PortalSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(34),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    schoolContext.primaryColor.withValues(alpha: 0.88),
+                    schoolContext.secondaryColor.withValues(alpha: 0.9),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius: BorderRadius.circular(28),
+              ),
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.assignment_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '今日课表',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    highlightedActivityTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$highlightedClassName · $highlightedDateLabel',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: schoolContext.primaryColor,
+                      minimumSize: const Size.fromHeight(46),
+                    ),
+                    onPressed: () =>
+                        context.go('/activities/$highlightedActivityId'),
+                    child: const Text('开始今天课表'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            flex: 4,
+            child: Column(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _LandscapeFeatureCard(
+                          title: '今日任务',
+                          subtitle: '今天安排的作业',
+                          value: '${summary.totalActivities}',
+                          accent: const Color(0xFF73B7FF),
+                          icon: Icons.auto_stories_rounded,
+                          onTap: () => context.go('/activities'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _LandscapeFeatureCard(
+                          title: '点评中心',
+                          subtitle: '查看老师和 AI 点评',
+                          value: '${summary.completedActivities}',
+                          accent: const Color(0xFFFF8F4D),
+                          icon: Icons.rate_review_rounded,
+                          onTap: () =>
+                              context.go('/activities/$highlightedActivityId'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _LandscapeFeatureCard(
+                    title: '任务中心',
+                    subtitle: '继续未完成的学习任务',
+                    value: '${summary.pendingTasks}',
+                    accent: const Color(0xFF59C38C),
+                    icon: Icons.checklist_rounded,
+                    onTap: () => context.go('/activities'),
+                    isWide: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LandscapeFeatureCard extends StatelessWidget {
+  const _LandscapeFeatureCard({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.accent,
+    required this.icon,
+    required this.onTap,
+    this.isWide = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final String value;
+  final Color accent;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isWide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFEFF7FF),
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: isWide
+              ? Row(
+                  children: [
+                    _LandscapeFeatureBadge(icon: icon, accent: accent),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: const Color(0xFF1E293B),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            subtitle,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: const Color(0xFF64748B),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      value,
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        _LandscapeFeatureBadge(icon: icon, accent: accent),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            value,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: accent,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: const Color(0xFF1E293B),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LandscapeFeatureBadge extends StatelessWidget {
+  const _LandscapeFeatureBadge({required this.icon, required this.accent});
+
+  final IconData icon;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Icon(icon, color: accent, size: 28),
+    );
+  }
+}
+
+class _LandscapeReadingRail extends StatelessWidget {
+  const _LandscapeReadingRail({
+    required this.schoolContext,
+    required this.highlightedActivityId,
+    required this.summary,
+  });
+
+  final SchoolContext schoolContext;
+  final String highlightedActivityId;
+  final PortalSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: _LandscapeShelfCard(
+            title: '跟读绘本',
+            subtitle: '点进去继续今天的课本阅读',
+            accent: const Color(0xFF71B7FF),
+            icon: Icons.auto_stories_rounded,
+            onTap: () => context.go('/activities/$highlightedActivityId'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: _LandscapeShelfCard(
+            title: '自然拼读',
+            subtitle: '回到任务页继续朗读练习',
+            accent: const Color(0xFF55C38A),
+            icon: Icons.record_voice_over_rounded,
+            onTap: () => context.go('/activities'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.88),
+            borderRadius: BorderRadius.circular(26),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: schoolContext.primaryColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.lightbulb_rounded,
+                  color: schoolContext.primaryColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '今天还有 ${summary.pendingTasks} 项任务等你完成。',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: const Color(0xFF334155),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LandscapeShelfCard extends StatelessWidget {
+  const _LandscapeShelfCard({
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final Color accent;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.9),
+      borderRadius: BorderRadius.circular(28),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      accent.withValues(alpha: 0.8),
+                      accent.withValues(alpha: 0.45),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(icon, color: Colors.white, size: 28),
+              ),
+              const Spacer(),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: const Color(0xFF1E293B),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1038,4 +1812,18 @@ class _SchoolPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+String _studentDisplayName(String? email) {
+  if (email == null || email.trim().isEmpty) {
+    return '小同学';
+  }
+  final local = email.split('@').first.trim();
+  if (local.isEmpty) {
+    return '小同学';
+  }
+  if (local.length <= 6) {
+    return local;
+  }
+  return '${local.substring(0, 6)}同学';
 }

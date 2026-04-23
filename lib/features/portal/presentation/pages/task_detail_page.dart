@@ -1659,24 +1659,22 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
   Widget build(BuildContext context) {
     final pageLabel = _pageRangeLabel(widget.task);
     final focusedPageImagePath = widget.task.region?.pageImagePath;
-    final pageTasks =
-        focusedPageImagePath == null
-              ? const <PortalTask>[]
-              : widget.tasks
-                    .where(
-                      (task) =>
-                          task.region?.pageImagePath == focusedPageImagePath,
-                    )
-                    .toList()
-          ..sort(
-            (left, right) =>
-                (left.region?.pageNumber ?? 0) ==
-                    (right.region?.pageNumber ?? 0)
-                ? left.title.compareTo(right.title)
-                : (left.region?.pageNumber ?? 0).compareTo(
-                    right.region?.pageNumber ?? 0,
-                  ),
-          );
+    final pageTasks = focusedPageImagePath == null
+        ? <PortalTask>[]
+        : widget.tasks
+              .where(
+                (task) => task.region?.pageImagePath == focusedPageImagePath,
+              )
+              .toList();
+
+    pageTasks.sort(
+      (left, right) =>
+          (left.region?.pageNumber ?? 0) == (right.region?.pageNumber ?? 0)
+          ? left.title.compareTo(right.title)
+          : (left.region?.pageNumber ?? 0).compareTo(
+              right.region?.pageNumber ?? 0,
+            ),
+    );
 
     final contentHeight = widget.compact ? 430.0 : 560.0;
     final stageBottomInset = widget.compact ? 160.0 : 184.0;

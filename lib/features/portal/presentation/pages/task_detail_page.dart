@@ -1389,6 +1389,31 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
               fontWeight: FontWeight.w700,
             ),
           ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: const [
+              _StageLegendChip(
+                label: '橙色：当前句子',
+                background: Color(0xFFFFEDD5),
+                foreground: Color(0xFFEA580C),
+                icon: Icons.radio_button_checked_rounded,
+              ),
+              _StageLegendChip(
+                label: '绿色：已完成',
+                background: Color(0xFFEAFBF1),
+                foreground: Color(0xFF16A34A),
+                icon: Icons.check_circle_rounded,
+              ),
+              _StageLegendChip(
+                label: '白色：待完成',
+                background: Color(0xFFFFFFFF),
+                foreground: Color(0xFF64748B),
+                icon: Icons.panorama_fish_eye_rounded,
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           Container(
             height: 560,
@@ -1504,6 +1529,31 @@ class _TextbookImageStage extends StatelessWidget {
                   final height = constraints.maxHeight * region.height;
                   final isFocused = task.id == focusedTaskId;
                   final isDone = task.reviewStatus == TaskReviewStatus.checked;
+                  final overlayColor = isFocused
+                      ? const Color(0x33F97316)
+                      : isDone
+                      ? const Color(0x2816A34A)
+                      : const Color(0x12FFFFFF);
+                  final borderColor = isFocused
+                      ? const Color(0xFFEA580C)
+                      : isDone
+                      ? const Color(0xFF16A34A)
+                      : const Color(0x88FFFFFF);
+                  final chipBackground = isFocused
+                      ? const Color(0xFFFFF7ED)
+                      : isDone
+                      ? const Color(0xFFEAFBF1)
+                      : Colors.white.withValues(alpha: 0.94);
+                  final chipForeground = isFocused
+                      ? const Color(0xFFEA580C)
+                      : isDone
+                      ? const Color(0xFF15803D)
+                      : const Color(0xFF1E293B);
+                  final statusLabel = isFocused
+                      ? '当前'
+                      : isDone
+                      ? '已完成'
+                      : '待完成';
 
                   return Stack(
                     children: [
@@ -1514,55 +1564,92 @@ class _TextbookImageStage extends StatelessWidget {
                         height: height,
                         child: GestureDetector(
                           onTap: () => onSelectTask(task.id),
-                          child: AnimatedContainer(
+                          child: AnimatedScale(
                             duration: const Duration(milliseconds: 180),
-                            decoration: BoxDecoration(
-                              color: isFocused
-                                  ? const Color(0x33F97316)
-                                  : isDone
-                                  ? const Color(0x2216A34A)
-                                  : const Color(0x22FFFFFF),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: isFocused
-                                    ? const Color(0xFFF97316)
-                                    : isDone
-                                    ? const Color(0xFF16A34A)
-                                    : const Color(0x66FFFFFF),
-                                width: isFocused ? 3 : 2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
+                            scale: isFocused ? 1.015 : 1,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              decoration: BoxDecoration(
+                                color: overlayColor,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: borderColor,
+                                  width: isFocused ? 3.2 : 2.2,
                                 ),
-                              ],
-                            ),
-                            child: Align(
-                              alignment: Alignment.topLeft,
-                              child: Container(
-                                margin: const EdgeInsets.all(8),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.92),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  task.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: isFocused
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (isFocused
                                             ? const Color(0xFFEA580C)
-                                            : const Color(0xFF1E293B),
-                                        fontWeight: FontWeight.w900,
+                                            : isDone
+                                            ? const Color(0xFF16A34A)
+                                            : Colors.black)
+                                        .withValues(alpha: isFocused ? 0.20 : 0.08),
+                                    blurRadius: isFocused ? 18 : 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Stack(
+                                children: [
+                                  Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Container(
+                                      margin: const EdgeInsets.all(8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
                                       ),
-                                ),
+                                      decoration: BoxDecoration(
+                                        color: chipBackground,
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        statusLabel,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context).textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: chipForeground,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                  Align(
+                                    alignment: Alignment.bottomLeft,
+                                    child: Container(
+                                      margin: const EdgeInsets.all(8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.96),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        task.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context).textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: const Color(0xFF1E293B),
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (isDone)
+                                    const Positioned(
+                                      right: 10,
+                                      bottom: 10,
+                                      child: Icon(
+                                        Icons.check_circle_rounded,
+                                        color: Color(0xFF16A34A),
+                                        size: 24,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
@@ -1606,6 +1693,46 @@ class _StageImage extends StatelessWidget {
         }
         return Image.memory(snapshot.data!, fit: BoxFit.contain);
       },
+    );
+  }
+}
+
+class _StageLegendChip extends StatelessWidget {
+  const _StageLegendChip({
+    required this.label,
+    required this.background,
+    required this.foreground,
+    required this.icon,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: foreground.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: foreground),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

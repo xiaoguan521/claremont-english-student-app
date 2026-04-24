@@ -25,6 +25,7 @@ class TabletShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF7F3D9),
       body: Container(
@@ -41,69 +42,93 @@ class TabletShell extends StatelessWidget {
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
+                  final screenSize = constraints.biggest;
                   final isLandscapePhone =
                       constraints.maxWidth > constraints.maxHeight &&
                       constraints.maxHeight < 640;
                   final isCompact =
                       constraints.maxWidth < 640 || isLandscapePhone;
+                  final isTightLandscapePhone =
+                      isLandscapePhone && constraints.maxHeight < 430;
+                  final shellScale = _shellUiScale(screenSize);
+                  final textScale =
+                      (mediaQuery.textScaler.scale(1) * shellScale).clamp(
+                        0.84,
+                        1.0,
+                      );
                   final showBottomNav = !isLandscapePhone;
-                  return Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      isLandscapePhone
-                          ? 14
-                          : isCompact
-                          ? 16
-                          : 28,
-                      isLandscapePhone
-                          ? 10
-                          : isCompact
-                          ? 14
-                          : 22,
-                      isLandscapePhone
-                          ? 14
-                          : isCompact
-                          ? 16
-                          : 28,
-                      isLandscapePhone
-                          ? 8
-                          : isCompact
-                          ? 14
-                          : 18,
+                  return MediaQuery(
+                    data: mediaQuery.copyWith(
+                      textScaler: TextScaler.linear(textScale),
                     ),
-                    child: Column(
-                      children: [
-                        _TopBar(
-                          title: title,
-                          subtitle: subtitle,
-                          brandName: brandName,
-                          brandSubtitle: brandSubtitle,
-                          actions: actions,
-                          isCompact: isCompact,
-                          isLandscapePhone: isLandscapePhone,
-                        ),
-                        SizedBox(
-                          height: isLandscapePhone
-                              ? 10
-                              : isCompact
-                              ? 14
-                              : 20,
-                        ),
-                        Expanded(child: child),
-                        if (showBottomNav) ...[
-                          SizedBox(
-                            height: isLandscapePhone
-                                ? 8
-                                : isCompact
-                                ? 12
-                                : 18,
-                          ),
-                          _BottomSectionNav(
-                            activeSection: activeSection,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        isLandscapePhone
+                            ? isTightLandscapePhone
+                                  ? 10
+                                  : 14
+                            : isCompact
+                            ? 16
+                            : 28,
+                        isLandscapePhone
+                            ? isTightLandscapePhone
+                                  ? 8
+                                  : 10
+                            : isCompact
+                            ? 14
+                            : 22,
+                        isLandscapePhone
+                            ? isTightLandscapePhone
+                                  ? 10
+                                  : 14
+                            : isCompact
+                            ? 16
+                            : 28,
+                        isLandscapePhone
+                            ? isTightLandscapePhone
+                                  ? 6
+                                  : 8
+                            : isCompact
+                            ? 14
+                            : 18,
+                      ),
+                      child: Column(
+                        children: [
+                          _TopBar(
+                            title: title,
+                            subtitle: subtitle,
+                            brandName: brandName,
+                            brandSubtitle: brandSubtitle,
+                            actions: actions,
                             isCompact: isCompact,
                             isLandscapePhone: isLandscapePhone,
                           ),
+                          SizedBox(
+                            height: isLandscapePhone
+                                ? isTightLandscapePhone
+                                      ? 6
+                                      : 10
+                                : isCompact
+                                ? 14
+                                : 20,
+                          ),
+                          Expanded(child: child),
+                          if (showBottomNav) ...[
+                            SizedBox(
+                              height: isLandscapePhone
+                                  ? 8
+                                  : isCompact
+                                  ? 12
+                                  : 18,
+                            ),
+                            _BottomSectionNav(
+                              activeSection: activeSection,
+                              isCompact: isCompact,
+                              isLandscapePhone: isLandscapePhone,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   );
                 },
@@ -137,17 +162,29 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final tightLandscapePhone = isLandscapePhone && size.height < 430;
     final brandChip = ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: isLandscapePhone ? 220 : 360),
+      constraints: BoxConstraints(
+        maxWidth: isLandscapePhone
+            ? tightLandscapePhone
+                  ? 184
+                  : 220
+            : 360,
+      ),
       child: Container(
         padding: EdgeInsets.symmetric(
           horizontal: isLandscapePhone
-              ? 10
+              ? tightLandscapePhone
+                    ? 8
+                    : 10
               : isCompact
               ? 12
               : 16,
           vertical: isLandscapePhone
-              ? 8
+              ? tightLandscapePhone
+                    ? 6
+                    : 8
               : isCompact
               ? 10
               : 12,
@@ -161,12 +198,16 @@ class _TopBar extends StatelessWidget {
           children: [
             Container(
               width: isLandscapePhone
-                  ? 34
+                  ? tightLandscapePhone
+                        ? 30
+                        : 34
                   : isCompact
                   ? 40
                   : 42,
               height: isLandscapePhone
-                  ? 34
+                  ? tightLandscapePhone
+                        ? 30
+                        : 34
                   : isCompact
                   ? 40
                   : 42,
@@ -186,7 +227,9 @@ class _TopBar extends StatelessWidget {
                 color: Color(0xFF309A7A),
               ),
             ),
-            SizedBox(width: isLandscapePhone ? 8 : 12),
+            SizedBox(
+              width: isLandscapePhone ? (tightLandscapePhone ? 6 : 8) : 12,
+            ),
             Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,7 +243,9 @@ class _TopBar extends StatelessWidget {
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
                       fontSize: isLandscapePhone
-                          ? 15
+                          ? tightLandscapePhone
+                                ? 13
+                                : 15
                           : isCompact
                           ? 16
                           : null,
@@ -226,8 +271,16 @@ class _TopBar extends StatelessWidget {
 
     final titleChip = Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isCompact ? 14 : 18,
-        vertical: isCompact ? 12 : 14,
+        horizontal: isLandscapePhone && tightLandscapePhone
+            ? 12
+            : isCompact
+            ? 14
+            : 18,
+        vertical: isLandscapePhone && tightLandscapePhone
+            ? 10
+            : isCompact
+            ? 12
+            : 14,
       ),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
@@ -238,7 +291,11 @@ class _TopBar extends StatelessWidget {
         style: Theme.of(context).textTheme.titleLarge?.copyWith(
           color: Colors.white,
           fontWeight: FontWeight.w900,
-          fontSize: isCompact ? 18 : null,
+          fontSize: isLandscapePhone && tightLandscapePhone
+              ? 15
+              : isCompact
+              ? 18
+              : null,
         ),
       ),
     );
@@ -371,7 +428,9 @@ class _NavChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCompact = MediaQuery.sizeOf(context).width < 640;
+    final size = MediaQuery.sizeOf(context);
+    final isCompact = size.width < 640;
+    final isTightLandscapePhone = size.width > size.height && size.height < 430;
     return Expanded(
       child: InkWell(
         onTap: onTap,
@@ -379,8 +438,16 @@ class _NavChip extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           padding: EdgeInsets.symmetric(
-            horizontal: isCompact ? 10 : 16,
-            vertical: isCompact ? 10 : 12,
+            horizontal: isTightLandscapePhone
+                ? 8
+                : isCompact
+                ? 10
+                : 16,
+            vertical: isTightLandscapePhone
+                ? 8
+                : isCompact
+                ? 10
+                : 12,
           ),
           decoration: BoxDecoration(
             color: selected ? const Color(0xFFFF8F4D) : Colors.transparent,
@@ -391,16 +458,30 @@ class _NavChip extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                size: isCompact ? 18 : 20,
+                size: isTightLandscapePhone
+                    ? 16
+                    : isCompact
+                    ? 18
+                    : 20,
                 color: selected ? Colors.white : const Color(0xFF6B7280),
               ),
-              SizedBox(width: isCompact ? 6 : 8),
+              SizedBox(
+                width: isTightLandscapePhone
+                    ? 4
+                    : isCompact
+                    ? 6
+                    : 8,
+              ),
               Text(
                 label,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: selected ? Colors.white : const Color(0xFF475569),
                   fontWeight: FontWeight.w800,
-                  fontSize: isCompact ? 14 : null,
+                  fontSize: isTightLandscapePhone
+                      ? 12
+                      : isCompact
+                      ? 14
+                      : null,
                 ),
               ),
             ],
@@ -461,4 +542,18 @@ class _Blob extends StatelessWidget {
       ),
     );
   }
+}
+
+double _shellUiScale(Size size) {
+  if (size.shortestSide >= 600) {
+    return 1;
+  }
+
+  if (size.width > size.height) {
+    final heightScale = (size.height / 430).clamp(0.82, 1.0);
+    final widthScale = (size.width / 900).clamp(0.9, 1.0);
+    return (heightScale * widthScale).clamp(0.82, 1.0);
+  }
+
+  return (size.width / 390).clamp(0.9, 1.0);
 }

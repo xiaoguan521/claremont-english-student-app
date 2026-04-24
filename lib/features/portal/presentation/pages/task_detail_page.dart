@@ -1029,6 +1029,18 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           final isLandscapePhone =
               constraints.maxWidth > constraints.maxHeight &&
               constraints.maxWidth < 1100;
+          final visualScale = isLandscapePhone
+              ? _taskDetailLandscapeVisualScale(
+                  constraints.maxWidth,
+                  constraints.maxHeight,
+                )
+              : 1.0;
+          final textScale = isLandscapePhone
+              ? (MediaQuery.textScalerOf(context).scale(1) * visualScale).clamp(
+                  0.82,
+                  1.0,
+                )
+              : MediaQuery.textScalerOf(context).scale(1);
           final stageCard = Container(
             key: _textbookAnchorKey,
             child: _TextbookStageCard(
@@ -1047,6 +1059,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                 startFullscreen: true,
               ),
               compact: isLandscapePhone,
+              visualScale: visualScale,
               bottomSheet: _TextbookFloatingPanel(
                 task: focusTask,
                 submissionFlowStatus: activity.submissionFlowStatus,
@@ -1137,20 +1150,29 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                 ? null
                 : () => _playEncouragement(focusTask),
             onPrimaryAction: () => _handlePrimaryAction(activity),
+            visualScale: visualScale,
           );
 
           if (isLandscapePhone) {
             final reviewWidth = constraints.maxWidth < 920 ? 292.0 : 332.0;
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 6,
-                  child: SingleChildScrollView(child: stageCard),
-                ),
-                const SizedBox(width: 16),
-                SizedBox(width: reviewWidth, child: reviewPanel),
-              ],
+            return MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 6,
+                    child: SingleChildScrollView(child: stageCard),
+                  ),
+                  SizedBox(width: 16 * visualScale),
+                  SizedBox(
+                    width: reviewWidth * visualScale,
+                    child: reviewPanel,
+                  ),
+                ],
+              ),
             );
           }
 
@@ -1317,6 +1339,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
     this.onPlayStoredAudio,
     this.onPlayEncouragement,
     required this.onPrimaryAction,
+    this.visualScale = 1,
   });
 
   final String? autoAdvanceHint;
@@ -1345,6 +1368,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
   final VoidCallback? onPlayStoredAudio;
   final VoidCallback? onPlayEncouragement;
   final VoidCallback onPrimaryAction;
+  final double visualScale;
 
   @override
   Widget build(BuildContext context) {
@@ -1355,11 +1379,11 @@ class _LandscapeReviewColumn extends StatelessWidget {
       children: [
         if (autoAdvanceHint != null)
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: EdgeInsets.only(bottom: 12 * visualScale),
             child: _AutoAdvanceBanner(message: autoAdvanceHint!),
           ),
         Container(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(18 * visualScale),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.86),
             borderRadius: BorderRadius.circular(28),
@@ -1369,7 +1393,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
             children: [
               const _SectionHeading(title: '句子列表'),
               if (tasks.length > 1) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: 12 * visualScale),
                 _SentenceSwitchStrip(
                   tasks: tasks,
                   focusedTaskId: focusedTaskId,
@@ -1379,7 +1403,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14 * visualScale),
         Expanded(
           child: SingleChildScrollView(
             child: Container(
@@ -1552,6 +1576,7 @@ class _TextbookStageCard extends StatefulWidget {
     required this.onOpenFullScreen,
     required this.bottomSheet,
     this.compact = false,
+    this.visualScale = 1,
   });
 
   final PortalActivity activity;
@@ -1564,6 +1589,7 @@ class _TextbookStageCard extends StatefulWidget {
   final VoidCallback onOpenFullScreen;
   final Widget bottomSheet;
   final bool compact;
+  final double visualScale;
 
   @override
   State<_TextbookStageCard> createState() => _TextbookStageCardState();
@@ -1679,10 +1705,11 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
             ),
     );
 
-    final stageBottomInset = widget.compact ? 154.0 : 184.0;
+    final stageBottomInset =
+        (widget.compact ? 154.0 : 184.0) * widget.visualScale;
 
     return Container(
-      padding: EdgeInsets.all(widget.compact ? 16 : 20),
+      padding: EdgeInsets.all((widget.compact ? 16 : 20) * widget.visualScale),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFFF2FBF5), Color(0xFFFFF7E8)],
@@ -1695,8 +1722,8 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: 12 * widget.visualScale,
+            runSpacing: 12 * widget.visualScale,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
@@ -1718,7 +1745,7 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
                 ),
             ],
           ),
-          SizedBox(height: widget.compact ? 10 : 12),
+          SizedBox(height: (widget.compact ? 10 : 12) * widget.visualScale),
           const Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -1743,12 +1770,14 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
               ),
             ],
           ),
-          SizedBox(height: widget.compact ? 12 : 16),
+          SizedBox(height: (widget.compact ? 12 : 16) * widget.visualScale),
           LayoutBuilder(
             builder: (context, constraints) {
               final fallbackAspectRatio = widget.compact ? 0.82 : 0.72;
-              final minVisibleHeight = widget.compact ? 260.0 : 360.0;
-              final maxVisibleHeight = widget.compact ? 760.0 : 1180.0;
+              final minVisibleHeight =
+                  (widget.compact ? 260.0 : 360.0) * widget.visualScale;
+              final maxVisibleHeight =
+                  (widget.compact ? 760.0 : 1180.0) * widget.visualScale;
 
               return FutureBuilder<_EmbeddedTextbookLayoutData>(
                 future: _layoutFuture,
@@ -1841,16 +1870,16 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
                               .trim()
                               .isNotEmpty)
                             Positioned(
-                              top: 16,
-                              right: 16,
+                              top: 16 * widget.visualScale,
+                              right: 16 * widget.visualScale,
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
                                   onTap: widget.onOpenFullScreen,
                                   borderRadius: BorderRadius.circular(999),
                                   child: Container(
-                                    width: 44,
-                                    height: 44,
+                                    width: 44 * widget.visualScale,
+                                    height: 44 * widget.visualScale,
                                     decoration: BoxDecoration(
                                       color: Colors.black.withValues(
                                         alpha: 0.34,
@@ -1872,9 +1901,9 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
                               ),
                             ),
                           Positioned(
-                            left: 16,
-                            right: 16,
-                            bottom: 16,
+                            left: 16 * widget.visualScale,
+                            right: 16 * widget.visualScale,
+                            bottom: 16 * widget.visualScale,
                             child: widget.bottomSheet,
                           ),
                         ],
@@ -3948,6 +3977,7 @@ class _HeaderAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final iconOnly = size.width > size.height && size.height < 640;
+    final isTightLandscapePhone = size.width > size.height && size.height < 430;
     return Tooltip(
       message: label,
       child: InkWell(
@@ -3955,8 +3985,10 @@ class _HeaderAction extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         child: Container(
           padding: EdgeInsets.symmetric(
-            horizontal: iconOnly ? 12 : 16,
-            vertical: 12,
+            horizontal: iconOnly
+                ? (isTightLandscapePhone ? 10 : 12)
+                : (isTightLandscapePhone ? 12 : 16),
+            vertical: isTightLandscapePhone ? 9 : 12,
           ),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.16),
@@ -3965,14 +3997,19 @@ class _HeaderAction extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: Colors.white, size: 18),
+              Icon(
+                icon,
+                color: Colors.white,
+                size: isTightLandscapePhone ? 16 : 18,
+              ),
               if (!iconOnly) ...[
-                const SizedBox(width: 8),
+                SizedBox(width: isTightLandscapePhone ? 6 : 8),
                 Text(
                   label,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
+                    fontSize: isTightLandscapePhone ? 13 : null,
                   ),
                 ),
               ],
@@ -4013,6 +4050,12 @@ class _RoundOutlineIconButton extends StatelessWidget {
       ),
     );
   }
+}
+
+double _taskDetailLandscapeVisualScale(double maxWidth, double maxHeight) {
+  final heightScale = (maxHeight / 430).clamp(0.8, 1.0);
+  final widthScale = (maxWidth / 960).clamp(0.9, 1.0);
+  return (heightScale * widthScale).clamp(0.8, 1.0);
 }
 
 String _guessMimeType(String? extension) {

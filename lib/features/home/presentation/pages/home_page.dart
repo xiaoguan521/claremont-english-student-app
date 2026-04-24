@@ -204,85 +204,98 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visualScale = _landscapePhoneVisualScale(maxWidth, maxHeight);
+    final textScale = (MediaQuery.textScalerOf(context).scale(1) * visualScale)
+        .clamp(0.82, 1.0);
     final displayName = _studentDisplayName(currentUserEmail);
-    final sideWidth = maxWidth < 880 ? 204.0 : 228.0;
-    final railWidth = maxWidth < 880 ? 216.0 : 248.0;
-    final gap = maxWidth < 880 ? 10.0 : 14.0;
-    return SizedBox(
-      height: maxHeight.clamp(360.0, 460.0),
-      child: Column(
-        children: [
-          _FeatureTopBar(
-            isCompact: maxWidth < 920,
-            onOpenFeature: (title, description, accent, icon) {
-              _showComingSoonSheet(
-                context,
-                title: title,
-                description: description,
-                accent: accent,
-                icon: icon,
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: sideWidth,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: _LandscapeStudentCard(
-                          displayName: displayName,
-                          currentUserEmail: currentUserEmail,
-                          summary: summary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        flex: 2,
-                        child: _LandscapeShortcutPanel(
-                          highlightedActivityId: highlightedActivityId,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: gap),
-                Expanded(
-                  flex: 5,
-                  child: _LandscapeTaskBoard(
-                    schoolContext: schoolContext,
-                    highlightedActivityId: highlightedActivityId,
-                    highlightedActivityTitle: highlightedActivityTitle,
-                    highlightedClassName: highlightedClassName,
-                    highlightedDateLabel: highlightedDateLabel,
-                    summary: summary,
-                  ),
-                ),
-                SizedBox(width: gap),
-                SizedBox(
-                  width: railWidth,
-                  child: _LandscapeReadingRail(
-                    schoolContext: schoolContext,
-                    highlightedActivityId: highlightedActivityId,
-                    summary: summary,
-                  ),
-                ),
-              ],
+    final sideWidth = (maxWidth < 880 ? 204.0 : 228.0) * visualScale;
+    final railWidth = (maxWidth < 880 ? 216.0 : 248.0) * visualScale;
+    final gap = (maxWidth < 880 ? 10.0 : 14.0) * visualScale;
+    return MediaQuery(
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: TextScaler.linear(textScale)),
+      child: SizedBox(
+        height: maxHeight.clamp(320.0, 460.0),
+        child: Column(
+          children: [
+            _FeatureTopBar(
+              isCompact: maxWidth < 920,
+              visualScale: visualScale,
+              onOpenFeature: (title, description, accent, icon) {
+                _showComingSoonSheet(
+                  context,
+                  title: title,
+                  description: description,
+                  accent: accent,
+                  icon: icon,
+                );
+              },
             ),
-          ),
-        ],
+            SizedBox(height: 12 * visualScale),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: sideWidth,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: _LandscapeStudentCard(
+                            displayName: displayName,
+                            currentUserEmail: currentUserEmail,
+                            summary: summary,
+                          ),
+                        ),
+                        SizedBox(height: 12 * visualScale),
+                        Expanded(
+                          flex: 2,
+                          child: _LandscapeShortcutPanel(
+                            highlightedActivityId: highlightedActivityId,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: gap),
+                  Expanded(
+                    flex: 5,
+                    child: _LandscapeTaskBoard(
+                      schoolContext: schoolContext,
+                      highlightedActivityId: highlightedActivityId,
+                      highlightedActivityTitle: highlightedActivityTitle,
+                      highlightedClassName: highlightedClassName,
+                      highlightedDateLabel: highlightedDateLabel,
+                      summary: summary,
+                    ),
+                  ),
+                  SizedBox(width: gap),
+                  SizedBox(
+                    width: railWidth,
+                    child: _LandscapeReadingRail(
+                      schoolContext: schoolContext,
+                      highlightedActivityId: highlightedActivityId,
+                      summary: summary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _FeatureTopBar extends StatelessWidget {
-  const _FeatureTopBar({required this.onOpenFeature, this.isCompact = false});
+  const _FeatureTopBar({
+    required this.onOpenFeature,
+    this.isCompact = false,
+    this.visualScale = 1,
+  });
 
   final void Function(
     String title,
@@ -292,6 +305,7 @@ class _FeatureTopBar extends StatelessWidget {
   )
   onOpenFeature;
   final bool isCompact;
+  final double visualScale;
 
   @override
   Widget build(BuildContext context) {
@@ -334,8 +348,8 @@ class _FeatureTopBar extends StatelessWidget {
         Flexible(
           child: Container(
             padding: EdgeInsets.symmetric(
-              horizontal: isCompact ? 10 : 16,
-              vertical: isCompact ? 8 : 10,
+              horizontal: (isCompact ? 10 : 16) * visualScale,
+              vertical: (isCompact ? 8 : 10) * visualScale,
             ),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.80),
@@ -348,12 +362,15 @@ class _FeatureTopBar extends StatelessWidget {
                 children: items
                     .map(
                       (item) => Padding(
-                        padding: EdgeInsets.only(right: isCompact ? 8 : 10),
+                        padding: EdgeInsets.only(
+                          right: (isCompact ? 8 : 10) * visualScale,
+                        ),
                         child: _FeatureBubble(
                           title: item.$1,
                           accent: item.$3,
                           icon: item.$4,
                           compact: isCompact,
+                          visualScale: visualScale,
                           onTap: () =>
                               onOpenFeature(item.$1, item.$2, item.$3, item.$4),
                         ),
@@ -376,6 +393,7 @@ class _FeatureBubble extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.compact = false,
+    this.visualScale = 1,
   });
 
   final String title;
@@ -383,6 +401,7 @@ class _FeatureBubble extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final bool compact;
+  final double visualScale;
 
   @override
   Widget build(BuildContext context) {
@@ -390,10 +409,10 @@ class _FeatureBubble extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(22),
       child: Container(
-        width: compact ? 80 : 92,
+        width: (compact ? 80 : 92) * visualScale,
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 6 : 8,
-          vertical: compact ? 8 : 10,
+          horizontal: (compact ? 6 : 8) * visualScale,
+          vertical: (compact ? 8 : 10) * visualScale,
         ),
         decoration: BoxDecoration(
           color: accent.withValues(alpha: 0.14),
@@ -403,22 +422,26 @@ class _FeatureBubble extends StatelessWidget {
         child: Column(
           children: [
             Container(
-              width: compact ? 36 : 42,
-              height: compact ? 36 : 42,
+              width: (compact ? 36 : 42) * visualScale,
+              height: (compact ? 36 : 42) * visualScale,
               decoration: BoxDecoration(
                 color: accent,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(icon, color: Colors.white, size: compact ? 18 : 22),
+              child: Icon(
+                icon,
+                color: Colors.white,
+                size: (compact ? 18 : 22) * visualScale,
+              ),
             ),
-            SizedBox(height: compact ? 6 : 8),
+            SizedBox(height: (compact ? 6 : 8) * visualScale),
             Text(
               title,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: const Color(0xFF334155),
                 fontWeight: FontWeight.w900,
-                fontSize: compact ? 11 : null,
+                fontSize: compact ? 11 * visualScale : null,
               ),
             ),
           ],
@@ -2109,4 +2132,10 @@ String _studentDisplayName(String? email) {
     return local;
   }
   return '${local.substring(0, 6)}同学';
+}
+
+double _landscapePhoneVisualScale(double maxWidth, double maxHeight) {
+  final heightScale = (maxHeight / 430).clamp(0.8, 1.0);
+  final widthScale = (maxWidth / 920).clamp(0.9, 1.0);
+  return (heightScale * widthScale).clamp(0.8, 1.0);
 }

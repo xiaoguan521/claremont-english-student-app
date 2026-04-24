@@ -86,6 +86,18 @@ class ActivitiesPage extends ConsumerWidget {
           final isLandscapePhone =
               constraints.maxWidth > constraints.maxHeight &&
               constraints.maxWidth < 1100;
+          final visualScale = isLandscapePhone
+              ? _activityLandscapeVisualScale(
+                  constraints.maxWidth,
+                  constraints.maxHeight,
+                )
+              : 1.0;
+          final textScale = isLandscapePhone
+              ? (MediaQuery.textScalerOf(context).scale(1) * visualScale).clamp(
+                  0.82,
+                  1.0,
+                )
+              : MediaQuery.textScalerOf(context).scale(1);
           final isShortViewport = constraints.maxHeight < 760;
           final list = activities.isEmpty
               ? _ActivitiesStateMessage(
@@ -105,117 +117,132 @@ class ActivitiesPage extends ConsumerWidget {
                   separatorBuilder: (_, _) => const SizedBox(height: 18),
                   itemBuilder: (context, index) {
                     final activity = activities[index];
-                    return _ActivityRow(activity: activity);
+                    return _ActivityRow(
+                      activity: activity,
+                      visualScale: visualScale,
+                    );
                   },
                 );
 
           if (isLandscapePhone) {
             final railWidth = (constraints.maxWidth * 0.22).clamp(176.0, 236.0);
             final gap = constraints.maxWidth < 900 ? 10.0 : 14.0;
-            return Column(
-              children: [
-                _HomeworkCalendarStrip(
-                  dates: calendarDates,
-                  selectedDate: selectedDate,
-                  today: today,
-                  activityCountByDate: activityCountByDate,
-                  onSelectDate: (date) =>
-                      ref.read(selectedActivityDateProvider.notifier).state =
-                          date,
-                ),
-                const SizedBox(height: 14),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: railWidth,
-                        child: SingleChildScrollView(
-                          child: _ActionRail(
-                            summary: summary,
-                            selectedDate: selectedDate,
-                            today: today,
-                            isCompact: true,
-                            onResetToToday: !_isSameDay(selectedDate, today)
-                                ? () =>
-                                      ref
-                                              .read(
-                                                selectedActivityDateProvider
-                                                    .notifier,
-                                              )
-                                              .state =
-                                          today
-                                : null,
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: gap),
-                      Expanded(
-                        child: Container(
-                          padding: EdgeInsets.all(
-                            constraints.maxWidth < 900 ? 14 : 18,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.82),
-                            borderRadius: BorderRadius.circular(28),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          _isSameDay(selectedDate, today)
-                                              ? '今天'
-                                              : _formatDateLabel(selectedDate),
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .headlineSmall
-                                              ?.copyWith(
-                                                color: const Color(0xFF1E293B),
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF2E4),
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                    child: Text(
-                                      '${activities.length} 份作业',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall
-                                          ?.copyWith(
-                                            color: const Color(0xFFFF8F4D),
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Expanded(child: list),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+            return MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: Column(
+                children: [
+                  _HomeworkCalendarStrip(
+                    dates: calendarDates,
+                    selectedDate: selectedDate,
+                    today: today,
+                    activityCountByDate: activityCountByDate,
+                    visualScale: visualScale,
+                    onSelectDate: (date) =>
+                        ref.read(selectedActivityDateProvider.notifier).state =
+                            date,
                   ),
-                ),
-              ],
+                  SizedBox(height: 14 * visualScale),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: railWidth * visualScale,
+                          child: SingleChildScrollView(
+                            child: _ActionRail(
+                              summary: summary,
+                              selectedDate: selectedDate,
+                              today: today,
+                              isCompact: true,
+                              visualScale: visualScale,
+                              onResetToToday: !_isSameDay(selectedDate, today)
+                                  ? () =>
+                                        ref
+                                                .read(
+                                                  selectedActivityDateProvider
+                                                      .notifier,
+                                                )
+                                                .state =
+                                            today
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: gap * visualScale),
+                        Expanded(
+                          child: Container(
+                            padding: EdgeInsets.all(
+                              (constraints.maxWidth < 900 ? 14 : 18) *
+                                  visualScale,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.82),
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _isSameDay(selectedDate, today)
+                                                ? '今天'
+                                                : _formatDateLabel(
+                                                    selectedDate,
+                                                  ),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .headlineSmall
+                                                ?.copyWith(
+                                                  color: const Color(
+                                                    0xFF1E293B,
+                                                  ),
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 12 * visualScale,
+                                        vertical: 8 * visualScale,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF2E4),
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                      child: Text(
+                                        '${activities.length} 份作业',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              color: const Color(0xFFFF8F4D),
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 16 * visualScale),
+                                Expanded(child: list),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             );
           }
 
@@ -334,6 +361,7 @@ class _ActionRail extends StatelessWidget {
     required this.selectedDate,
     required this.today,
     this.isCompact = false,
+    this.visualScale = 1,
     this.onResetToToday,
   });
 
@@ -341,6 +369,7 @@ class _ActionRail extends StatelessWidget {
   final DateTime selectedDate;
   final DateTime today;
   final bool isCompact;
+  final double visualScale;
   final VoidCallback? onResetToToday;
 
   @override
@@ -351,7 +380,7 @@ class _ActionRail extends StatelessWidget {
     final completedLabel = '${summary.completedActivities} 份已完成';
 
     return Container(
-      padding: EdgeInsets.all(isCompact ? 14 : 18),
+      padding: EdgeInsets.all((isCompact ? 14 : 18) * visualScale),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.82),
         borderRadius: BorderRadius.circular(28),
@@ -363,31 +392,35 @@ class _ActionRail extends StatelessWidget {
             label: isToday ? '今日作业' : _formatDateLabel(selectedDate),
             value: taskLabel,
             isCompact: isCompact,
+            visualScale: visualScale,
           ),
-          SizedBox(height: isCompact ? 10 : 14),
+          SizedBox(height: (isCompact ? 10 : 14) * visualScale),
           _RailAction(
             icon: Icons.pending_actions_outlined,
             label: isToday ? '待完成' : '待补作业',
             value: pendingLabel,
             isCompact: isCompact,
+            visualScale: visualScale,
           ),
-          SizedBox(height: isCompact ? 10 : 14),
+          SizedBox(height: (isCompact ? 10 : 14) * visualScale),
           _RailAction(
             icon: Icons.workspace_premium_outlined,
             label: '已完成',
             value: completedLabel,
             isCompact: isCompact,
+            visualScale: visualScale,
           ),
-          SizedBox(height: isCompact ? 10 : 14),
+          SizedBox(height: (isCompact ? 10 : 14) * visualScale),
           _StudyHintTile(
             title: isToday ? '今天先完成今天的作业' : '漏掉的作业也可以补做',
             subtitle: isToday
                 ? '想补做前几天的内容，可以在上面的日期条里切换。'
                 : '这一天的作业会单独显示，做完后再切回今天继续。',
             accent: isToday ? const Color(0xFF4FAE7F) : const Color(0xFFFF9B55),
+            visualScale: visualScale,
           ),
           if (onResetToToday != null) ...[
-            SizedBox(height: isCompact ? 10 : 14),
+            SizedBox(height: (isCompact ? 10 : 14) * visualScale),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -410,6 +443,7 @@ class _HomeworkCalendarStrip extends StatelessWidget {
     required this.today,
     required this.activityCountByDate,
     required this.onSelectDate,
+    this.visualScale = 1,
   });
 
   final List<DateTime> dates;
@@ -417,11 +451,12 @@ class _HomeworkCalendarStrip extends StatelessWidget {
   final DateTime today;
   final Map<DateTime, int> activityCountByDate;
   final ValueChanged<DateTime> onSelectDate;
+  final double visualScale;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 108,
+      height: 108 * visualScale,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemBuilder: (context, index) {
@@ -435,8 +470,11 @@ class _HomeworkCalendarStrip extends StatelessWidget {
             borderRadius: BorderRadius.circular(26),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
-              width: 104,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              width: 104 * visualScale,
+              padding: EdgeInsets.symmetric(
+                horizontal: 14 * visualScale,
+                vertical: 12 * visualScale,
+              ),
               decoration: BoxDecoration(
                 color: isSelected
                     ? const Color(0xFF1E7D66)
@@ -488,7 +526,7 @@ class _HomeworkCalendarStrip extends StatelessWidget {
             ),
           );
         },
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        separatorBuilder: (_, _) => SizedBox(width: 12 * visualScale),
         itemCount: dates.length,
       ),
     );
@@ -535,16 +573,18 @@ class _RailAction extends StatelessWidget {
     required this.label,
     required this.value,
     this.isCompact = false,
+    this.visualScale = 1,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final bool isCompact;
+  final double visualScale;
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = isCompact ? 22.0 : 24.0;
+    final iconSize = (isCompact ? 22.0 : 24.0) * visualScale;
     final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       color: const Color(0xFF25324B),
       fontWeight: FontWeight.w800,
@@ -555,10 +595,12 @@ class _RailAction extends StatelessWidget {
     );
 
     return Container(
-      constraints: BoxConstraints(minHeight: isCompact ? 76 : 92),
+      constraints: BoxConstraints(
+        minHeight: (isCompact ? 76 : 92) * visualScale,
+      ),
       padding: EdgeInsets.symmetric(
-        horizontal: isCompact ? 14 : 16,
-        vertical: isCompact ? 12 : 0,
+        horizontal: (isCompact ? 14 : 16) * visualScale,
+        vertical: (isCompact ? 12 : 0) * visualScale,
       ),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FBFF),
@@ -567,14 +609,14 @@ class _RailAction extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, color: const Color(0xFF4FAE7F), size: iconSize),
-          SizedBox(width: isCompact ? 10 : 12),
+          SizedBox(width: (isCompact ? 10 : 12) * visualScale),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: titleStyle),
-                SizedBox(height: isCompact ? 2 : 4),
+                SizedBox(height: (isCompact ? 2 : 4) * visualScale),
                 Text(value, style: valueStyle),
               ],
             ),
@@ -590,17 +632,19 @@ class _StudyHintTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.accent,
+    this.visualScale = 1,
   });
 
   final String title;
   final String subtitle;
   final Color accent;
+  final double visualScale;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isCompactPadding(context)),
+      padding: EdgeInsets.all(isCompactPadding(context) * visualScale),
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(24),
@@ -649,9 +693,10 @@ String _weekdayLabel(DateTime date) {
 }
 
 class _ActivityRow extends StatelessWidget {
-  const _ActivityRow({required this.activity});
+  const _ActivityRow({required this.activity, this.visualScale = 1});
 
   final PortalActivity activity;
+  final double visualScale;
 
   @override
   Widget build(BuildContext context) {
@@ -662,7 +707,7 @@ class _ActivityRow extends StatelessWidget {
       onTap: () => context.go('/activities/${activity.id}'),
       borderRadius: BorderRadius.circular(30),
       child: Container(
-        padding: const EdgeInsets.all(22),
+        padding: EdgeInsets.all(22 * visualScale),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(30),
@@ -672,7 +717,7 @@ class _ActivityRow extends StatelessWidget {
             final isPhone = constraints.maxWidth < 680;
             final cover = Container(
               width: isPhone ? double.infinity : 190,
-              height: 118,
+              height: 118 * visualScale,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFFFFF3C9), Color(0xFFFFC765)],
@@ -722,7 +767,7 @@ class _ActivityRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _StatusBadge(status: activity.status),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12 * visualScale),
                       Text(
                         activity.status == ActivityStatus.active
                             ? '点进去后会看到教材、示范音频和提交入口。'
@@ -732,7 +777,7 @@ class _ActivityRow extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12 * visualScale),
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
@@ -748,7 +793,7 @@ class _ActivityRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       _StatusBadge(status: activity.status),
-                      const SizedBox(height: 18),
+                      SizedBox(height: 18 * visualScale),
                       FilledButton.icon(
                         onPressed: () =>
                             context.go('/activities/${activity.id}'),
@@ -867,6 +912,8 @@ class _TopToolButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final isTightLandscapePhone = size.width > size.height && size.height < 430;
     final backgroundColor = isPrimary
         ? const Color(0xFFFF8F4D)
         : Colors.white.withValues(alpha: 0.18);
@@ -876,20 +923,28 @@ class _TopToolButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(22),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.symmetric(
+          horizontal: isTightLandscapePhone ? 12 : 16,
+          vertical: isTightLandscapePhone ? 9 : 12,
+        ),
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(22),
         ),
         child: Row(
           children: [
-            Icon(icon, color: foregroundColor, size: 18),
-            const SizedBox(width: 8),
+            Icon(
+              icon,
+              color: foregroundColor,
+              size: isTightLandscapePhone ? 16 : 18,
+            ),
+            SizedBox(width: isTightLandscapePhone ? 6 : 8),
             Text(
               label,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: foregroundColor,
                 fontWeight: FontWeight.w800,
+                fontSize: isTightLandscapePhone ? 13 : null,
               ),
             ),
           ],
@@ -897,4 +952,10 @@ class _TopToolButton extends StatelessWidget {
       ),
     );
   }
+}
+
+double _activityLandscapeVisualScale(double maxWidth, double maxHeight) {
+  final heightScale = (maxHeight / 430).clamp(0.8, 1.0);
+  final widthScale = (maxWidth / 960).clamp(0.9, 1.0);
+  return (heightScale * widthScale).clamp(0.8, 1.0);
 }

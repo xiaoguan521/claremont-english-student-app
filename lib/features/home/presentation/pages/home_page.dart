@@ -87,6 +87,10 @@ class HomePage extends ConsumerWidget {
                     summary: summary,
                   );
 
+            if (isLandscapePhone) {
+              return content;
+            }
+
             return SingleChildScrollView(
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -209,8 +213,8 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
     final textScale = (MediaQuery.textScalerOf(context).scale(1) * visualScale)
         .clamp(0.82, 1.0);
     final displayName = _studentDisplayName(currentUserEmail);
-    final designWidth = maxWidth < 960 ? 960.0 : maxWidth;
-    final designHeight = maxHeight.clamp(320.0, 460.0);
+    final designWidth = maxWidth;
+    final designHeight = maxHeight;
     final sideWidth = (designWidth < 880 ? 204.0 : 228.0) * visualScale;
     final railWidth = (designWidth < 880 ? 216.0 : 248.0) * visualScale;
     final gap = (designWidth < 880 ? 10.0 : 14.0) * visualScale;
@@ -293,16 +297,7 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
       ),
     );
 
-    return SizedBox.expand(
-      child: Align(
-        alignment: Alignment.topLeft,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.topLeft,
-          child: content,
-        ),
-      ),
-    );
+    return content;
   }
 }
 

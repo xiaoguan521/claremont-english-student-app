@@ -364,6 +364,7 @@ class ActivitiesPage extends ConsumerWidget {
     return TabletShell(
       activeSection: TabletSection.teaching,
       brandName: schoolContext.displayName,
+      brandLogoUrl: schoolContext.logoUrl,
       brandSubtitle: '学校学习入口',
       title: '我的作业',
       subtitle: subtitle,

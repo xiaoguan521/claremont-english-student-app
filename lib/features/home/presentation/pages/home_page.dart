@@ -101,6 +101,7 @@ class HomePage extends ConsumerWidget {
     return TabletShell(
       activeSection: TabletSection.management,
       brandName: schoolContext.displayName,
+      brandLogoUrl: schoolContext.logoUrl,
       brandSubtitle: '学校学习入口',
       title: '今日任务',
       subtitle: schoolContext.welcomeMessage,

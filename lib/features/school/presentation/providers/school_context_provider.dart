@@ -3,26 +3,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/config/app_config.dart';
-
 const _preferredSchoolSlugKey = 'preferred_school_slug';
 
 class SchoolContext {
   const SchoolContext({
     required this.schoolId,
     required this.slug,
+    required this.schoolName,
     required this.displayName,
     required this.welcomeTitle,
     required this.welcomeMessage,
     required this.themeKey,
+    required this.logoUrl,
   });
 
   final String? schoolId;
   final String slug;
+  final String schoolName;
   final String displayName;
   final String welcomeTitle;
   final String welcomeMessage;
   final String themeKey;
+  final String logoUrl;
 
   Color get primaryColor {
     switch (themeKey) {
@@ -53,27 +55,35 @@ class SchoolContext {
   }
 
   factory SchoolContext.fallback([String? slug]) {
-    final nextSlug = slug == null || slug.isEmpty ? 'claremont-demo' : slug;
+    final nextSlug = slug == null || slug.isEmpty ? 'school' : slug;
     return SchoolContext(
       schoolId: null,
       slug: nextSlug,
-      displayName: '英语打卡',
-      welcomeTitle: '欢迎来到英语打卡',
+      schoolName: '',
+      displayName: '',
+      welcomeTitle: _defaultWelcomeTitle(''),
       welcomeMessage: '今天也要完成老师布置的学习任务。',
       themeKey: 'forest',
+      logoUrl: '',
     );
   }
 
   factory SchoolContext.selectionRequired() {
-    return const SchoolContext(
+    return SchoolContext(
       schoolId: null,
       slug: 'select-school',
-      displayName: '英语打卡',
+      schoolName: '',
+      displayName: '',
       welcomeTitle: '请选择你的学校',
       welcomeMessage: '这个账号已绑定多个学校，请先选择今天要进入的学校。',
       themeKey: 'ocean',
+      logoUrl: '',
     );
   }
+}
+
+String _defaultWelcomeTitle(String brandName) {
+  return brandName.isNotEmpty ? '欢迎来到$brandName' : '欢迎使用学习入口';
 }
 
 class PreferredSchoolSlugNotifier extends StateNotifier<String?> {
@@ -107,17 +117,12 @@ final preferredSchoolSlugProvider =
 final availableSchoolContextsProvider = FutureProvider<List<SchoolContext>>((
   ref,
 ) async {
-  final config = ref.watch(appConfigProvider);
   final preferredSlug = ref.watch(preferredSchoolSlugProvider);
-
-  if (!config.canUseSupabase) {
-    return [SchoolContext.fallback(preferredSlug)];
-  }
 
   final client = Supabase.instance.client;
   final userId = client.auth.currentUser?.id;
   if (userId == null) {
-    return [];
+    return [SchoolContext.fallback(preferredSlug)];
   }
 
   final membershipsResponse = await client
@@ -155,12 +160,7 @@ final schoolSelectionRequiredProvider = FutureProvider<bool>((ref) async {
 });
 
 final schoolContextProvider = FutureProvider<SchoolContext>((ref) async {
-  final config = ref.watch(appConfigProvider);
   final preferredSlug = ref.watch(preferredSchoolSlugProvider);
-
-  if (!config.canUseSupabase) {
-    return SchoolContext.fallback(preferredSlug);
-  }
 
   final client = Supabase.instance.client;
 
@@ -205,7 +205,7 @@ Future<SchoolContext?> _fetchBySlug(SupabaseClient client, String slug) async {
     final response = await client
         .from('school_configs')
         .select(
-          'school_id, slug, app_display_name, welcome_title, welcome_message, theme_key',
+          'school_id, slug, app_display_name, welcome_title, welcome_message, theme_key, brand_name, logo_url',
         )
         .eq('slug', slug)
         .maybeSingle();
@@ -221,13 +221,17 @@ Future<SchoolContext?> _fetchBySlug(SupabaseClient client, String slug) async {
 }
 
 SchoolContext _mapSchoolContext(Map<String, dynamic> row) {
+  final brandName = (row['brand_name'] as String?)?.trim() ?? '';
+
   return SchoolContext(
     schoolId: row['school_id'] as String?,
     slug: (row['slug'] as String?) ?? 'school',
-    displayName: (row['app_display_name'] as String?) ?? '英语打卡',
-    welcomeTitle: (row['welcome_title'] as String?) ?? '欢迎来到英语打卡',
-    welcomeMessage: (row['welcome_message'] as String?) ?? '今天也要认真完成英语学习任务。',
+    schoolName: brandName,
+    displayName: brandName,
+    welcomeTitle: _defaultWelcomeTitle(brandName),
+    welcomeMessage: '今天也要认真完成英语学习任务。',
     themeKey: (row['theme_key'] as String?) ?? 'forest',
+    logoUrl: (row['logo_url'] as String?)?.trim() ?? '',
   );
 }
 
@@ -239,7 +243,7 @@ Future<List<SchoolContext>> _fetchAvailableSchools(
     final response = await client
         .from('school_configs')
         .select(
-          'school_id, slug, app_display_name, welcome_title, welcome_message, theme_key',
+          'school_id, slug, app_display_name, welcome_title, welcome_message, theme_key, brand_name, logo_url',
         )
         .inFilter('school_id', schoolIds);
 
@@ -257,15 +261,16 @@ Future<List<SchoolContext>> _fetchAvailableSchools(
       .inFilter('id', schoolIds);
 
   return List<Map<String, dynamic>>.from(schoolResponse).map((row) {
-    final schoolName = (row['name'] as String?) ?? '英语打卡';
     final slug = (row['code'] as String?) ?? 'school';
     return SchoolContext(
       schoolId: row['id'] as String?,
       slug: slug,
-      displayName: schoolName,
-      welcomeTitle: '欢迎来到$schoolName',
+      schoolName: '',
+      displayName: '',
+      welcomeTitle: _defaultWelcomeTitle(''),
       welcomeMessage: '今天也要认真完成英语学习任务。',
       themeKey: 'forest',
+      logoUrl: '',
     );
   }).toList();
 }

@@ -9,10 +9,10 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
-  String get appTitle => 'Claremont English';
+  String get appTitle => 'English Practice';
 
   @override
-  String get welcomeMessage => 'Bienvenido a Claremont English';
+  String get welcomeMessage => 'Bienvenido a English Practice';
 
   @override
   String get home => 'Inicio';
@@ -150,7 +150,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get uploadError => 'Error en la subida';
 
   @override
-  String get welcomeTitle => 'Bienvenido a Claremont English';
+  String get welcomeTitle => 'Bienvenido a English Practice';
 
   @override
   String get welcomeSubtitle =>
@@ -492,13 +492,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get about => 'Acerca de';
 
   @override
-  String get flutterStarterApp => 'Aplicación Claremont English';
+  String get flutterStarterApp => 'Aplicación English Practice';
 
   @override
   String get version => 'Versión 1.0.0';
 
   @override
-  String get flutterStarter => 'Claremont English';
+  String get flutterStarter => 'English Practice';
 
   @override
   String get material3StarterTemplate => 'Una plantilla starter de Material 3';
@@ -791,7 +791,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get next => 'Siguiente';
 
   @override
-  String get welcomeToFlutterStarter => 'Bienvenido a Claremont English';
+  String get welcomeToFlutterStarter => 'Bienvenido a English Practice';
 
   @override
   String get onboardingWelcomeDescription =>

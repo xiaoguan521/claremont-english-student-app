@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/widgets/brand_avatar.dart';
+
 enum TabletSection { teaching, management, explore }
 
 class TabletShell extends StatelessWidget {
@@ -8,6 +10,7 @@ class TabletShell extends StatelessWidget {
   final String title;
   final String? subtitle;
   final String brandName;
+  final String? brandLogoUrl;
   final String? brandSubtitle;
   final Widget child;
   final List<Widget>? actions;
@@ -17,7 +20,8 @@ class TabletShell extends StatelessWidget {
     required this.title,
     required this.child,
     this.subtitle,
-    this.brandName = '英语打卡',
+    this.brandName = '',
+    this.brandLogoUrl,
     this.brandSubtitle,
     this.actions,
     super.key,
@@ -98,6 +102,7 @@ class TabletShell extends StatelessWidget {
                             title: title,
                             subtitle: subtitle,
                             brandName: brandName,
+                            brandLogoUrl: brandLogoUrl,
                             brandSubtitle: brandSubtitle,
                             actions: actions,
                             isCompact: isCompact,
@@ -145,6 +150,7 @@ class _TopBar extends StatelessWidget {
   final String title;
   final String? subtitle;
   final String brandName;
+  final String? brandLogoUrl;
   final String? brandSubtitle;
   final List<Widget>? actions;
   final bool isCompact;
@@ -153,6 +159,7 @@ class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.title,
     required this.brandName,
+    this.brandLogoUrl,
     this.subtitle,
     this.brandSubtitle,
     this.actions,
@@ -164,6 +171,12 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final tightLandscapePhone = isLandscapePhone && size.height < 430;
+    final primaryBrandText = brandName.trim().isNotEmpty
+        ? brandName.trim()
+        : (brandSubtitle?.trim() ?? '');
+    final secondaryBrandText = brandName.trim().isNotEmpty
+        ? brandSubtitle?.trim()
+        : null;
     final brandChip = ConstrainedBox(
       constraints: BoxConstraints(
         maxWidth: isLandscapePhone
@@ -196,23 +209,8 @@ class _TopBar extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: isLandscapePhone
-                  ? tightLandscapePhone
-                        ? 30
-                        : 34
-                  : isCompact
-                  ? 40
-                  : 42,
-              height: isLandscapePhone
-                  ? tightLandscapePhone
-                        ? 30
-                        : 34
-                  : isCompact
-                  ? 40
-                  : 42,
+            DecoratedBox(
               decoration: BoxDecoration(
-                color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
@@ -222,48 +220,61 @@ class _TopBar extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.auto_stories_rounded,
-                color: Color(0xFF309A7A),
+              child: BrandAvatar(
+                logoUrl: brandLogoUrl?.trim() ?? '',
+                size: isLandscapePhone
+                    ? tightLandscapePhone
+                          ? 30
+                          : 34
+                    : isCompact
+                    ? 40
+                    : 42,
+                borderRadius: 14,
+                backgroundColor: Colors.white,
+                fallbackIcon: Icons.auto_stories_rounded,
+                fallbackIconColor: const Color(0xFF309A7A),
               ),
             ),
             SizedBox(
               width: isLandscapePhone ? (tightLandscapePhone ? 6 : 8) : 12,
             ),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    brandName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: isLandscapePhone
-                          ? tightLandscapePhone
-                                ? 13
-                                : 15
-                          : isCompact
-                          ? 16
-                          : null,
-                    ),
-                  ),
-                  if (brandSubtitle != null && !isLandscapePhone)
+            if (primaryBrandText.isNotEmpty)
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      brandSubtitle!,
+                      primaryBrandText,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontWeight: FontWeight.w600,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: isLandscapePhone
+                            ? tightLandscapePhone
+                                  ? 13
+                                  : 15
+                            : isCompact
+                            ? 16
+                            : null,
                       ),
                     ),
-                ],
+                    if (secondaryBrandText != null &&
+                        secondaryBrandText.isNotEmpty &&
+                        !isLandscapePhone)
+                      Text(
+                        secondaryBrandText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),

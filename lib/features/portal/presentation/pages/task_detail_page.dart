@@ -945,6 +945,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return TabletShell(
         activeSection: TabletSection.teaching,
         brandName: schoolContext.displayName,
+        brandLogoUrl: schoolContext.logoUrl,
         brandSubtitle: '学校学习入口',
         title: '任务详情',
         subtitle: '正在加载今天的学习任务',
@@ -956,6 +957,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return TabletShell(
         activeSection: TabletSection.teaching,
         brandName: schoolContext.displayName,
+        brandLogoUrl: schoolContext.logoUrl,
         brandSubtitle: '学校学习入口',
         title: '任务详情',
         subtitle: '加载失败',
@@ -975,6 +977,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return TabletShell(
         activeSection: TabletSection.teaching,
         brandName: schoolContext.displayName,
+        brandLogoUrl: schoolContext.logoUrl,
         brandSubtitle: '学校学习入口',
         title: '任务详情',
         subtitle: '内容不存在',
@@ -1014,6 +1017,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     return TabletShell(
       activeSection: TabletSection.teaching,
       brandName: schoolContext.displayName,
+      brandLogoUrl: schoolContext.logoUrl,
       brandSubtitle: '学校学习入口',
       title: activity.title,
       subtitle: '${activity.className} · ${activity.dateLabel}',

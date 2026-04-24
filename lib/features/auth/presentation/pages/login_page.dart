@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../../core/widgets/brand_avatar.dart';
 import '../providers/auth_provider.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
 
@@ -180,31 +182,34 @@ class _SchoolHero extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: isPhone ? 60 : 68,
-            height: isPhone ? 60 : 68,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(22),
             ),
-            child: Icon(
-              Icons.auto_stories_rounded,
-              color: Colors.white,
-              size: isPhone ? 30 : 34,
+            child: BrandAvatar(
+              logoUrl: schoolContext.logoUrl,
+              size: isPhone ? 60 : 68,
+              borderRadius: 22,
+              backgroundColor: Colors.transparent,
+              fallbackIcon: Icons.auto_stories_rounded,
+              fallbackIconColor: Colors.white,
+              fallbackIconSize: isPhone ? 30 : 34,
             ),
           ),
-          const SizedBox(height: 20),
-          Text(
-            schoolContext.displayName,
-            style:
-                (isPhone
-                        ? Theme.of(context).textTheme.headlineMedium
-                        : Theme.of(context).textTheme.displaySmall)
-                    ?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-          ),
-          const SizedBox(height: 12),
+          SizedBox(height: schoolContext.displayName.isEmpty ? 16 : 20),
+          if (schoolContext.displayName.isNotEmpty)
+            Text(
+              schoolContext.displayName,
+              style:
+                  (isPhone
+                          ? Theme.of(context).textTheme.headlineMedium
+                          : Theme.of(context).textTheme.displaySmall)
+                      ?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+            ),
+          SizedBox(height: schoolContext.displayName.isEmpty ? 0 : 12),
           Text(
             schoolContext.welcomeTitle,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(

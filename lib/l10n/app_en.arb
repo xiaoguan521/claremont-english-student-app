@@ -1,11 +1,11 @@
 {
   "@@locale": "en",
-  "appTitle": "Claremont English",
+  "appTitle": "English Practice",
   "@appTitle": {
     "description": "The title of the application"
   },
   
-  "welcomeMessage": "Welcome to Claremont English",
+  "welcomeMessage": "Welcome to English Practice",
   "@welcomeMessage": {
     "description": "Welcome message displayed on home page"
   },
@@ -235,7 +235,7 @@
     "description": "File upload error message"
   },
   
-  "welcomeTitle": "Welcome to Claremont English",
+  "welcomeTitle": "Welcome to English Practice",
   "@welcomeTitle": {
     "description": "Welcome title on home page"
   },
@@ -780,7 +780,7 @@
     "description": "About section title"
   },
 
-  "flutterStarterApp": "Claremont English App",
+  "flutterStarterApp": "English Practice App",
   "@flutterStarterApp": {
     "description": "App name in about section"
   },
@@ -790,7 +790,7 @@
     "description": "App version"
   },
 
-  "flutterStarter": "Claremont English",
+  "flutterStarter": "English Practice",
   "@flutterStarter": {
     "description": "App name"
   },
@@ -1245,7 +1245,7 @@
     "description": "Next button on onboarding"
   },
 
-  "welcomeToFlutterStarter": "Welcome to Claremont English",
+  "welcomeToFlutterStarter": "Welcome to English Practice",
   "@welcomeToFlutterStarter": {
     "description": "Onboarding welcome title"
   },

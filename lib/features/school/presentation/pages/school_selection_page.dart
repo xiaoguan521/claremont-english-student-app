@@ -94,6 +94,13 @@ class _SchoolChoiceCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final schoolLabel = option.schoolName.isNotEmpty
+        ? option.schoolName
+        : '学校入口';
+    final schoolSubtitle = option.schoolName.isNotEmpty
+        ? option.welcomeMessage
+        : '入口编码：${option.slug}';
+
     return InkWell(
       onTap: () async {
         await ref
@@ -142,7 +149,7 @@ class _SchoolChoiceCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    option.displayName,
+                    schoolLabel,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: const Color(0xFF1E293B),
                       fontWeight: FontWeight.w900,
@@ -150,7 +157,7 @@ class _SchoolChoiceCard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    option.welcomeMessage,
+                    schoolSubtitle,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: const Color(0xFF64748B),
                       fontWeight: FontWeight.w700,

@@ -208,19 +208,23 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
     final textScale = (MediaQuery.textScalerOf(context).scale(1) * visualScale)
         .clamp(0.82, 1.0);
     final displayName = _studentDisplayName(currentUserEmail);
-    final sideWidth = (maxWidth < 880 ? 204.0 : 228.0) * visualScale;
-    final railWidth = (maxWidth < 880 ? 216.0 : 248.0) * visualScale;
-    final gap = (maxWidth < 880 ? 10.0 : 14.0) * visualScale;
-    return MediaQuery(
+    final designWidth = maxWidth < 960 ? 960.0 : maxWidth;
+    final designHeight = maxHeight.clamp(320.0, 460.0);
+    final sideWidth = (designWidth < 880 ? 204.0 : 228.0) * visualScale;
+    final railWidth = (designWidth < 880 ? 216.0 : 248.0) * visualScale;
+    final gap = (designWidth < 880 ? 10.0 : 14.0) * visualScale;
+
+    final content = MediaQuery(
       data: MediaQuery.of(
         context,
       ).copyWith(textScaler: TextScaler.linear(textScale)),
       child: SizedBox(
-        height: maxHeight.clamp(320.0, 460.0),
+        width: designWidth,
+        height: designHeight,
         child: Column(
           children: [
             _FeatureTopBar(
-              isCompact: maxWidth < 920,
+              isCompact: designWidth < 920,
               visualScale: visualScale,
               onOpenFeature: (title, description, accent, icon) {
                 _showComingSoonSheet(
@@ -284,6 +288,17 @@ class _LandscapePhoneHomeLayout extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+
+    return SizedBox.expand(
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.topLeft,
+          child: content,
         ),
       ),
     );

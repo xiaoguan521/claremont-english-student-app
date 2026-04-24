@@ -110,6 +110,7 @@ class ActivitiesPage extends ConsumerWidget {
                 )
               : ListView.separated(
                   shrinkWrap: isPhone,
+                  primary: !isPhone,
                   physics: isPhone
                       ? const NeverScrollableScrollPhysics()
                       : const AlwaysScrollableScrollPhysics(),
@@ -125,123 +126,153 @@ class ActivitiesPage extends ConsumerWidget {
                 );
 
           if (isLandscapePhone) {
-            final railWidth = (constraints.maxWidth * 0.22).clamp(176.0, 236.0);
-            final gap = constraints.maxWidth < 900 ? 10.0 : 14.0;
-            return MediaQuery(
+            final designWidth = constraints.maxWidth < 980
+                ? 980.0
+                : constraints.maxWidth;
+            final designHeight = constraints.maxHeight.clamp(320.0, 460.0);
+            final railWidth = (designWidth * 0.22).clamp(176.0, 236.0);
+            final gap = designWidth < 900 ? 10.0 : 14.0;
+            final landscapeList = activities.isEmpty
+                ? list
+                : Scrollbar(
+                    thumbVisibility: true,
+                    radius: const Radius.circular(999),
+                    child: list,
+                  );
+
+            final content = MediaQuery(
               data: MediaQuery.of(
                 context,
               ).copyWith(textScaler: TextScaler.linear(textScale)),
-              child: Column(
-                children: [
-                  _HomeworkCalendarStrip(
-                    dates: calendarDates,
-                    selectedDate: selectedDate,
-                    today: today,
-                    activityCountByDate: activityCountByDate,
-                    visualScale: visualScale,
-                    onSelectDate: (date) =>
-                        ref.read(selectedActivityDateProvider.notifier).state =
-                            date,
-                  ),
-                  SizedBox(height: 14 * visualScale),
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: railWidth * visualScale,
-                          child: SingleChildScrollView(
-                            child: _ActionRail(
-                              summary: summary,
-                              selectedDate: selectedDate,
-                              today: today,
-                              isCompact: true,
-                              visualScale: visualScale,
-                              onResetToToday: !_isSameDay(selectedDate, today)
-                                  ? () =>
-                                        ref
-                                                .read(
-                                                  selectedActivityDateProvider
-                                                      .notifier,
-                                                )
-                                                .state =
-                                            today
-                                  : null,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: gap * visualScale),
-                        Expanded(
-                          child: Container(
-                            padding: EdgeInsets.all(
-                              (constraints.maxWidth < 900 ? 14 : 18) *
-                                  visualScale,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.82),
-                              borderRadius: BorderRadius.circular(28),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            _isSameDay(selectedDate, today)
-                                                ? '今天'
-                                                : _formatDateLabel(
-                                                    selectedDate,
-                                                  ),
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .headlineSmall
-                                                ?.copyWith(
-                                                  color: const Color(
-                                                    0xFF1E293B,
-                                                  ),
-                                                  fontWeight: FontWeight.w900,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 12 * visualScale,
-                                        vertical: 8 * visualScale,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFFF2E4),
-                                        borderRadius: BorderRadius.circular(18),
-                                      ),
-                                      child: Text(
-                                        '${activities.length} 份作业',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleSmall
-                                            ?.copyWith(
-                                              color: const Color(0xFFFF8F4D),
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 16 * visualScale),
-                                Expanded(child: list),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+              child: SizedBox(
+                width: designWidth,
+                height: designHeight,
+                child: Column(
+                  children: [
+                    _HomeworkCalendarStrip(
+                      dates: calendarDates,
+                      selectedDate: selectedDate,
+                      today: today,
+                      activityCountByDate: activityCountByDate,
+                      visualScale: visualScale,
+                      onSelectDate: (date) =>
+                          ref
+                                  .read(selectedActivityDateProvider.notifier)
+                                  .state =
+                              date,
                     ),
-                  ),
-                ],
+                    SizedBox(height: 14 * visualScale),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: railWidth * visualScale,
+                            child: SingleChildScrollView(
+                              child: _ActionRail(
+                                summary: summary,
+                                selectedDate: selectedDate,
+                                today: today,
+                                isCompact: true,
+                                visualScale: visualScale,
+                                onResetToToday: !_isSameDay(selectedDate, today)
+                                    ? () =>
+                                          ref
+                                                  .read(
+                                                    selectedActivityDateProvider
+                                                        .notifier,
+                                                  )
+                                                  .state =
+                                              today
+                                    : null,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: gap * visualScale),
+                          Expanded(
+                            child: Container(
+                              padding: EdgeInsets.all(
+                                (designWidth < 900 ? 14 : 18) * visualScale,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.82),
+                                borderRadius: BorderRadius.circular(28),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              _isSameDay(selectedDate, today)
+                                                  ? '今天'
+                                                  : _formatDateLabel(
+                                                      selectedDate,
+                                                    ),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .headlineSmall
+                                                  ?.copyWith(
+                                                    color: const Color(
+                                                      0xFF1E293B,
+                                                    ),
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 12 * visualScale,
+                                          vertical: 8 * visualScale,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFF2E4),
+                                          borderRadius: BorderRadius.circular(
+                                            18,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${activities.length} 份作业',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleSmall
+                                              ?.copyWith(
+                                                color: const Color(0xFFFF8F4D),
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 16 * visualScale),
+                                  Expanded(child: landscapeList),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+
+            return SizedBox.expand(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.topLeft,
+                  child: content,
+                ),
               ),
             );
           }

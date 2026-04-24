@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
 
@@ -11,9 +12,34 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
+  static const _lastLoginEmailKey = 'last_login_email';
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreLastLoginEmail();
+  }
+
+  Future<void> _restoreLastLoginEmail() async {
+    final preferences = await SharedPreferences.getInstance();
+    final lastEmail = preferences.getString(_lastLoginEmailKey);
+    if (!mounted || lastEmail == null || lastEmail.trim().isEmpty) {
+      return;
+    }
+    _emailController.text = lastEmail.trim();
+  }
+
+  Future<void> _saveLastLoginEmail() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      return;
+    }
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_lastLoginEmailKey, email);
+  }
 
   @override
   void dispose() {
@@ -34,6 +60,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(next.error!)));
+      }
+      if ((previous?.isAuthenticated ?? false) == false &&
+          next.isAuthenticated) {
+        _saveLastLoginEmail();
       }
     });
 

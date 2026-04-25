@@ -1,14 +1,31 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/local_cache_repository.dart';
 import '../../data/portal_models.dart';
 import '../../data/portal_repository.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
 
-final portalActivitiesProvider = FutureProvider<List<PortalActivity>>((ref) {
+const _portalActivitiesCacheKey = 'portal_activities_cache_v1';
+
+final portalActivitiesProvider = FutureProvider<List<PortalActivity>>((
+  ref,
+) async {
   final repository = ref.watch(portalRepositoryProvider);
+  final cacheRepository = ref.watch(localCacheRepositoryProvider);
   final schoolContext = ref.watch(schoolContextProvider);
   final schoolId = schoolContext.valueOrNull?.schoolId;
-  return repository.fetchActivities(schoolId: schoolId);
+
+  final cachedActivities = await _readCachedActivities(cacheRepository);
+
+  try {
+    final activities = await repository.fetchActivities(schoolId: schoolId);
+    await cacheRepository.writeJson(_portalActivitiesCacheKey, {
+      'activities': activities.map((activity) => activity.toMap()).toList(),
+    });
+    return activities;
+  } catch (_) {
+    return cachedActivities;
+  }
 });
 
 final todayActivityDateProvider = Provider<DateTime>((ref) {
@@ -90,9 +107,37 @@ final highlightedActivityProvider = FutureProvider<PortalActivity?>((
 final portalActivityByIdProvider =
     FutureProvider.family<PortalActivity?, String>((ref, activityId) async {
       final repository = ref.watch(portalRepositoryProvider);
+      final cacheRepository = ref.watch(localCacheRepositoryProvider);
       final schoolContext = ref.watch(schoolContextProvider);
       final schoolId = schoolContext.valueOrNull?.schoolId;
-      return repository.fetchActivityById(activityId, schoolId: schoolId);
+      try {
+        final activity = await repository.fetchActivityById(
+          activityId,
+          schoolId: schoolId,
+        );
+        if (activity != null) {
+          final cachedActivities = await _readCachedActivities(cacheRepository);
+          final nextActivities = [
+            for (final item in cachedActivities)
+              if (item.id != activity.id) item,
+            activity,
+          ];
+          await cacheRepository.writeJson(_portalActivitiesCacheKey, {
+            'activities': nextActivities
+                .map((cachedActivity) => cachedActivity.toMap())
+                .toList(),
+          });
+        }
+        return activity;
+      } catch (_) {
+        final cachedActivities = await _readCachedActivities(cacheRepository);
+        for (final activity in cachedActivities) {
+          if (activity.id == activityId) {
+            return activity;
+          }
+        }
+        return null;
+      }
     });
 
 final portalSummaryProvider = FutureProvider<PortalSummary>((ref) async {
@@ -201,4 +246,18 @@ class PortalSummary {
   final int completedActivities;
   final int inProgressActivities;
   final int pendingTasks;
+}
+
+Future<List<PortalActivity>> _readCachedActivities(
+  LocalCacheRepository cacheRepository,
+) async {
+  final cachedMap = await cacheRepository.readJson(_portalActivitiesCacheKey);
+  if (cachedMap == null) {
+    return const [];
+  }
+  final rows = cachedMap['activities'] as List<dynamic>? ?? const <dynamic>[];
+  return rows
+      .whereType<Map>()
+      .map((item) => PortalActivity.fromMap(item.cast<String, dynamic>()))
+      .toList();
 }

@@ -5,6 +5,74 @@ import '../../../../core/widgets/brand_avatar.dart';
 
 enum TabletSection { teaching, management, explore }
 
+class TabletShellTheme {
+  final Color scaffoldBackground;
+  final List<Color> backgroundGradient;
+  final Color brandChipColor;
+  final Color titleChipColor;
+  final Color titleChipBorderColor;
+  final Color bottomNavColor;
+  final Color bottomNavSelectedColor;
+  final Color bottomNavSelectedTextColor;
+  final Color bottomNavUnselectedColor;
+  final Color bottomNavShadowColor;
+  final List<Color> decorColors;
+  final Color fallbackIconColor;
+
+  const TabletShellTheme({
+    required this.scaffoldBackground,
+    required this.backgroundGradient,
+    required this.brandChipColor,
+    required this.titleChipColor,
+    required this.titleChipBorderColor,
+    required this.bottomNavColor,
+    required this.bottomNavSelectedColor,
+    required this.bottomNavSelectedTextColor,
+    required this.bottomNavUnselectedColor,
+    required this.bottomNavShadowColor,
+    required this.decorColors,
+    required this.fallbackIconColor,
+  });
+
+  static const classic = TabletShellTheme(
+    scaffoldBackground: Color(0xFFF7F3D9),
+    backgroundGradient: [
+      Color(0xFF54C58F),
+      Color(0xFFB9E36E),
+      Color(0xFFFFE7A8),
+    ],
+    brandChipColor: Color(0x29000000),
+    titleChipColor: Color(0x29FFFFFF),
+    titleChipBorderColor: Color(0x00FFFFFF),
+    bottomNavColor: Color(0xDBFFFFFF),
+    bottomNavSelectedColor: Color(0xFFFF8F4D),
+    bottomNavSelectedTextColor: Colors.white,
+    bottomNavUnselectedColor: Color(0xFF475569),
+    bottomNavShadowColor: Color(0x14000000),
+    decorColors: [Color(0x1AFFFFFF), Color(0x38FDE68A), Color(0x2E93C5FD)],
+    fallbackIconColor: Color(0xFF309A7A),
+  );
+
+  static const k12Sky = TabletShellTheme(
+    scaffoldBackground: Color(0xFFE8F7FF),
+    backgroundGradient: [
+      Color(0xFF8EDBFF),
+      Color(0xFF63C5FF),
+      Color(0xFFB3F07E),
+    ],
+    brandChipColor: Color(0x2EFFFFFF),
+    titleChipColor: Color(0x33FFFFFF),
+    titleChipBorderColor: Color(0x7AFFFFFF),
+    bottomNavColor: Color(0xE6FFFFFF),
+    bottomNavSelectedColor: Color(0xFFFFD447),
+    bottomNavSelectedTextColor: Color(0xFF1554A8),
+    bottomNavUnselectedColor: Color(0xFF2C5E9E),
+    bottomNavShadowColor: Color(0x1F2C84D2),
+    decorColors: [Color(0x22FFFFFF), Color(0x55FFE16B), Color(0x448EF58D)],
+    fallbackIconColor: Color(0xFF1D72C9),
+  );
+}
+
 class TabletShell extends StatelessWidget {
   final TabletSection activeSection;
   final String title;
@@ -14,6 +82,7 @@ class TabletShell extends StatelessWidget {
   final String? brandSubtitle;
   final Widget child;
   final List<Widget>? actions;
+  final TabletShellTheme theme;
 
   const TabletShell({
     required this.activeSection,
@@ -24,6 +93,7 @@ class TabletShell extends StatelessWidget {
     this.brandLogoUrl,
     this.brandSubtitle,
     this.actions,
+    this.theme = TabletShellTheme.classic,
     super.key,
   });
 
@@ -31,18 +101,18 @@ class TabletShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F3D9),
+      backgroundColor: theme.scaffoldBackground,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF54C58F), Color(0xFFB9E36E), Color(0xFFFFE7A8)],
+            colors: theme.backgroundGradient,
           ),
         ),
         child: Stack(
           children: [
-            const _BackgroundDecor(),
+            _BackgroundDecor(theme: theme),
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -107,6 +177,7 @@ class TabletShell extends StatelessWidget {
                             actions: actions,
                             isCompact: isCompact,
                             isLandscapePhone: isLandscapePhone,
+                            theme: theme,
                           ),
                           SizedBox(
                             height: isLandscapePhone
@@ -130,6 +201,7 @@ class TabletShell extends StatelessWidget {
                               activeSection: activeSection,
                               isCompact: isCompact,
                               isLandscapePhone: isLandscapePhone,
+                              theme: theme,
                             ),
                           ],
                         ],
@@ -155,6 +227,7 @@ class _TopBar extends StatelessWidget {
   final List<Widget>? actions;
   final bool isCompact;
   final bool isLandscapePhone;
+  final TabletShellTheme theme;
 
   const _TopBar({
     required this.title,
@@ -165,6 +238,7 @@ class _TopBar extends StatelessWidget {
     this.actions,
     required this.isCompact,
     required this.isLandscapePhone,
+    required this.theme,
   });
 
   @override
@@ -203,8 +277,11 @@ class _TopBar extends StatelessWidget {
               : 12,
         ),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.16),
+          color: theme.brandChipColor,
           borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: theme.titleChipBorderColor.withValues(alpha: 0.5),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -232,7 +309,7 @@ class _TopBar extends StatelessWidget {
                 borderRadius: 14,
                 backgroundColor: Colors.white,
                 fallbackIcon: Icons.auto_stories_rounded,
-                fallbackIconColor: const Color(0xFF309A7A),
+                fallbackIconColor: theme.fallbackIconColor,
               ),
             ),
             SizedBox(
@@ -294,8 +371,9 @@ class _TopBar extends StatelessWidget {
             : 14,
       ),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
+        color: theme.titleChipColor,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: theme.titleChipBorderColor, width: 1.4),
       ),
       child: Text(
         title,
@@ -359,11 +437,13 @@ class _BottomSectionNav extends StatelessWidget {
   final TabletSection activeSection;
   final bool isCompact;
   final bool isLandscapePhone;
+  final TabletShellTheme theme;
 
   const _BottomSectionNav({
     required this.activeSection,
     required this.isCompact,
     required this.isLandscapePhone,
+    required this.theme,
   });
 
   @override
@@ -384,11 +464,15 @@ class _BottomSectionNav extends StatelessWidget {
               : 12,
         ),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.86),
+          color: theme.bottomNavColor,
           borderRadius: BorderRadius.circular(36),
+          border: Border.all(
+            color: theme.titleChipBorderColor.withValues(alpha: 0.6),
+            width: 1.4,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: theme.bottomNavShadowColor,
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
@@ -402,6 +486,7 @@ class _BottomSectionNav extends StatelessWidget {
               icon: Icons.menu_book_rounded,
               selected: activeSection == TabletSection.teaching,
               onTap: () => context.go('/activities'),
+              theme: theme,
             ),
             SizedBox(width: isCompact ? 8 : 12),
             _NavChip(
@@ -409,6 +494,7 @@ class _BottomSectionNav extends StatelessWidget {
               icon: Icons.dashboard_customize_rounded,
               selected: activeSection == TabletSection.management,
               onTap: () => context.go('/home'),
+              theme: theme,
             ),
             SizedBox(width: isCompact ? 8 : 12),
             _NavChip(
@@ -416,6 +502,7 @@ class _BottomSectionNav extends StatelessWidget {
               icon: Icons.stars_rounded,
               selected: activeSection == TabletSection.explore,
               onTap: () => context.go('/explore'),
+              theme: theme,
             ),
           ],
         ),
@@ -429,12 +516,14 @@ class _NavChip extends StatelessWidget {
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+  final TabletShellTheme theme;
 
   const _NavChip({
     required this.label,
     required this.icon,
     required this.selected,
     required this.onTap,
+    required this.theme,
   });
 
   @override
@@ -461,7 +550,7 @@ class _NavChip extends StatelessWidget {
                 : 12,
           ),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFFFF8F4D) : Colors.transparent,
+            color: selected ? theme.bottomNavSelectedColor : Colors.transparent,
             borderRadius: BorderRadius.circular(24),
           ),
           child: Row(
@@ -474,7 +563,9 @@ class _NavChip extends StatelessWidget {
                     : isCompact
                     ? 18
                     : 20,
-                color: selected ? Colors.white : const Color(0xFF6B7280),
+                color: selected
+                    ? theme.bottomNavSelectedTextColor
+                    : theme.bottomNavUnselectedColor,
               ),
               SizedBox(
                 width: isTightLandscapePhone
@@ -486,7 +577,9 @@ class _NavChip extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: selected ? Colors.white : const Color(0xFF475569),
+                  color: selected
+                      ? theme.bottomNavSelectedTextColor
+                      : theme.bottomNavUnselectedColor,
                   fontWeight: FontWeight.w800,
                   fontSize: isTightLandscapePhone
                       ? 12
@@ -504,7 +597,9 @@ class _NavChip extends StatelessWidget {
 }
 
 class _BackgroundDecor extends StatelessWidget {
-  const _BackgroundDecor();
+  const _BackgroundDecor({required this.theme});
+
+  final TabletShellTheme theme;
 
   @override
   Widget build(BuildContext context) {
@@ -513,23 +608,17 @@ class _BackgroundDecor extends StatelessWidget {
         Positioned(
           top: -120,
           left: -60,
-          child: _Blob(size: 280, color: Colors.white.withValues(alpha: 0.10)),
+          child: _Blob(size: 280, color: theme.decorColors[0]),
         ),
         Positioned(
           right: -30,
           top: 90,
-          child: _Blob(
-            size: 220,
-            color: const Color(0xFFFDE68A).withValues(alpha: 0.22),
-          ),
+          child: _Blob(size: 220, color: theme.decorColors[1]),
         ),
         Positioned(
           left: 90,
           bottom: 80,
-          child: _Blob(
-            size: 180,
-            color: const Color(0xFF93C5FD).withValues(alpha: 0.18),
-          ),
+          child: _Blob(size: 180, color: theme.decorColors[2]),
         ),
       ],
     );

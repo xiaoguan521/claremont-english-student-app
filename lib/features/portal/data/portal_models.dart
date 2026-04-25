@@ -28,6 +28,30 @@ class PortalTaskRegion {
   final double y;
   final double width;
   final double height;
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'id': id,
+      'pageNumber': pageNumber,
+      'pageImagePath': pageImagePath,
+      'x': x,
+      'y': y,
+      'width': width,
+      'height': height,
+    };
+  }
+
+  factory PortalTaskRegion.fromMap(Map<String, dynamic> map) {
+    return PortalTaskRegion(
+      id: map['id'] as String? ?? '',
+      pageNumber: (map['pageNumber'] as num?)?.toInt() ?? 0,
+      pageImagePath: map['pageImagePath'] as String? ?? '',
+      x: (map['x'] as num?)?.toDouble() ?? 0,
+      y: (map['y'] as num?)?.toDouble() ?? 0,
+      width: (map['width'] as num?)?.toDouble() ?? 0,
+      height: (map['height'] as num?)?.toDouble() ?? 0,
+    );
+  }
 }
 
 class PortalTask {
@@ -69,6 +93,48 @@ class PortalTask {
   bool get hasTeachingVideo => (teachingVideoPath ?? '').trim().isNotEmpty;
   bool get hasReview => review != null;
   bool get hasRegion => region != null;
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'id': id,
+      'title': title,
+      'kind': kind.name,
+      'reviewStatus': reviewStatus.name,
+      'previewAsset': previewAsset,
+      'review': review?.toMap(),
+      'promptText': promptText,
+      'ttsText': ttsText,
+      'expectedText': expectedText,
+      'startPage': startPage,
+      'endPage': endPage,
+      'referenceAudioPath': referenceAudioPath,
+      'teachingVideoPath': teachingVideoPath,
+      'region': region?.toMap(),
+    };
+  }
+
+  factory PortalTask.fromMap(Map<String, dynamic> map) {
+    return PortalTask(
+      id: map['id'] as String? ?? '',
+      title: map['title'] as String? ?? '',
+      kind: _taskKindFromName(map['kind'] as String?),
+      reviewStatus: _taskReviewStatusFromName(map['reviewStatus'] as String?),
+      previewAsset: map['previewAsset'] as String? ?? '',
+      review: _mapOrNull(map['review']) == null
+          ? null
+          : PortalTaskReview.fromMap(_mapOrNull(map['review'])!),
+      promptText: map['promptText'] as String?,
+      ttsText: map['ttsText'] as String?,
+      expectedText: map['expectedText'] as String?,
+      startPage: (map['startPage'] as num?)?.toInt(),
+      endPage: (map['endPage'] as num?)?.toInt(),
+      referenceAudioPath: map['referenceAudioPath'] as String?,
+      teachingVideoPath: map['teachingVideoPath'] as String?,
+      region: _mapOrNull(map['region']) == null
+          ? null
+          : PortalTaskRegion.fromMap(_mapOrNull(map['region'])!),
+    );
+  }
 }
 
 class PortalTaskReview {
@@ -98,6 +164,41 @@ class PortalTaskReview {
 
   bool get isTeacherReviewedReference =>
       source == PortalTaskReviewSource.aiRetainedAfterTeacherReview;
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'score': score,
+      'summaryFeedback': summaryFeedback,
+      'encouragement': encouragement,
+      'source': source.name,
+      'sourceLabel': sourceLabel,
+      'pronunciationScore': pronunciationScore,
+      'fluencyScore': fluencyScore,
+      'completenessScore': completenessScore,
+      'strengths': strengths,
+      'improvementPoints': improvementPoints,
+    };
+  }
+
+  factory PortalTaskReview.fromMap(Map<String, dynamic> map) {
+    return PortalTaskReview(
+      score: (map['score'] as num?)?.toDouble() ?? 0,
+      summaryFeedback: map['summaryFeedback'] as String? ?? '',
+      encouragement: map['encouragement'] as String? ?? '',
+      source: _reviewSourceFromName(map['source'] as String?),
+      sourceLabel: map['sourceLabel'] as String? ?? 'AI 句子点评',
+      pronunciationScore: (map['pronunciationScore'] as num?)?.toDouble(),
+      fluencyScore: (map['fluencyScore'] as num?)?.toDouble(),
+      completenessScore: (map['completenessScore'] as num?)?.toDouble(),
+      strengths: (map['strengths'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<String>()
+          .toList(),
+      improvementPoints:
+          (map['improvementPoints'] as List<dynamic>? ?? const <dynamic>[])
+              .whereType<String>()
+              .toList(),
+    );
+  }
 }
 
 class PortalActivity {
@@ -173,6 +274,141 @@ class PortalActivity {
 
   bool get hasTeacherReviewedResult =>
       reviewSource == PortalActivityReviewSource.teacherReviewed;
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'id': id,
+      'title': title,
+      'className': className,
+      'dateLabel': dateLabel,
+      'dueDate': dueDate?.toIso8601String(),
+      'status': status.name,
+      'reviewCount': reviewCount,
+      'inspectCount': inspectCount,
+      'urgeCount': urgeCount,
+      'completionRate': completionRate,
+      'tasks': tasks.map((task) => task.toMap()).toList(),
+      'submissionFlowStatus': submissionFlowStatus.name,
+      'submissionId': submissionId,
+      'submittedAt': submittedAt?.toIso8601String(),
+      'latestScore': latestScore,
+      'latestFeedback': latestFeedback,
+      'encouragement': encouragement,
+      'strengths': strengths,
+      'improvementPoints': improvementPoints,
+      'submissionAudioName': submissionAudioName,
+      'submissionAudioPath': submissionAudioPath,
+      'description': description,
+      'materialTitle': materialTitle,
+      'materialPdfPath': materialPdfPath,
+      'materialPageCount': materialPageCount,
+      'submissionStatusHint': submissionStatusHint,
+      'reviewSource': reviewSource.name,
+    };
+  }
+
+  factory PortalActivity.fromMap(Map<String, dynamic> map) {
+    return PortalActivity(
+      id: map['id'] as String? ?? '',
+      title: map['title'] as String? ?? '',
+      className: map['className'] as String? ?? '',
+      dateLabel: map['dateLabel'] as String? ?? '',
+      dueDate: _dateTimeOrNull(map['dueDate'] as String?),
+      status: _activityStatusFromName(map['status'] as String?),
+      reviewCount: (map['reviewCount'] as num?)?.toInt() ?? 0,
+      inspectCount: (map['inspectCount'] as num?)?.toInt() ?? 0,
+      urgeCount: (map['urgeCount'] as num?)?.toInt() ?? 0,
+      completionRate: (map['completionRate'] as num?)?.toDouble() ?? 0,
+      tasks: (map['tasks'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((item) => PortalTask.fromMap(item.cast<String, dynamic>()))
+          .toList(),
+      submissionFlowStatus: _submissionFlowStatusFromName(
+        map['submissionFlowStatus'] as String?,
+      ),
+      submissionId: map['submissionId'] as String?,
+      submittedAt: _dateTimeOrNull(map['submittedAt'] as String?),
+      latestScore: (map['latestScore'] as num?)?.toDouble(),
+      latestFeedback: map['latestFeedback'] as String?,
+      encouragement: map['encouragement'] as String?,
+      strengths: (map['strengths'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<String>()
+          .toList(),
+      improvementPoints:
+          (map['improvementPoints'] as List<dynamic>? ?? const <dynamic>[])
+              .whereType<String>()
+              .toList(),
+      submissionAudioName: map['submissionAudioName'] as String?,
+      submissionAudioPath: map['submissionAudioPath'] as String?,
+      description: map['description'] as String?,
+      materialTitle: map['materialTitle'] as String?,
+      materialPdfPath: map['materialPdfPath'] as String?,
+      materialPageCount: (map['materialPageCount'] as num?)?.toInt(),
+      submissionStatusHint: map['submissionStatusHint'] as String?,
+      reviewSource: _activityReviewSourceFromName(
+        map['reviewSource'] as String?,
+      ),
+    );
+  }
+}
+
+Map<String, dynamic>? _mapOrNull(Object? value) {
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.cast<String, dynamic>();
+  }
+  return null;
+}
+
+DateTime? _dateTimeOrNull(String? value) {
+  if (value == null || value.trim().isEmpty) {
+    return null;
+  }
+  return DateTime.tryParse(value);
+}
+
+TaskKind _taskKindFromName(String? value) {
+  return TaskKind.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => TaskKind.recording,
+  );
+}
+
+TaskReviewStatus _taskReviewStatusFromName(String? value) {
+  return TaskReviewStatus.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => TaskReviewStatus.inProgress,
+  );
+}
+
+PortalTaskReviewSource _reviewSourceFromName(String? value) {
+  return PortalTaskReviewSource.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => PortalTaskReviewSource.ai,
+  );
+}
+
+ActivityStatus _activityStatusFromName(String? value) {
+  return ActivityStatus.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => ActivityStatus.active,
+  );
+}
+
+SubmissionFlowStatus _submissionFlowStatusFromName(String? value) {
+  return SubmissionFlowStatus.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => SubmissionFlowStatus.notStarted,
+  );
+}
+
+PortalActivityReviewSource _activityReviewSourceFromName(String? value) {
+  return PortalActivityReviewSource.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => PortalActivityReviewSource.none,
+  );
 }
 
 final mockPortalActivities = [

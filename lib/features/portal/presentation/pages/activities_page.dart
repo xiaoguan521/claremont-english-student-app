@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../data/portal_models.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
 import '../providers/portal_providers.dart';
+import '../providers/practice_session_providers.dart';
 import '../widgets/tablet_shell.dart';
 
 class ActivitiesPage extends ConsumerWidget {
@@ -26,14 +27,14 @@ class ActivitiesPage extends ConsumerWidget {
       data: (summary) {
         final selectedDate = selectedDateAsync.valueOrNull;
         if (selectedDate == null) {
-          return '正在同步老师布置的作业';
+          return '老师已经把今天的英语任务准备好了';
         }
         final prefix = _isSameDay(selectedDate, today)
             ? '今天'
             : _formatDateLabel(selectedDate);
         return '$prefix有 ${summary.totalActivities} 份作业 | 已完成 ${summary.completedActivities} 份';
       },
-      orElse: () => '正在同步老师布置的作业',
+      orElse: () => '老师已经把今天的英语任务准备好了',
     );
 
     Widget content;
@@ -724,16 +725,35 @@ String _weekdayLabel(DateTime date) {
   return labels[date.weekday - 1];
 }
 
-class _ActivityRow extends StatelessWidget {
+class _ActivityRow extends ConsumerWidget {
   const _ActivityRow({required this.activity, this.visualScale = 1});
 
   final PortalActivity activity;
   final double visualScale;
 
   @override
-  Widget build(BuildContext context) {
-    final progress = '${(activity.completionRate * 100).round()}%';
-    final nextStep = _nextStepLabel(activity.status);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(practiceSessionProvider(activity.id));
+    final progress = _activityLearningProgress(activity, session);
+    final nextStep = _nextStepLabel(activity.status, progress);
+    final resumeLabel = progress.resumeTaskIndex == null
+        ? null
+        : '继续第 ${progress.resumeTaskIndex} 句';
+    final progressLabel = progress.totalTasks == 0
+        ? '今天没有句子任务'
+        : '已闯过 ${progress.completedTasks}/${progress.totalTasks} 句';
+    final progressMessage = switch ((
+      progress.completedTasks,
+      progress.totalTasks,
+    )) {
+      (_, 0) => '老师已经准备好了学习材料，进去看看今天学什么。',
+      (final completed, final total) when completed >= total =>
+        '这一份已经全部完成，进去看看老师给你的反馈。',
+      _ when progress.resumeTaskIndex != null =>
+        '上次已经做到第 ${progress.resumeTaskIndex} 句了，回来继续闯关吧。',
+      (0, _) => '从第一句开始闯关，跟着示范音频一步步完成。',
+      _ => '已经完成一部分了，继续闯关就快全部点亮啦。',
+    };
 
     return InkWell(
       onTap: () => context.go('/activities/${activity.id}'),
@@ -781,14 +801,30 @@ class _ActivityRow extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+                const SizedBox(height: 10),
+                Text(
+                  progressMessage,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF475569),
+                    fontWeight: FontWeight.w700,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _ActivityProgressBar(
+                  completed: progress.completedTasks,
+                  total: progress.totalTasks,
+                  resumeTaskIndex: progress.resumeTaskIndex,
+                ),
                 const SizedBox(height: 14),
                 Wrap(
                   spacing: 10,
                   runSpacing: 10,
                   children: [
                     _InfoChip(label: '任务 ${activity.tasks.length} 项'),
-                    _InfoChip(label: '完成 $progress'),
+                    _InfoChip(label: progressLabel),
                     _InfoChip(label: '老师反馈 ${activity.reviewCount} 条'),
+                    if (resumeLabel != null) _InfoChip(label: resumeLabel),
                   ],
                 ),
               ],
@@ -801,9 +837,9 @@ class _ActivityRow extends StatelessWidget {
                       _StatusBadge(status: activity.status),
                       SizedBox(height: 12 * visualScale),
                       Text(
-                        activity.status == ActivityStatus.active
-                            ? '点进去后会看到教材、示范音频和提交入口。'
-                            : '点进去可以继续查看反馈或等待状态。',
+                        progress.isCompleted
+                            ? '点进去可以回听录音、看老师反馈，还能继续挑战更高分。'
+                            : '点进去就能继续做句子练习、录音和提交。',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: const Color(0xFF64748B),
                           fontWeight: FontWeight.w700,
@@ -863,14 +899,25 @@ class _ActivityRow extends StatelessWidget {
     );
   }
 
-  String _nextStepLabel(ActivityStatus status) {
+  String _nextStepLabel(
+    ActivityStatus status,
+    _ActivityLearningProgress progress,
+  ) {
     switch (status) {
       case ActivityStatus.completed:
         return '查看反馈';
       case ActivityStatus.reviewPending:
-        return '等待点评';
+        return progress.isCompleted
+            ? '查看进度'
+            : progress.resumeTaskIndex != null
+            ? '继续第 ${progress.resumeTaskIndex} 句'
+            : '继续闯关';
       case ActivityStatus.active:
-        return '继续学习';
+        return progress.resumeTaskIndex != null
+            ? '继续第 ${progress.resumeTaskIndex} 句'
+            : progress.hasStarted
+            ? '继续闯关'
+            : '开始闯关';
     }
   }
 }
@@ -907,9 +954,9 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      ActivityStatus.completed => ('已完成', const Color(0xFF16A34A)),
-      ActivityStatus.reviewPending => ('等待老师点评', const Color(0xFFF97316)),
-      ActivityStatus.active => ('学习中', const Color(0xFF2563EB)),
+      ActivityStatus.completed => ('今天完成啦', const Color(0xFF16A34A)),
+      ActivityStatus.reviewPending => ('等老师来听', const Color(0xFFF97316)),
+      ActivityStatus.active => ('正在闯关', const Color(0xFF2563EB)),
     };
 
     return Container(
@@ -925,6 +972,108 @@ class _StatusBadge extends StatelessWidget {
           fontWeight: FontWeight.w800,
         ),
       ),
+    );
+  }
+}
+
+class _ActivityLearningProgress {
+  const _ActivityLearningProgress({
+    required this.completedTasks,
+    required this.totalTasks,
+    this.resumeTaskIndex,
+  });
+
+  final int completedTasks;
+  final int totalTasks;
+  final int? resumeTaskIndex;
+
+  bool get hasStarted => completedTasks > 0 || resumeTaskIndex != null;
+  bool get isCompleted => totalTasks > 0 && completedTasks >= totalTasks;
+}
+
+_ActivityLearningProgress _activityLearningProgress(
+  PortalActivity activity,
+  PracticeSessionState session,
+) {
+  final completedTaskIds = <String>{
+    for (final task in activity.tasks)
+      if (task.reviewStatus == TaskReviewStatus.checked) task.id,
+    for (final entry in session.taskStates.entries)
+      if (entry.value.isCompleted) entry.key,
+  };
+
+  return _ActivityLearningProgress(
+    completedTasks: completedTaskIds.length,
+    totalTasks: activity.tasks.length,
+    resumeTaskIndex: _resumeTaskIndex(activity, session, completedTaskIds),
+  );
+}
+
+int? _resumeTaskIndex(
+  PortalActivity activity,
+  PracticeSessionState session,
+  Set<String> completedTaskIds,
+) {
+  final focusedTaskId = session.focusedTaskId;
+  if (focusedTaskId == null ||
+      completedTaskIds.length >= activity.tasks.length) {
+    return null;
+  }
+  final index = activity.tasks.indexWhere((task) => task.id == focusedTaskId);
+  if (index < 0) {
+    return null;
+  }
+  return index + 1;
+}
+
+class _ActivityProgressBar extends StatelessWidget {
+  const _ActivityProgressBar({
+    required this.completed,
+    required this.total,
+    this.resumeTaskIndex,
+  });
+
+  final int completed;
+  final int total;
+  final int? resumeTaskIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = total == 0 ? 0.0 : (completed / total).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: progress),
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: value,
+                minHeight: 12,
+                backgroundColor: const Color(0xFFE2E8F0),
+                valueColor: const AlwaysStoppedAnimation(Color(0xFF2FA77D)),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 6),
+        Text(
+          total == 0
+              ? '等老师布置句子任务'
+              : completed >= total
+              ? '这一份已经全部点亮啦'
+              : completed == 0 && resumeTaskIndex != null
+              ? '上次做到第 $resumeTaskIndex 句了，接着继续就好'
+              : '再完成 ${total - completed} 句就能完成这份作业',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: const Color(0xFF64748B),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }

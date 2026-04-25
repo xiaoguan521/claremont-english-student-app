@@ -14,12 +14,25 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:uuid/uuid.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../school/presentation/providers/school_context_provider.dart';
+import '../../data/app_event_log_repository.dart';
 import '../../data/portal_models.dart';
 import '../../data/portal_repository.dart';
+import '../../data/practice_protocol_models.dart';
+import '../../data/queued_submission_storage.dart';
+import '../../data/sync_queue_repository.dart';
+import '../../data/local_cache_repository.dart';
 import '../providers/portal_providers.dart';
+import '../providers/parent_contact_providers.dart';
+import '../providers/practice_session_providers.dart';
+import '../providers/student_feature_flags_provider.dart';
+import '../providers/sync_queue_providers.dart';
+import '../widgets/audio_record_button.dart';
+import '../widgets/feedback_bottom_sheet.dart';
+import '../widgets/practice_renderer.dart';
 import '../widgets/tablet_shell.dart';
 import 'reading_page.dart';
 
@@ -32,7 +45,11 @@ class TaskDetailPage extends ConsumerStatefulWidget {
   ConsumerState<TaskDetailPage> createState() => _TaskDetailPageState();
 }
 
-class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
+class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
+    with WidgetsBindingObserver {
+  static const Uuid _uuid = Uuid();
+  static const Duration _practiceBreakInterval = Duration(minutes: 20);
+
   final AudioPlayer _audioPlayer = AudioPlayer();
   final FlutterTts _tts = FlutterTts();
   final AudioRecorder _recorder = AudioRecorder();
@@ -44,6 +61,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 
   Timer? _statusRefreshTimer;
   Timer? _autoAdvanceHintTimer;
+  Timer? _focusBreakTimer;
   SubmissionFlowStatus? _statusRefreshMode;
   bool _isSubmitting = false;
   bool _isRecording = false;
@@ -53,20 +71,101 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
   String? _speakingTaskId;
   String? _focusedTaskId;
   String? _autoAdvanceHint;
+  int _comboCount = 0;
+  int _earnedStars = 0;
+  int _backgroundSwitchCount = 0;
+  int _breakReminderCount = 0;
+  bool _didCelebrateAllTasks = false;
+  bool _isBreakDialogVisible = false;
+  bool _didAutoScrollRestoredTask = false;
   PortalActivity? _staleActivity;
   _PendingAudioFile? _selectedAudio;
+  String? _lastPersistedPracticeSnapshot;
+
+  String get _audioDraftCacheKey => 'pending_audio_draft_${widget.activityId}';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _bindAudioPlayer();
     _configureAudioPlayer();
     _configureTts();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _processPendingQueue();
+      _scheduleFocusBreakReminder();
+      unawaited(_restoreSelectedAudioDraft());
+    });
   }
 
   Future<void> _configureAudioPlayer() async {
     await _audioPlayer.setVolume(1.0);
     await _audioPlayer.setReleaseMode(ReleaseMode.stop);
+  }
+
+  Future<void> _processPendingQueue() {
+    return ref
+        .read(syncQueueStatusProvider.notifier)
+        .processPendingUploads(
+          portalRepository: ref.read(portalRepositoryProvider),
+          submissionStorage: ref.read(queuedSubmissionStorageProvider),
+          onActivitySynced: (activityId) {
+            ref.invalidate(portalActivityByIdProvider(activityId));
+            ref.invalidate(parentContactSummaryProvider(activityId));
+            ref.invalidate(portalActivitiesProvider);
+            ref.invalidate(dailyGrowthSummaryProvider);
+          },
+        );
+  }
+
+  void _scheduleFocusBreakReminder() {
+    _focusBreakTimer?.cancel();
+    _focusBreakTimer = Timer(_practiceBreakInterval, () {
+      if (!mounted || _isBreakDialogVisible) {
+        return;
+      }
+      unawaited(_showFocusBreakReminder());
+    });
+  }
+
+  Future<void> _showFocusBreakReminder() async {
+    _breakReminderCount += 1;
+    await _persistParentContactSnapshot();
+    await ref
+        .read(appEventLogRepositoryProvider)
+        .append(
+          'practice_break_reminder_shown',
+          payload: <String, Object?>{
+            'activityId': widget.activityId,
+            'breakReminderCount': _breakReminderCount,
+          },
+        );
+    if (!mounted) {
+      return;
+    }
+    _isBreakDialogVisible = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const _PracticeBreakDialog(),
+    );
+    _isBreakDialogVisible = false;
+    if (!mounted) {
+      return;
+    }
+    _scheduleFocusBreakReminder();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _backgroundSwitchCount += 1;
+      unawaited(_persistParentContactSnapshot());
+    }
   }
 
   void _bindAudioPlayer() {
@@ -117,8 +216,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _statusRefreshTimer?.cancel();
     _autoAdvanceHintTimer?.cancel();
+    _focusBreakTimer?.cancel();
     for (final subscription in _playerSubscriptions) {
       subscription.cancel();
     }
@@ -126,6 +227,122 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     _tts.stop();
     _recorder.dispose();
     super.dispose();
+  }
+
+  Future<void> _persistParentContactSnapshot({
+    PortalActivity? activity,
+    int? completedTasksOverride,
+  }) async {
+    final currentActivity =
+        activity ??
+        _staleActivity ??
+        ref.read(portalActivityByIdProvider(widget.activityId)).valueOrNull;
+    if (currentActivity == null) {
+      return;
+    }
+
+    final practiceSession = ref.read(
+      practiceSessionProvider(widget.activityId),
+    );
+    final completedTasks =
+        completedTasksOverride ??
+        _completedTaskIds(currentActivity, practiceSession).length;
+    final snapshot = <String, Object?>{
+      'comboCount': _comboCount,
+      'earnedStars': _earnedStars,
+      'backgroundSwitchCount': _backgroundSwitchCount,
+      'breakReminderCount': _breakReminderCount,
+      'completedTasks': completedTasks,
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+    final encodedSnapshot = jsonEncode(snapshot);
+    if (_lastPersistedPracticeSnapshot == encodedSnapshot) {
+      return;
+    }
+    _lastPersistedPracticeSnapshot = encodedSnapshot;
+    await ref
+        .read(localCacheRepositoryProvider)
+        .writeJson('parent_contact_snapshot_${widget.activityId}', snapshot);
+  }
+
+  Future<void> _persistSelectedAudioDraft(_PendingAudioFile audio) async {
+    final persistedPath = await ref
+        .read(queuedSubmissionStorageProvider)
+        .persistAudioBytes(
+          submissionId: 'draft-${widget.activityId}',
+          fileName: audio.name,
+          bytes: audio.bytes,
+        );
+    final nextAudio = _PendingAudioFile(
+      name: audio.name,
+      bytes: audio.bytes,
+      sizeBytes: audio.sizeBytes,
+      mimeType: audio.mimeType,
+      localPath: persistedPath,
+    );
+    if (mounted) {
+      setState(() {
+        _selectedAudio = nextAudio;
+      });
+    }
+    await ref
+        .read(localCacheRepositoryProvider)
+        .writeJson(_audioDraftCacheKey, {
+          'name': nextAudio.name,
+          'sizeBytes': nextAudio.sizeBytes,
+          'mimeType': nextAudio.mimeType,
+          'localPath': nextAudio.localPath,
+        });
+  }
+
+  Future<void> _clearSelectedAudioDraft() async {
+    final selectedAudio = _selectedAudio;
+    final localPath = selectedAudio?.localPath;
+    if (localPath != null && localPath.trim().isNotEmpty) {
+      await ref.read(queuedSubmissionStorageProvider).deleteIfExists(localPath);
+    }
+    await ref.read(localCacheRepositoryProvider).remove(_audioDraftCacheKey);
+  }
+
+  Future<void> _restoreSelectedAudioDraft() async {
+    final cachedMap = await ref
+        .read(localCacheRepositoryProvider)
+        .readJson(_audioDraftCacheKey);
+    if (cachedMap == null) {
+      return;
+    }
+    final localPath = cachedMap['localPath'] as String?;
+    if (localPath == null || localPath.trim().isEmpty) {
+      await ref.read(localCacheRepositoryProvider).remove(_audioDraftCacheKey);
+      return;
+    }
+
+    final file = File(localPath);
+    if (!await file.exists()) {
+      await ref.read(localCacheRepositoryProvider).remove(_audioDraftCacheKey);
+      return;
+    }
+
+    final bytes = await file.readAsBytes();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _selectedAudio = _PendingAudioFile(
+        name: cachedMap['name'] as String? ?? 'draft-audio.m4a',
+        bytes: bytes,
+        sizeBytes: (cachedMap['sizeBytes'] as num?)?.toInt() ?? bytes.length,
+        mimeType: cachedMap['mimeType'] as String? ?? 'audio/m4a',
+        localPath: localPath,
+      );
+    });
+    await ref
+        .read(appEventLogRepositoryProvider)
+        .append(
+          'audio_draft_restored',
+          payload: <String, Object?>{'activityId': widget.activityId},
+        );
+    _showAutoAdvanceHint('上次准备提交的录音已经帮你找回来了。');
   }
 
   Future<void> _pickAudioFile() async {
@@ -150,15 +367,15 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return;
     }
 
-    setState(() {
-      _selectedAudio = _PendingAudioFile(
+    await _persistSelectedAudioDraft(
+      _PendingAudioFile(
         name: file.name,
         bytes: file.bytes!,
         sizeBytes: file.size,
         mimeType: _guessMimeType(file.extension),
         localPath: file.path,
-      );
-    });
+      ),
+    );
   }
 
   Future<void> _clearSelectedAudio() async {
@@ -184,6 +401,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         _loadingAudioKey = null;
       }
     });
+    await _clearSelectedAudioDraft();
     _showMessage('这段准备提交的音频已经移除。');
   }
 
@@ -214,7 +432,6 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         _isRecording = true;
         _recordingPath = path;
       });
-      _showMessage('已经开始录音了，读完后点“结束录音并保存”。');
     } catch (_) {
       _showMessage('录音启动失败，请稍后重试。');
     }
@@ -250,16 +467,15 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _selectedAudio = _PendingAudioFile(
+      await _persistSelectedAudioDraft(
+        _PendingAudioFile(
           name: fileName,
           bytes: bytes,
           sizeBytes: sizeBytes,
           mimeType: 'audio/wav',
           localPath: resolvedPath,
-        );
-      });
-      _showMessage('录音已经保存好了，可以直接提交给老师。');
+        ),
+      );
     } catch (_) {
       if (!mounted) {
         return;
@@ -756,15 +972,68 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
       return;
     }
     final currentTask = activity.tasks.firstWhere(
-      (task) => task.id == (_focusedTaskId ?? activity.tasks.first.id),
+      (task) =>
+          task.id ==
+          (ref.read(practiceSessionProvider(widget.activityId)).focusedTaskId ??
+              _focusedTaskId ??
+              activity.tasks.first.id),
       orElse: () => activity.tasks.first,
     );
+    final currentProtocol = currentTask.toPracticeProtocol();
+    if (currentProtocol.type == PracticeTaskType.unsupported) {
+      ref
+          .read(practiceSessionProvider(widget.activityId).notifier)
+          .markTaskCompleted(currentTask.id);
+      await ref
+          .read(appEventLogRepositoryProvider)
+          .append(
+            'unsupported_task_skipped',
+            payload: <String, Object?>{
+              'activityId': widget.activityId,
+              'taskId': currentTask.id,
+            },
+          );
+      _showAutoAdvanceHint('这道新题型正在适配中，先继续下一句学习。');
+      _focusNextPendingTask(activity, submittedTaskTitle: currentTask.title);
+      return;
+    }
+    final sessionNotifier = ref.read(
+      practiceSessionProvider(widget.activityId).notifier,
+    );
+    final attemptUuid = sessionNotifier.startAttempt(currentTask.id);
+    final clientSubmissionId = _uuid.v4();
+    SyncQueueItem? queueItem;
+    String? persistedLocalPath;
 
     setState(() {
       _isSubmitting = true;
     });
 
     try {
+      persistedLocalPath = await ref
+          .read(queuedSubmissionStorageProvider)
+          .persistAudioBytes(
+            submissionId: clientSubmissionId,
+            fileName: selectedAudio.name,
+            bytes: selectedAudio.bytes,
+          );
+      queueItem = await ref
+          .read(syncQueueStatusProvider.notifier)
+          .enqueue(
+            activityId: widget.activityId,
+            taskId: currentTask.id,
+            attemptUuid: attemptUuid,
+            clientSubmissionId: clientSubmissionId,
+            fileName: selectedAudio.name,
+            sizeBytes: selectedAudio.sizeBytes,
+            mimeType: selectedAudio.mimeType,
+            localPath: persistedLocalPath,
+          );
+      sessionNotifier.updateSyncStatus(
+        currentTask.id,
+        PracticeTaskSyncStatus.syncing,
+      );
+
       final reviewResult = await ref
           .read(portalRepositoryProvider)
           .uploadAudioSubmission(
@@ -774,20 +1043,110 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             sizeBytes: selectedAudio.sizeBytes,
             mimeType: selectedAudio.mimeType,
           );
+      await ref
+          .read(syncQueueStatusProvider.notifier)
+          .markStatus(
+            queueItem.queueItemId,
+            status: SyncQueueItemStatus.completed,
+          );
+      await ref
+          .read(queuedSubmissionStorageProvider)
+          .deleteIfExists(persistedLocalPath);
+      sessionNotifier.markTaskCompleted(currentTask.id);
       ref.invalidate(portalActivityByIdProvider(widget.activityId));
+      await ref.read(syncQueueStatusProvider.notifier).refresh();
       if (!mounted) {
         return;
       }
       setState(() {
         _selectedAudio = null;
       });
-      _focusNextPendingTask(activity, submittedTaskTitle: currentTask.title);
-      _showMessage(reviewResult.message ?? '已经提交给老师了，AI 初评和老师点评会在稍后同步回来。');
-    } catch (_) {
+      await _clearSelectedAudioDraft();
+      final completedTaskCount = _completedTaskIds(
+        activity,
+        ref.read(practiceSessionProvider(widget.activityId)),
+      ).length;
+      final totalTaskCount = activity.tasks.length;
+      final nextCombo = _comboCount + 1;
+      final rewardStars = nextCombo >= 3 ? 4 : 3;
+      setState(() {
+        _comboCount = nextCombo;
+        _earnedStars += rewardStars;
+        if (totalTaskCount > 0 && completedTaskCount >= totalTaskCount) {
+          _didCelebrateAllTasks = true;
+        }
+      });
+      await _persistParentContactSnapshot(
+        activity: activity,
+        completedTasksOverride: completedTaskCount,
+      );
+      await ref
+          .read(appEventLogRepositoryProvider)
+          .append(
+            'submission_succeeded',
+            payload: <String, Object?>{
+              'activityId': widget.activityId,
+              'taskId': currentTask.id,
+              'completedTaskCount': completedTaskCount,
+              'totalTaskCount': totalTaskCount,
+            },
+          );
       if (!mounted) {
         return;
       }
-      _showMessage('提交失败，请稍后再试。');
+      _focusNextPendingTask(activity, submittedTaskTitle: currentTask.title);
+      await showFeedbackBottomSheet(
+        context,
+        theme: totalTaskCount > 0 && completedTaskCount >= totalTaskCount
+            ? FeedbackBottomSheetTheme.celebration
+            : FeedbackBottomSheetTheme.success,
+        title: totalTaskCount > 0 && completedTaskCount >= totalTaskCount
+            ? '全部提交完成啦'
+            : '提交成功',
+        message: totalTaskCount > 0 && completedTaskCount >= totalTaskCount
+            ? '这份作业已经全部完成，老师和 AI 会在稍后把反馈送回来。'
+            : reviewResult.message ?? '已经提交给老师了，AI 初评和老师点评会在稍后同步回来。',
+        badgeLabel: '连对 $nextCombo 题 · +$rewardStars 星币',
+        badgeIcon: totalTaskCount > 0 && completedTaskCount >= totalTaskCount
+            ? Icons.emoji_events_rounded
+            : Icons.cloud_done_rounded,
+      );
+    } catch (_) {
+      if (queueItem != null) {
+        await ref
+            .read(syncQueueStatusProvider.notifier)
+            .markStatus(
+              queueItem.queueItemId,
+              status: SyncQueueItemStatus.failed,
+              lastError: 'upload_failed',
+            );
+      }
+      sessionNotifier.updateSyncStatus(
+        currentTask.id,
+        PracticeTaskSyncStatus.failed,
+      );
+      if (mounted) {
+        _processPendingQueue();
+      }
+      await ref
+          .read(appEventLogRepositoryProvider)
+          .append(
+            'submission_queued_for_retry',
+            payload: <String, Object?>{
+              'activityId': widget.activityId,
+              'taskId': currentTask.id,
+              'queueItemId': queueItem?.queueItemId,
+            },
+          );
+      if (!mounted) {
+        return;
+      }
+      await showFeedbackBottomSheet(
+        context,
+        theme: FeedbackBottomSheetTheme.error,
+        title: '先帮你记下来了',
+        message: '这次提交没有立刻成功，但内容已经进入待同步队列，恢复网络后会自动重试。',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -829,6 +1188,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         return;
       }
       ref.invalidate(portalActivityByIdProvider(widget.activityId));
+      ref.invalidate(parentContactSummaryProvider(widget.activityId));
+      ref.invalidate(portalActivitiesProvider);
+      ref.invalidate(dailyGrowthSummaryProvider);
     });
   }
 
@@ -836,6 +1198,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     PortalActivity activity, {
     String? submittedTaskTitle,
   }) {
+    final practiceSession = ref.read(
+      practiceSessionProvider(widget.activityId),
+    );
+    final completedTaskIds = _completedTaskIds(activity, practiceSession);
     final currentIndex = activity.tasks.indexWhere(
       (task) => task.id == _focusedTaskId,
     );
@@ -847,7 +1213,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     PortalTask? nextTask;
     if (currentIndex >= 0) {
       for (var i = currentIndex + 1; i < orderedTasks.length; i += 1) {
-        if (orderedTasks[i].reviewStatus != TaskReviewStatus.checked) {
+        if (!completedTaskIds.contains(orderedTasks[i].id)) {
           nextTask = orderedTasks[i];
           break;
         }
@@ -855,7 +1221,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     }
 
     nextTask ??= orderedTasks.firstWhere(
-      (task) => task.reviewStatus != TaskReviewStatus.checked,
+      (task) => !completedTaskIds.contains(task.id),
       orElse: () => orderedTasks.first,
     );
 
@@ -872,6 +1238,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     if (!mounted) {
       return;
     }
+    ref
+        .read(practiceSessionProvider(widget.activityId).notifier)
+        .focusTask(taskId);
     setState(() {
       _focusedTaskId = taskId;
     });
@@ -922,6 +1291,240 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         _autoAdvanceHint = null;
       });
     });
+  }
+
+  void _resetCombo(String message) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _comboCount = 0;
+    });
+    _showAutoAdvanceHint(message);
+    unawaited(_persistParentContactSnapshot());
+  }
+
+  Future<void> _handleTaskSuccessFeedback(
+    PortalActivity activity,
+    PortalTask task, {
+    required String title,
+    required String message,
+  }) async {
+    final practiceSession = ref.read(
+      practiceSessionProvider(widget.activityId),
+    );
+    final completedCount = _completedTaskIds(activity, practiceSession).length;
+    final totalCount = activity.tasks.length;
+    final nextCombo = _comboCount + 1;
+    final rewardStars = nextCombo >= 3 ? 3 : 2;
+
+    if (mounted) {
+      setState(() {
+        _comboCount = nextCombo;
+        _earnedStars += rewardStars;
+      });
+    }
+    await _persistParentContactSnapshot(
+      activity: activity,
+      completedTasksOverride: completedCount,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    final hasCompletedAllTasks = totalCount > 0 && completedCount >= totalCount;
+    if (hasCompletedAllTasks && !_didCelebrateAllTasks) {
+      _didCelebrateAllTasks = true;
+      await showFeedbackBottomSheet(
+        context,
+        theme: FeedbackBottomSheetTheme.celebration,
+        title: '这一份完成啦',
+        message: '你已经闯过这份作业的全部句子，可以回听录音，或者直接提交给老师。',
+        buttonLabel: '继续加油',
+        badgeLabel: '连对 $nextCombo 题 · +$rewardStars 星币',
+        badgeIcon: Icons.emoji_events_rounded,
+        onContinue: () {
+          _showAutoAdvanceHint('全部句子都点亮了，继续提交给老师吧。');
+        },
+      );
+      return;
+    }
+
+    await showFeedbackBottomSheet(
+      context,
+      theme: FeedbackBottomSheetTheme.success,
+      title: title,
+      message: message,
+      badgeLabel: '连对 $nextCombo 题 · +$rewardStars 星币',
+      badgeIcon: Icons.local_fire_department_rounded,
+      onContinue: () => _focusNextTaskAfterPractice(activity, task),
+    );
+  }
+
+  Future<void> _showPracticeRetryFeedback({
+    required String title,
+    required String message,
+    String? badgeLabel,
+  }) async {
+    if (!mounted) {
+      return;
+    }
+    await showFeedbackBottomSheet(
+      context,
+      theme: FeedbackBottomSheetTheme.error,
+      title: title,
+      message: message,
+      buttonLabel: '再试一次',
+      badgeLabel: badgeLabel,
+      badgeIcon: Icons.refresh_rounded,
+    );
+  }
+
+  void _updateWordBankSelection(
+    PortalActivity activity,
+    PortalTask task,
+    List<String> tokens,
+  ) {
+    final previousState = ref.read(practiceSessionProvider(widget.activityId));
+    final wasCompleted =
+        previousState.taskStates[task.id]?.isCompleted ?? false;
+    final protocol = task.toPracticeProtocol();
+    final expectedTokens =
+        (protocol.content['expectedTokens'] as List<dynamic>? ?? const [])
+            .map((item) => '$item')
+            .toList();
+    final isCompleted =
+        expectedTokens.isNotEmpty &&
+        expectedTokens.length == tokens.length &&
+        _listsEqual(expectedTokens, tokens);
+    ref
+        .read(practiceSessionProvider(widget.activityId).notifier)
+        .updateWordBankSelection(task.id, tokens, isCompleted: isCompleted);
+    if (!isCompleted &&
+        expectedTokens.isNotEmpty &&
+        tokens.length == expectedTokens.length &&
+        mounted) {
+      _resetCombo('顺序还差一点，调整一下就能拼对。');
+      final answer = expectedTokens.join(' ');
+      unawaited(
+        _showPracticeRetryFeedback(
+          title: '顺序还差一点',
+          message: '先看一眼正确句子顺序，再重新把词块拼起来。',
+          badgeLabel: '参考答案：$answer',
+        ),
+      );
+    }
+    if (!wasCompleted && isCompleted && mounted) {
+      unawaited(
+        _handleTaskSuccessFeedback(
+          activity,
+          task,
+          title: '拼对了',
+          message: '这一句已经完成，可以继续下一句练习了。',
+        ),
+      );
+    }
+  }
+
+  void _focusNextTaskAfterPractice(PortalActivity activity, PortalTask task) {
+    final currentIndex = activity.tasks.indexWhere(
+      (item) => item.id == task.id,
+    );
+    if (currentIndex < 0) {
+      return;
+    }
+    if (currentIndex >= activity.tasks.length - 1) {
+      _showAutoAdvanceHint('这一句已经完成，继续保持。');
+      return;
+    }
+
+    final nextTask = activity.tasks[currentIndex + 1];
+    _showAutoAdvanceHint('这一句已经完成，继续下一句。');
+    _setFocusedTask(nextTask.id);
+  }
+
+  bool _isTaskCompleted(PortalTask task, PracticeSessionState practiceSession) {
+    if (task.reviewStatus == TaskReviewStatus.checked) {
+      return true;
+    }
+    return practiceSession.taskStates[task.id]?.isCompleted ?? false;
+  }
+
+  Set<String> _completedTaskIds(
+    PortalActivity activity,
+    PracticeSessionState practiceSession,
+  ) {
+    return activity.tasks
+        .where((task) => _isTaskCompleted(task, practiceSession))
+        .map((task) => task.id)
+        .toSet();
+  }
+
+  void _updateListenChooseSelection(
+    PortalActivity activity,
+    PortalTask task,
+    String selectedValue,
+  ) {
+    final previousState = ref.read(practiceSessionProvider(widget.activityId));
+    final wasCompleted =
+        previousState.taskStates[task.id]?.isCompleted ?? false;
+    final protocol = task.toPracticeProtocol();
+    final correctOption = protocol.content['correctOption'] as String?;
+    final isCompleted =
+        correctOption != null &&
+        correctOption.isNotEmpty &&
+        correctOption == selectedValue;
+    ref
+        .read(practiceSessionProvider(widget.activityId).notifier)
+        .updateSingleChoiceSelection(
+          task.id,
+          selectedValue,
+          isCompleted: isCompleted,
+        );
+    if (!isCompleted && mounted) {
+      _resetCombo('这次没选中正确答案，再听一遍试试。');
+      unawaited(
+        _showPracticeRetryFeedback(
+          title: '再听一遍',
+          message: correctOption == null || correctOption.isEmpty
+              ? '这次没选中正确答案，再听一遍示范后重新选择。'
+              : '这次没选中正确答案，再听一遍后试试选 "$correctOption"。',
+        ),
+      );
+    }
+    if (!wasCompleted && isCompleted && mounted) {
+      unawaited(
+        _handleTaskSuccessFeedback(
+          activity,
+          task,
+          title: '选对了',
+          message: '这一句已经完成，可以继续下一句练习了。',
+        ),
+      );
+    }
+  }
+
+  void _completeHotspotSelection(PortalActivity activity, PortalTask task) {
+    final previousState = ref.read(practiceSessionProvider(widget.activityId));
+    final wasCompleted =
+        previousState.taskStates[task.id]?.isCompleted ?? false;
+    ref
+        .read(practiceSessionProvider(widget.activityId).notifier)
+        .updateSingleChoiceSelection(
+          task.id,
+          task.region?.id,
+          isCompleted: true,
+        );
+    if (!wasCompleted && mounted) {
+      unawaited(
+        _handleTaskSuccessFeedback(
+          activity,
+          task,
+          title: '点对了',
+          message: '这一句已经完成，可以继续下一句练习了。',
+        ),
+      );
+    }
   }
 
   @override
@@ -994,6 +1597,45 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
     }
 
     _syncStatusRefresh(activity.submissionFlowStatus);
+    final practiceSession = ref.watch(
+      practiceSessionProvider(widget.activityId),
+    );
+    final featureFlags = ref.watch(studentFeatureFlagsProvider);
+    if (practiceSession.restoredFromCache) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        unawaited(
+          ref
+              .read(appEventLogRepositoryProvider)
+              .append(
+                'practice_session_restored',
+                payload: <String, Object?>{'activityId': widget.activityId},
+              ),
+        );
+        _showAutoAdvanceHint('上次的学习进度已经帮你找回来了，继续完成今天的任务吧。');
+        if (!_didAutoScrollRestoredTask) {
+          _didAutoScrollRestoredTask = true;
+          unawaited(_scrollFocusedTaskIntoView());
+        }
+        ref
+            .read(practiceSessionProvider(widget.activityId).notifier)
+            .acknowledgeRestore();
+      });
+    }
+    final completedTaskIds = _completedTaskIds(activity, practiceSession);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(
+        _persistParentContactSnapshot(
+          activity: activity,
+          completedTasksOverride: completedTaskIds.length,
+        ),
+      );
+    });
 
     final selectedAudioKey = _selectedAudio == null
         ? null
@@ -1003,16 +1645,35 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
         : _storedAudioKey(activity.submissionAudioPath!);
 
     final autoFocusTask = activity.tasks.firstWhere(
-      (task) => task.reviewStatus != TaskReviewStatus.checked,
+      (task) => !completedTaskIds.contains(task.id),
       orElse: () => activity.tasks.first,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      ref
+          .read(practiceSessionProvider(widget.activityId).notifier)
+          .ensureInitialized(
+            activity.tasks,
+            initialFocusedTaskId: autoFocusTask.id,
+          );
+    });
     final focusedTaskId =
-        activity.tasks.any((task) => task.id == _focusedTaskId)
+        activity.tasks.any((task) => task.id == practiceSession.focusedTaskId)
+        ? practiceSession.focusedTaskId!
+        : activity.tasks.any((task) => task.id == _focusedTaskId)
         ? _focusedTaskId!
         : autoFocusTask.id;
     final focusTask = activity.tasks.firstWhere(
       (task) => task.id == focusedTaskId,
     );
+    final focusedPracticeTaskState =
+        practiceSession.taskStates[focusTask.id] ??
+        PracticeTaskState.initial(focusTask.id);
+    final allTasksCompleted =
+        activity.tasks.isNotEmpty &&
+        completedTaskIds.length >= activity.tasks.length;
 
     return TabletShell(
       activeSection: TabletSection.teaching,
@@ -1026,6 +1687,11 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
           icon: Icons.arrow_back_rounded,
           label: '返回作业',
           onTap: () => context.go('/activities'),
+        ),
+        _HeaderAction(
+          icon: Icons.family_restroom_rounded,
+          label: '联系家长',
+          onTap: () => context.go('/activities/${activity.id}/parent-contact'),
         ),
       ],
       child: LayoutBuilder(
@@ -1062,12 +1728,24 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                 task: focusTask,
                 startFullscreen: true,
               ),
+              completedTaskIds: completedTaskIds,
+              comboCount: _comboCount,
+              earnedStars: _earnedStars,
+              onCompleteHotspotTask: (task) =>
+                  _completeHotspotSelection(activity, task),
               compact: isLandscapePhone,
               visualScale: visualScale,
               bottomSheet: _TextbookFloatingPanel(
                 task: focusTask,
                 submissionFlowStatus: activity.submissionFlowStatus,
                 submissionStatusHint: activity.submissionStatusHint,
+                isUnsupportedProtocol:
+                    focusTask.toPracticeProtocol().type ==
+                    PracticeTaskType.unsupported,
+                requiresPracticeCompletion:
+                    focusTask.toPracticeProtocol().type ==
+                    PracticeTaskType.wordBank,
+                isPracticeCompleted: focusedPracticeTaskState.isCompleted,
                 selectedAudioLabel: _selectedAudio?.name,
                 existingAudioLabel: activity.submissionAudioName,
                 isSubmitting: _isSubmitting,
@@ -1115,6 +1793,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             autoAdvanceHint: _autoAdvanceHint,
             tasks: activity.tasks,
             focusedTaskId: focusedTaskId,
+            completedTaskIds: completedTaskIds,
             onSelectTask: _setFocusedTask,
             focusTask: focusTask,
             activity: activity,
@@ -1128,6 +1807,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             loadingAudioKey: _loadingAudioKey,
             storedAudioKey: storedAudioKey,
             sampleSpeechKeyForTask: _sampleSpeechKey(focusTask.id),
+            practiceTaskState: focusedPracticeTaskState,
             onOpenReading: activity.materialPdfPath == null
                 ? null
                 : _scrollTextbookIntoView,
@@ -1153,8 +1833,17 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
             onPlayEncouragement: focusTask.review == null
                 ? null
                 : () => _playEncouragement(focusTask),
+            onWordBankChanged: (tokens) =>
+                _updateWordBankSelection(activity, focusTask, tokens),
+            onListenChooseChanged: (value) =>
+                _updateListenChooseSelection(activity, focusTask, value),
             onPrimaryAction: () => _handlePrimaryAction(activity),
             visualScale: visualScale,
+            showCompletionCard: allTasksCompleted,
+            completionActivityId: activity.id,
+            comboCount: _comboCount,
+            earnedStars: _earnedStars,
+            showGrowthRewards: featureFlags.showGrowthRewards,
           );
 
           if (isLandscapePhone) {
@@ -1198,12 +1887,13 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                 _SentenceSwitchStrip(
                   tasks: activity.tasks,
                   focusedTaskId: focusedTaskId,
+                  completedTaskIds: completedTaskIds,
                   onSelectTask: _setFocusedTask,
                 ),
               ],
               const SizedBox(height: 16),
               _SectionHeading(
-                title: focusTask.reviewStatus == TaskReviewStatus.checked
+                title: completedTaskIds.contains(focusTask.id)
                     ? '这一句完成了'
                     : '做这一句',
               ),
@@ -1255,6 +1945,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                   isSelectedAudioLoading: selectedAudioKey == _loadingAudioKey,
                   isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
                   isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
+                  practiceTaskState: focusedPracticeTaskState,
                   onOpenReading: activity.materialPdfPath == null
                       ? null
                       : _scrollTextbookIntoView,
@@ -1280,11 +1971,24 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage> {
                   onPlayEncouragement: focusTask.review == null
                       ? null
                       : () => _playEncouragement(focusTask),
+                  onWordBankChanged: (tokens) =>
+                      _updateWordBankSelection(activity, focusTask, tokens),
+                  onListenChooseChanged: (value) =>
+                      _updateListenChooseSelection(activity, focusTask, value),
                   onPrimaryAction: () => _handlePrimaryAction(activity),
                   isFocusTask: true,
                   showSubmissionSection: false,
                 ),
               ),
+              if (allTasksCompleted) ...[
+                const SizedBox(height: 16),
+                _CompletionShareCard(
+                  activityId: activity.id,
+                  comboCount: _comboCount,
+                  earnedStars: _earnedStars,
+                  showGrowthRewards: featureFlags.showGrowthRewards,
+                ),
+              ],
             ],
           );
         },
@@ -1320,6 +2024,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
     required this.autoAdvanceHint,
     required this.tasks,
     required this.focusedTaskId,
+    required this.completedTaskIds,
     required this.onSelectTask,
     required this.focusTask,
     required this.activity,
@@ -1333,6 +2038,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
     required this.loadingAudioKey,
     required this.storedAudioKey,
     required this.sampleSpeechKeyForTask,
+    required this.practiceTaskState,
     this.onOpenReading,
     this.onSpeakSample,
     this.onOpenVideo,
@@ -1342,13 +2048,21 @@ class _LandscapeReviewColumn extends StatelessWidget {
     this.onPlaySelectedAudio,
     this.onPlayStoredAudio,
     this.onPlayEncouragement,
+    this.onWordBankChanged,
+    this.onListenChooseChanged,
     required this.onPrimaryAction,
     this.visualScale = 1,
+    this.showCompletionCard = false,
+    required this.completionActivityId,
+    required this.comboCount,
+    required this.earnedStars,
+    required this.showGrowthRewards,
   });
 
   final String? autoAdvanceHint;
   final List<PortalTask> tasks;
   final String focusedTaskId;
+  final Set<String> completedTaskIds;
   final ValueChanged<String> onSelectTask;
   final PortalTask focusTask;
   final PortalActivity activity;
@@ -1362,6 +2076,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
   final String? loadingAudioKey;
   final String? storedAudioKey;
   final String sampleSpeechKeyForTask;
+  final PracticeTaskState practiceTaskState;
   final VoidCallback? onOpenReading;
   final VoidCallback? onSpeakSample;
   final VoidCallback? onOpenVideo;
@@ -1371,8 +2086,15 @@ class _LandscapeReviewColumn extends StatelessWidget {
   final VoidCallback? onPlaySelectedAudio;
   final VoidCallback? onPlayStoredAudio;
   final VoidCallback? onPlayEncouragement;
+  final ValueChanged<List<String>>? onWordBankChanged;
+  final ValueChanged<String>? onListenChooseChanged;
   final VoidCallback onPrimaryAction;
   final double visualScale;
+  final bool showCompletionCard;
+  final String completionActivityId;
+  final int comboCount;
+  final int earnedStars;
+  final bool showGrowthRewards;
 
   @override
   Widget build(BuildContext context) {
@@ -1401,6 +2123,7 @@ class _LandscapeReviewColumn extends StatelessWidget {
                 _SentenceSwitchStrip(
                   tasks: tasks,
                   focusedTaskId: focusedTaskId,
+                  completedTaskIds: completedTaskIds,
                   onSelectTask: onSelectTask,
                 ),
               ],
@@ -1410,65 +2133,82 @@ class _LandscapeReviewColumn extends StatelessWidget {
         SizedBox(height: 14 * visualScale),
         Expanded(
           child: SingleChildScrollView(
-            child: Container(
-              key: focusedTaskAnchorKey,
-              child: _TaskCard(
-                index:
-                    activity.tasks.indexWhere(
-                      (task) => task.id == focusTask.id,
-                    ) +
-                    1,
-                task: focusTask,
-                submissionFlowStatus: activity.submissionFlowStatus,
-                submissionStatusHint: activity.submissionStatusHint,
-                selectedAudioLabel: selectedAudio?.name,
-                existingAudioLabel: activity.submissionAudioName,
-                isSubmitting: isSubmitting,
-                isRecording: isRecording,
-                isSpeaking: speakingTaskId == sampleSpeechKeyForTask,
-                isSamplePlaying: focusTask.hasReferenceAudio
-                    ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
-                          playingAudioKey
-                    : speakingTaskId == sampleSpeechKeyForTask,
-                isSampleLoading: focusTask.hasReferenceAudio
-                    ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
-                          loadingAudioKey
-                    : false,
-                isEncouragementPlaying:
-                    (focusTask.review?.encouragement.trim().isNotEmpty ==
+            child: Column(
+              children: [
+                Container(
+                  key: focusedTaskAnchorKey,
+                  child: _TaskCard(
+                    index:
+                        activity.tasks.indexWhere(
+                          (task) => task.id == focusTask.id,
+                        ) +
+                        1,
+                    task: focusTask,
+                    submissionFlowStatus: activity.submissionFlowStatus,
+                    submissionStatusHint: activity.submissionStatusHint,
+                    selectedAudioLabel: selectedAudio?.name,
+                    existingAudioLabel: activity.submissionAudioName,
+                    isSubmitting: isSubmitting,
+                    isRecording: isRecording,
+                    isSpeaking: speakingTaskId == sampleSpeechKeyForTask,
+                    isSamplePlaying: focusTask.hasReferenceAudio
+                        ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
+                              playingAudioKey
+                        : speakingTaskId == sampleSpeechKeyForTask,
+                    isSampleLoading: focusTask.hasReferenceAudio
+                        ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
+                              loadingAudioKey
+                        : false,
+                    isEncouragementPlaying:
+                        (focusTask.review?.encouragement.trim().isNotEmpty ==
+                                true &&
+                            _generatedSampleAudioKey(
+                                  _encouragementSpeechKey(focusTask.id),
+                                  schoolContext.schoolId ?? 'local',
+                                  focusTask.review!.encouragement,
+                                ) ==
+                                playingAudioKey) ||
+                        speakingTaskId == _encouragementSpeechKey(focusTask.id),
+                    isEncouragementLoading:
+                        focusTask.review?.encouragement.trim().isNotEmpty ==
                             true &&
                         _generatedSampleAudioKey(
                               _encouragementSpeechKey(focusTask.id),
                               schoolContext.schoolId ?? 'local',
                               focusTask.review!.encouragement,
                             ) ==
-                            playingAudioKey) ||
-                    speakingTaskId == _encouragementSpeechKey(focusTask.id),
-                isEncouragementLoading:
-                    focusTask.review?.encouragement.trim().isNotEmpty == true &&
-                    _generatedSampleAudioKey(
-                          _encouragementSpeechKey(focusTask.id),
-                          schoolContext.schoolId ?? 'local',
-                          focusTask.review!.encouragement,
-                        ) ==
-                        loadingAudioKey,
-                isSelectedAudioPlaying: selectedAudioKey == playingAudioKey,
-                isSelectedAudioLoading: selectedAudioKey == loadingAudioKey,
-                isStoredAudioPlaying: storedAudioKey == playingAudioKey,
-                isStoredAudioLoading: storedAudioKey == loadingAudioKey,
-                onOpenReading: onOpenReading,
-                onSpeakSample: onSpeakSample,
-                onOpenVideo: onOpenVideo,
-                onPickAudio: onPickAudio,
-                onRecordAudio: onRecordAudio,
-                onClearSelectedAudio: onClearSelectedAudio,
-                onPlaySelectedAudio: onPlaySelectedAudio,
-                onPlayStoredAudio: onPlayStoredAudio,
-                onPlayEncouragement: onPlayEncouragement,
-                onPrimaryAction: onPrimaryAction,
-                isFocusTask: true,
-                showSubmissionSection: false,
-              ),
+                            loadingAudioKey,
+                    isSelectedAudioPlaying: selectedAudioKey == playingAudioKey,
+                    isSelectedAudioLoading: selectedAudioKey == loadingAudioKey,
+                    isStoredAudioPlaying: storedAudioKey == playingAudioKey,
+                    isStoredAudioLoading: storedAudioKey == loadingAudioKey,
+                    practiceTaskState: practiceTaskState,
+                    onOpenReading: onOpenReading,
+                    onSpeakSample: onSpeakSample,
+                    onOpenVideo: onOpenVideo,
+                    onPickAudio: onPickAudio,
+                    onRecordAudio: onRecordAudio,
+                    onClearSelectedAudio: onClearSelectedAudio,
+                    onPlaySelectedAudio: onPlaySelectedAudio,
+                    onPlayStoredAudio: onPlayStoredAudio,
+                    onPlayEncouragement: onPlayEncouragement,
+                    onWordBankChanged: onWordBankChanged,
+                    onListenChooseChanged: onListenChooseChanged,
+                    onPrimaryAction: onPrimaryAction,
+                    isFocusTask: true,
+                    showSubmissionSection: false,
+                  ),
+                ),
+                if (showCompletionCard) ...[
+                  SizedBox(height: 14 * visualScale),
+                  _CompletionShareCard(
+                    activityId: completionActivityId,
+                    comboCount: comboCount,
+                    earnedStars: earnedStars,
+                    showGrowthRewards: showGrowthRewards,
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -1516,6 +2256,86 @@ class _AutoAdvanceBanner extends StatelessWidget {
                 fontWeight: FontWeight.w900,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompletionShareCard extends StatelessWidget {
+  const _CompletionShareCard({
+    required this.activityId,
+    required this.comboCount,
+    required this.earnedStars,
+    required this.showGrowthRewards,
+  });
+
+  final String activityId;
+  final int comboCount;
+  final int earnedStars;
+  final bool showGrowthRewards;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE9FFF0), Color(0xFFDFF7FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFB7E8C8), width: 1.4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '这一份已经完成啦',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: const Color(0xFF166534),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            showGrowthRewards && (comboCount > 0 || earnedStars > 0)
+                ? '这次拿到了 $earnedStars 星币，还打出了 $comboCount 次连对，去给家长看看今天的学习成果吧。'
+                : '可以把今天的学习成果展示给家长看看了。',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF475569),
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+            ),
+          ),
+          if (showGrowthRewards) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (earnedStars > 0)
+                  _TaskInfoChip(
+                    icon: Icons.stars_rounded,
+                    label: '$earnedStars 星币',
+                  ),
+                if (comboCount > 0)
+                  _TaskInfoChip(
+                    icon: Icons.local_fire_department_rounded,
+                    label: '$comboCount 连对',
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: () =>
+                context.go('/activities/$activityId/parent-contact'),
+            icon: const Icon(Icons.family_restroom_rounded),
+            label: const Text('去联系家长'),
           ),
         ],
       ),
@@ -1578,6 +2398,10 @@ class _TextbookStageCard extends StatefulWidget {
     required this.totalTasks,
     required this.onSelectTask,
     required this.onOpenFullScreen,
+    required this.completedTaskIds,
+    required this.comboCount,
+    required this.earnedStars,
+    required this.onCompleteHotspotTask,
     required this.bottomSheet,
     this.compact = false,
     this.visualScale = 1,
@@ -1591,6 +2415,10 @@ class _TextbookStageCard extends StatefulWidget {
   final int totalTasks;
   final ValueChanged<String> onSelectTask;
   final VoidCallback onOpenFullScreen;
+  final Set<String> completedTaskIds;
+  final int comboCount;
+  final int earnedStars;
+  final ValueChanged<PortalTask> onCompleteHotspotTask;
   final Widget bottomSheet;
   final bool compact;
   final double visualScale;
@@ -1741,6 +2569,21 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
                 icon: Icons.flag_rounded,
                 label: '当前第 ${widget.taskIndex} / ${widget.totalTasks} 句',
               ),
+              _OverviewChip(
+                icon: Icons.check_circle_rounded,
+                label:
+                    '已完成 ${widget.completedTaskIds.length} / ${widget.totalTasks}',
+              ),
+              if (widget.comboCount > 0)
+                _OverviewChip(
+                  icon: Icons.local_fire_department_rounded,
+                  label: '连对 ${widget.comboCount}',
+                ),
+              if (widget.earnedStars > 0)
+                _OverviewChip(
+                  icon: Icons.star_rounded,
+                  label: '本次 +${widget.earnedStars}',
+                ),
               _OverviewChip(icon: Icons.menu_book_rounded, label: pageLabel),
               if ((widget.activity.materialTitle ?? '').trim().isNotEmpty)
                 _OverviewChip(
@@ -1822,7 +2665,10 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
                                           snapshot.data?.stageImageData,
                                       tasks: pageTasks,
                                       focusedTaskId: widget.focusedTaskId,
+                                      completedTaskIds: widget.completedTaskIds,
                                       onSelectTask: widget.onSelectTask,
+                                      onCompleteHotspotTask:
+                                          widget.onCompleteHotspotTask,
                                     )
                                   : FutureBuilder<Uint8List?>(
                                       future: _pdfFuture,
@@ -1939,14 +2785,18 @@ class _TextbookImageStage extends StatelessWidget {
     required this.pageImagePath,
     required this.tasks,
     required this.focusedTaskId,
+    required this.completedTaskIds,
     required this.onSelectTask,
+    required this.onCompleteHotspotTask,
     this.stageImageData,
   });
 
   final String pageImagePath;
   final List<PortalTask> tasks;
   final String focusedTaskId;
+  final Set<String> completedTaskIds;
   final ValueChanged<String> onSelectTask;
+  final ValueChanged<PortalTask> onCompleteHotspotTask;
   final _StageImageData? stageImageData;
 
   @override
@@ -1956,7 +2806,9 @@ class _TextbookImageStage extends StatelessWidget {
         data: stageImageData!,
         tasks: tasks,
         focusedTaskId: focusedTaskId,
+        completedTaskIds: completedTaskIds,
         onSelectTask: onSelectTask,
+        onCompleteHotspotTask: onCompleteHotspotTask,
       );
     }
 
@@ -1977,7 +2829,9 @@ class _TextbookImageStage extends StatelessWidget {
           data: snapshot.data!,
           tasks: tasks,
           focusedTaskId: focusedTaskId,
+          completedTaskIds: completedTaskIds,
           onSelectTask: onSelectTask,
+          onCompleteHotspotTask: onCompleteHotspotTask,
         );
       },
     );
@@ -1989,13 +2843,17 @@ class _TextbookImageStageBody extends StatelessWidget {
     required this.data,
     required this.tasks,
     required this.focusedTaskId,
+    required this.completedTaskIds,
     required this.onSelectTask,
+    required this.onCompleteHotspotTask,
   });
 
   final _StageImageData data;
   final List<PortalTask> tasks;
   final String focusedTaskId;
+  final Set<String> completedTaskIds;
   final ValueChanged<String> onSelectTask;
+  final ValueChanged<PortalTask> onCompleteHotspotTask;
 
   @override
   Widget build(BuildContext context) {
@@ -2040,11 +2898,13 @@ class _TextbookImageStageBody extends StatelessWidget {
                       _TextbookRegionOverlay(
                         task: task,
                         focusedTaskId: focusedTaskId,
+                        completedTaskIds: completedTaskIds,
                         imageLeft: imageLeft,
                         imageTop: imageTop,
                         imageWidth: imageWidth,
                         imageHeight: imageHeight,
                         onSelectTask: onSelectTask,
+                        onCompleteTask: onCompleteHotspotTask,
                       ),
                 ],
               ),
@@ -2081,20 +2941,24 @@ class _TextbookRegionOverlay extends StatelessWidget {
   const _TextbookRegionOverlay({
     required this.task,
     required this.focusedTaskId,
+    required this.completedTaskIds,
     required this.imageLeft,
     required this.imageTop,
     required this.imageWidth,
     required this.imageHeight,
     required this.onSelectTask,
+    required this.onCompleteTask,
   });
 
   final PortalTask task;
   final String focusedTaskId;
+  final Set<String> completedTaskIds;
   final double imageLeft;
   final double imageTop;
   final double imageWidth;
   final double imageHeight;
   final ValueChanged<String> onSelectTask;
+  final ValueChanged<PortalTask> onCompleteTask;
 
   @override
   Widget build(BuildContext context) {
@@ -2104,7 +2968,7 @@ class _TextbookRegionOverlay extends StatelessWidget {
     final width = imageWidth * region.width;
     final height = imageHeight * region.height;
     final isFocused = task.id == focusedTaskId;
-    final isDone = task.reviewStatus == TaskReviewStatus.checked;
+    final isDone = completedTaskIds.contains(task.id);
     final overlayColor = isFocused
         ? const Color(0x33F97316)
         : isDone
@@ -2137,7 +3001,14 @@ class _TextbookRegionOverlay extends StatelessWidget {
       width: width,
       height: height,
       child: GestureDetector(
-        onTap: () => onSelectTask(task.id),
+        onTap: () {
+          onSelectTask(task.id);
+          if (!isDone &&
+              task.toPracticeProtocol().type ==
+                  PracticeTaskType.hotspotSelect) {
+            onCompleteTask(task);
+          }
+        },
         child: AnimatedScale(
           duration: const Duration(milliseconds: 180),
           scale: isFocused ? 1.015 : 1,
@@ -2291,26 +3162,54 @@ class _SentenceSwitchStrip extends StatelessWidget {
   const _SentenceSwitchStrip({
     required this.tasks,
     required this.focusedTaskId,
+    required this.completedTaskIds,
     required this.onSelectTask,
   });
 
   final List<PortalTask> tasks;
   final String focusedTaskId;
+  final Set<String> completedTaskIds;
   final ValueChanged<String> onSelectTask;
 
   @override
   Widget build(BuildContext context) {
+    final completedCount = completedTaskIds.length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '句子切换',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: const Color(0xFF2FA77D),
-            fontWeight: FontWeight.w900,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '句子切换',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: const Color(0xFF2FA77D),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAFBF1),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '已完成 $completedCount/${tasks.length}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF15803D),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
+        _TaskCompletionProgressBar(
+          completedCount: completedCount,
+          totalCount: tasks.length,
+        ),
+        const SizedBox(height: 10),
         SizedBox(
           height: 48,
           child: ListView.separated(
@@ -2320,8 +3219,24 @@ class _SentenceSwitchStrip extends StatelessWidget {
             itemBuilder: (context, index) {
               final task = tasks[index];
               final isFocused = task.id == focusedTaskId;
+              final isCompleted = completedTaskIds.contains(task.id);
               return ChoiceChip(
-                label: Text('句子 ${index + 1}'),
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('句子 ${index + 1}'),
+                    if (isCompleted) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.check_circle_rounded,
+                        size: 16,
+                        color: isFocused
+                            ? const Color(0xFFEA580C)
+                            : const Color(0xFF16A34A),
+                      ),
+                    ],
+                  ],
+                ),
                 selected: isFocused,
                 onSelected: (_) => onSelectTask(task.id),
                 selectedColor: const Color(0xFFFFEDD5),
@@ -2347,11 +3262,62 @@ class _SentenceSwitchStrip extends StatelessWidget {
   }
 }
 
+class _TaskCompletionProgressBar extends StatelessWidget {
+  const _TaskCompletionProgressBar({
+    required this.completedCount,
+    required this.totalCount,
+  });
+
+  final int completedCount;
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = totalCount == 0
+        ? 0.0
+        : (completedCount / totalCount).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: progress),
+          duration: const Duration(milliseconds: 360),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: value,
+                minHeight: 10,
+                backgroundColor: const Color(0xFFE2E8F0),
+                valueColor: const AlwaysStoppedAnimation(Color(0xFF2FA77D)),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 6),
+        Text(
+          completedCount >= totalCount
+              ? '这一组句子全部完成了'
+              : '再完成 ${totalCount - completedCount} 句就能点亮这一组',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: const Color(0xFF64748B),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TextbookFloatingPanel extends StatelessWidget {
   const _TextbookFloatingPanel({
     required this.task,
     required this.submissionFlowStatus,
     required this.submissionStatusHint,
+    required this.isUnsupportedProtocol,
+    required this.requiresPracticeCompletion,
+    required this.isPracticeCompleted,
     required this.selectedAudioLabel,
     required this.existingAudioLabel,
     required this.isSubmitting,
@@ -2376,6 +3342,9 @@ class _TextbookFloatingPanel extends StatelessWidget {
   final PortalTask task;
   final SubmissionFlowStatus submissionFlowStatus;
   final String? submissionStatusHint;
+  final bool isUnsupportedProtocol;
+  final bool requiresPracticeCompletion;
+  final bool isPracticeCompleted;
   final String? selectedAudioLabel;
   final String? existingAudioLabel;
   final bool isSubmitting;
@@ -2567,6 +3536,9 @@ class _TextbookFloatingPanel extends StatelessWidget {
               _InlineSubmissionSection(
                 submissionFlowStatus: submissionFlowStatus,
                 submissionStatusHint: submissionStatusHint,
+                isUnsupportedProtocol: isUnsupportedProtocol,
+                requiresPracticeCompletion: requiresPracticeCompletion,
+                isPracticeCompleted: isPracticeCompleted,
                 selectedAudioLabel: selectedAudioLabel,
                 existingAudioLabel: existingAudioLabel,
                 isSubmitting: isSubmitting,
@@ -3301,6 +4273,7 @@ class _TaskCard extends StatelessWidget {
     required this.isSelectedAudioLoading,
     required this.isStoredAudioPlaying,
     required this.isStoredAudioLoading,
+    required this.practiceTaskState,
     required this.isEncouragementPlaying,
     required this.isEncouragementLoading,
     this.onOpenReading,
@@ -3312,6 +4285,8 @@ class _TaskCard extends StatelessWidget {
     this.onPlaySelectedAudio,
     this.onPlayStoredAudio,
     this.onPlayEncouragement,
+    this.onWordBankChanged,
+    this.onListenChooseChanged,
     required this.onPrimaryAction,
     this.isFocusTask = false,
     this.showSubmissionSection = true,
@@ -3332,6 +4307,7 @@ class _TaskCard extends StatelessWidget {
   final bool isSelectedAudioLoading;
   final bool isStoredAudioPlaying;
   final bool isStoredAudioLoading;
+  final PracticeTaskState practiceTaskState;
   final bool isEncouragementPlaying;
   final bool isEncouragementLoading;
   final VoidCallback? onOpenReading;
@@ -3342,6 +4318,8 @@ class _TaskCard extends StatelessWidget {
   final VoidCallback? onPlaySelectedAudio;
   final VoidCallback? onPlayStoredAudio;
   final VoidCallback? onPlayEncouragement;
+  final ValueChanged<List<String>>? onWordBankChanged;
+  final ValueChanged<String>? onListenChooseChanged;
   final VoidCallback? onClearSelectedAudio;
   final VoidCallback onPrimaryAction;
   final bool isFocusTask;
@@ -3349,14 +4327,22 @@ class _TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusLabel = _statusLabel(task.reviewStatus);
-    final statusColor = _statusColor(task.reviewStatus);
+    final isTaskCompleted =
+        practiceTaskState.isCompleted ||
+        task.reviewStatus == TaskReviewStatus.checked;
+    final statusLabel = isTaskCompleted
+        ? '已完成'
+        : _statusLabel(task.reviewStatus);
+    final statusColor = isTaskCompleted
+        ? const Color(0xFF16A34A)
+        : _statusColor(task.reviewStatus);
     final sampleText = _sampleTextFor(task);
     final samplePreviewLabel = isSampleLoading
         ? '示范加载中'
         : isSamplePlaying
         ? '停止示范'
         : '播放示范';
+    final practiceProtocol = task.toPracticeProtocol();
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -3443,6 +4429,13 @@ class _TaskCard extends StatelessWidget {
                   ),
                 ),
               ],
+              const SizedBox(height: 16),
+              PracticeRenderer(
+                task: practiceProtocol,
+                state: practiceTaskState,
+                onWordBankChanged: onWordBankChanged,
+                onListenChooseChanged: onListenChooseChanged,
+              ),
               if (task.review != null) ...[
                 const SizedBox(height: 16),
                 _TaskReviewPanel(
@@ -3508,6 +4501,11 @@ class _TaskCard extends StatelessWidget {
                 _InlineSubmissionSection(
                   submissionFlowStatus: submissionFlowStatus,
                   submissionStatusHint: submissionStatusHint,
+                  isUnsupportedProtocol:
+                      practiceProtocol.type == PracticeTaskType.unsupported,
+                  requiresPracticeCompletion:
+                      practiceProtocol.type == PracticeTaskType.wordBank,
+                  isPracticeCompleted: practiceTaskState.isCompleted,
                   selectedAudioLabel: selectedAudioLabel,
                   existingAudioLabel: existingAudioLabel,
                   isSubmitting: isSubmitting,
@@ -3647,6 +4645,9 @@ class _InlineSubmissionSection extends StatelessWidget {
   const _InlineSubmissionSection({
     required this.submissionFlowStatus,
     required this.submissionStatusHint,
+    required this.isUnsupportedProtocol,
+    required this.requiresPracticeCompletion,
+    required this.isPracticeCompleted,
     required this.selectedAudioLabel,
     required this.existingAudioLabel,
     required this.isSubmitting,
@@ -3665,6 +4666,9 @@ class _InlineSubmissionSection extends StatelessWidget {
 
   final SubmissionFlowStatus submissionFlowStatus;
   final String? submissionStatusHint;
+  final bool isUnsupportedProtocol;
+  final bool requiresPracticeCompletion;
+  final bool isPracticeCompleted;
   final String? selectedAudioLabel;
   final String? existingAudioLabel;
   final bool isSubmitting;
@@ -3696,19 +4700,73 @@ class _InlineSubmissionSection extends StatelessWidget {
       SubmissionFlowStatus.failed => const Color(0xFFDC2626),
       SubmissionFlowStatus.completed => const Color(0xFF16A34A),
     };
-    final subtitle = switch (submissionFlowStatus) {
-      SubmissionFlowStatus.notStarted => '',
-      SubmissionFlowStatus.queued => '',
-      SubmissionFlowStatus.processing => '',
-      SubmissionFlowStatus.failed => '',
-      SubmissionFlowStatus.completed => '',
-    };
+    final requiresPracticeFirst =
+        requiresPracticeCompletion && !isPracticeCompleted && !isRecording;
     final canSubmit =
         submissionFlowStatus == SubmissionFlowStatus.notStarted ||
         submissionFlowStatus == SubmissionFlowStatus.failed ||
         submissionFlowStatus == SubmissionFlowStatus.completed;
     final hasSelectedAudio = (selectedAudioLabel ?? '').trim().isNotEmpty;
-    final primaryLabel = isRecording
+    final trimmedStatusHint = submissionStatusHint?.trim();
+    final (
+      helperMessage,
+      helperBackground,
+      helperForeground,
+      helperIcon,
+    ) = switch (submissionFlowStatus) {
+      _ when isUnsupportedProtocol => (
+        '这道题型正在更新中，先点跳过继续下一句，系统会保留兜底能力。',
+        const Color(0xFFFFF7E8),
+        const Color(0xFFB45309),
+        Icons.auto_fix_high_rounded,
+      ),
+      _ when requiresPracticeFirst => (
+        '先完成上面的拼句练习，再开始录音或提交这一句。',
+        const Color(0xFFFFF7E8),
+        const Color(0xFFB45309),
+        Icons.extension_rounded,
+      ),
+      _ when isRecording => (
+        '读完后点结束录音，系统会自动帮你保存这一句。',
+        const Color(0xFFFFE4E6),
+        const Color(0xFFDC2626),
+        Icons.graphic_eq_rounded,
+      ),
+      _ when hasSelectedAudio && !isSubmitting => (
+        submissionFlowStatus == SubmissionFlowStatus.failed
+            ? '上一回没有立刻传上去，这段录音还在，点一下就能重新提交。'
+            : submissionFlowStatus == SubmissionFlowStatus.completed
+            ? '这段录音已经准备好了，想挑战更高分的话可以再次提交。'
+            : '录音已经准备好了，先试听一下，再点提交这一句。',
+        const Color(0xFFEAFBF1),
+        const Color(0xFF15803D),
+        Icons.check_circle_rounded,
+      ),
+      SubmissionFlowStatus.queued when trimmedStatusHint != null => (
+        trimmedStatusHint,
+        const Color(0xFFFFF2E4),
+        const Color(0xFFEA580C),
+        Icons.schedule_rounded,
+      ),
+      SubmissionFlowStatus.processing when trimmedStatusHint != null => (
+        trimmedStatusHint,
+        const Color(0xFFFFF2E4),
+        const Color(0xFFFF8F4D),
+        Icons.auto_awesome_rounded,
+      ),
+      SubmissionFlowStatus.completed when trimmedStatusHint != null => (
+        trimmedStatusHint,
+        const Color(0xFFEAFBF1),
+        const Color(0xFF16A34A),
+        Icons.emoji_events_rounded,
+      ),
+      _ => (null, null, null, null),
+    };
+    final primaryLabel = isUnsupportedProtocol
+        ? (compact ? '跳过' : '先跳过这一句')
+        : requiresPracticeFirst
+        ? (compact ? '先拼句' : '先完成拼句')
+        : isRecording
         ? (compact ? '停止' : '结束录音')
         : hasSelectedAudio
         ? (isSubmitting
@@ -3723,7 +4781,11 @@ class _InlineSubmissionSection extends StatelessWidget {
                     ? (compact ? '再交' : '再次提交')
                     : (compact ? '提交' : '提交这一句')))
         : (compact ? '录音' : '开始录音');
-    final primaryIcon = isSubmitting
+    final primaryIcon = isUnsupportedProtocol
+        ? Icons.skip_next_rounded
+        : requiresPracticeFirst
+        ? Icons.extension_rounded
+        : isSubmitting
         ? null
         : isRecording
         ? Icons.stop_circle_rounded
@@ -3734,13 +4796,24 @@ class _InlineSubmissionSection extends StatelessWidget {
               ? Icons.restart_alt_rounded
               : Icons.cloud_upload_rounded)
         : Icons.mic_rounded;
-    final primaryAction = isSubmitting
+    final primaryAction = isUnsupportedProtocol
+        ? onPrimaryAction
+        : requiresPracticeFirst
+        ? null
+        : isSubmitting
         ? null
         : isRecording
         ? onRecordAudio
         : hasSelectedAudio
         ? (canSubmit ? onPrimaryAction : null)
         : onRecordAudio;
+    final recordButtonState = isSubmitting
+        ? AudioRecordButtonState.processing
+        : isRecording
+        ? AudioRecordButtonState.recording
+        : hasSelectedAudio
+        ? AudioRecordButtonState.done
+        : AudioRecordButtonState.idle;
 
     return Container(
       width: double.infinity,
@@ -3772,14 +4845,16 @@ class _InlineSubmissionSection extends StatelessWidget {
                   ),
                 ),
               ),
-              if (!compact && subtitle.isNotEmpty) ...[
+              if (helperMessage != null &&
+                  helperBackground != null &&
+                  helperForeground != null &&
+                  helperIcon != null) ...[
                 const SizedBox(height: 10),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF64748B),
-                    fontWeight: FontWeight.w700,
-                  ),
+                _InlineHintBanner(
+                  message: helperMessage,
+                  backgroundColor: helperBackground,
+                  foregroundColor: helperForeground,
+                  icon: helperIcon,
                 ),
               ],
             ],
@@ -3787,7 +4862,7 @@ class _InlineSubmissionSection extends StatelessWidget {
           if (selectedAudioLabel != null) ...[
             const SizedBox(height: 12),
             _AudioInfoCard(
-              title: '待提交',
+              title: '准备好了',
               fileName: selectedAudioLabel!,
               onAction: onPlaySelectedAudio,
               onDelete: onClearSelectedAudio,
@@ -3810,6 +4885,14 @@ class _InlineSubmissionSection extends StatelessWidget {
           if (compact)
             Row(
               children: [
+                Expanded(
+                  child: AudioRecordButton(
+                    state: recordButtonState,
+                    onPressed: requiresPracticeFirst ? null : onRecordAudio,
+                    compact: true,
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: primaryAction,
@@ -3834,6 +4917,11 @@ class _InlineSubmissionSection extends StatelessWidget {
               ],
             )
           else ...[
+            AudioRecordButton(
+              state: recordButtonState,
+              onPressed: requiresPracticeFirst ? null : onRecordAudio,
+            ),
+            const SizedBox(height: 10),
             FilledButton.icon(
               onPressed: primaryAction,
               style: FilledButton.styleFrom(
@@ -3867,6 +4955,48 @@ class _InlineSubmissionSection extends StatelessWidget {
                 ),
               ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineHintBanner extends StatelessWidget {
+  const _InlineHintBanner({
+    required this.message,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.icon,
+  });
+
+  final String message;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: foregroundColor, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: foregroundColor,
+                fontWeight: FontWeight.w800,
+                height: 1.35,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -4191,6 +5321,18 @@ String _encouragementSpeechKey(String taskId) {
   return 'encouragement:$taskId';
 }
 
+bool _listsEqual(List<String> left, List<String> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    if (left[index] != right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 String _generatedSampleAudioKey(String taskId, String schoolId, String text) {
   return 'speech:$schoolId:$taskId:${text.hashCode}';
 }
@@ -4225,4 +5367,142 @@ class _StorageAudioReference {
 
   final String bucketId;
   final String path;
+}
+
+class _PracticeBreakDialog extends StatefulWidget {
+  const _PracticeBreakDialog();
+
+  @override
+  State<_PracticeBreakDialog> createState() => _PracticeBreakDialogState();
+}
+
+class _PracticeBreakDialogState extends State<_PracticeBreakDialog> {
+  static const int _initialCountdown = 20;
+  Timer? _countdownTimer;
+  int _remainingSeconds = _initialCountdown;
+
+  @override
+  void initState() {
+    super.initState();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_remainingSeconds <= 1) {
+        timer.cancel();
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _remainingSeconds = 0;
+        });
+        return;
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _remainingSeconds -= 1;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canContinue = _remainingSeconds == 0;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE0F2FE),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(
+                Icons.self_improvement_rounded,
+                color: Color(0xFF0284C7),
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '休息一下眼睛吧',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: const Color(0xFF0F172A),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '你已经连续学习了一段时间。看一看远处，转转脖子，再回来继续今天的英语任务。',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: const Color(0xFF475569),
+                fontWeight: FontWeight.w700,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAFBF1),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.visibility_rounded,
+                    color: Color(0xFF15803D),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      canContinue
+                          ? '休息完成了，可以继续学习。'
+                          : '倒计时 ${_remainingSeconds}s，跟眼睛一起放松一下。',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF15803D),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: canContinue
+                    ? () => Navigator.of(context).pop()
+                    : null,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  backgroundColor: const Color(0xFF2FA77D),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(canContinue ? '继续学习' : '先休息一下'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

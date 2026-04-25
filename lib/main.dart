@@ -9,12 +9,25 @@ import 'app.dart';
 import 'core/config/app_config.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/error/error_handler.dart';
+import 'features/portal/data/app_event_log_repository.dart';
+import 'features/portal/data/local_cache_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize SharedPreferences early so we can persist app-level diagnostics.
+  final prefs = await SharedPreferences.getInstance();
+  final bootstrapCache = SharedPrefsLocalCacheRepository(prefs);
+  final bootstrapEventLog = LocalAppEventLogRepository(bootstrapCache);
+
   // Initialize global error handling
-  GlobalErrorHandler.initialize();
+  GlobalErrorHandler.initialize(
+    eventRecorder:
+        (
+          eventName, {
+          Map<String, Object?> payload = const <String, Object?>{},
+        }) => bootstrapEventLog.append(eventName, payload: payload),
+  );
 
   // Remove the hash from URLs on web
   usePathUrlStrategy();
@@ -32,9 +45,6 @@ void main() async {
       anonKey: config.supabasePublishableKey,
     );
   }
-
-  // Initialize SharedPreferences
-  final prefs = await SharedPreferences.getInstance();
 
   runApp(
     ProviderScope(

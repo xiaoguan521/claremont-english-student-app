@@ -3,16 +3,23 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+typedef GlobalErrorEventRecorder =
+    Future<void> Function(String eventName, {Map<String, Object?> payload});
+
 class GlobalErrorHandler {
   static bool _isInitialized = false;
+  static GlobalErrorEventRecorder? _eventRecorder;
 
-  static void initialize() {
+  static void initialize({GlobalErrorEventRecorder? eventRecorder}) {
+    if (eventRecorder != null) {
+      _eventRecorder = eventRecorder;
+    }
     if (_isInitialized) return;
 
     // Handle Flutter framework errors
     FlutterError.onError = (FlutterErrorDetails details) {
       _logError(details.exception, details.stack, details.context);
-      
+
       if (kDebugMode) {
         // In debug mode, show the default error widget
         FlutterError.presentError(details);
@@ -64,6 +71,20 @@ class GlobalErrorHandler {
       name: 'ErrorHandler',
     );
 
+    final recorder = _eventRecorder;
+    if (recorder != null) {
+      unawaited(
+        recorder(
+          'global_error',
+          payload: _buildErrorPayload(
+            error: error,
+            stack: stack,
+            context: context?.toString(),
+          ),
+        ),
+      );
+    }
+
     // In a real app, you would send this to your error reporting service
     // Examples: Firebase Crashlytics, Sentry, Bugsnag, etc.
     if (kDebugMode) {
@@ -82,11 +103,49 @@ class GlobalErrorHandler {
     Map<String, dynamic>? metadata,
   }) {
     _logError(error, stackTrace, context);
-    
-    // Add metadata logging
-    if (metadata != null && kDebugMode) {
-      print('Metadata: $metadata');
+
+    final recorder = _eventRecorder;
+    if (metadata != null) {
+      if (recorder != null) {
+        unawaited(
+          recorder(
+            'global_error_metadata',
+            payload: <String, Object?>{'context': context, ...metadata},
+          ),
+        );
+      }
+      if (kDebugMode) {
+        print('Metadata: $metadata');
+      }
     }
+  }
+
+  static void setEventRecorder(GlobalErrorEventRecorder? recorder) {
+    _eventRecorder = recorder;
+  }
+
+  static Map<String, Object?> _buildErrorPayload({
+    required dynamic error,
+    required StackTrace? stack,
+    required String? context,
+  }) {
+    return <String, Object?>{
+      'context': context ?? 'unknown',
+      'errorType': error.runtimeType.toString(),
+      'message': _truncate(error.toString()),
+      'stack': _truncate(stack?.toString()),
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+  }
+
+  static String? _truncate(String? value, {int maxLength = 1600}) {
+    if (value == null || value.isEmpty) {
+      return value;
+    }
+    if (value.length <= maxLength) {
+      return value;
+    }
+    return '${value.substring(0, maxLength)}...';
   }
 
   // Specific handler for image loading errors
@@ -95,18 +154,15 @@ class GlobalErrorHandler {
     required dynamic error,
     String? additionalContext,
   }) {
-    final context = 'Image Loading Error${additionalContext != null ? ' - $additionalContext' : ''}';
+    final context =
+        'Image Loading Error${additionalContext != null ? ' - $additionalContext' : ''}';
     final metadata = {
       'imageUrl': imageUrl,
       'errorType': error.runtimeType.toString(),
       'timestamp': DateTime.now().toIso8601String(),
     };
-    
-    reportError(
-      error: error,
-      context: context,
-      metadata: metadata,
-    );
+
+    reportError(error: error, context: context, metadata: metadata);
   }
 }
 
@@ -250,10 +306,7 @@ class AsyncErrorHandler<T> extends StatelessWidget {
           error.reportError(snapshot.stackTrace, 'AsyncErrorHandler');
 
           return errorBuilder?.call(context, error) ??
-              _DefaultAsyncErrorWidget(
-                error: error,
-                onRetry: onRetry,
-              );
+              _DefaultAsyncErrorWidget(error: error, onRetry: onRetry);
         }
 
         if (snapshot.hasData) {
@@ -270,10 +323,7 @@ class _DefaultAsyncErrorWidget extends StatelessWidget {
   final Object error;
   final VoidCallback? onRetry;
 
-  const _DefaultAsyncErrorWidget({
-    required this.error,
-    this.onRetry,
-  });
+  const _DefaultAsyncErrorWidget({required this.error, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -291,28 +341,28 @@ class _DefaultAsyncErrorWidget extends StatelessWidget {
                 size: 64,
                 color: theme.colorScheme.error,
               ),
-            const SizedBox(height: 16),
-            Text(
-              'Something went wrong',
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: theme.colorScheme.error,
+              const SizedBox(height: 16),
+              Text(
+                'Something went wrong',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              ErrorUtils.getNetworkErrorMessage(error),
-              style: theme.textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            if (onRetry != null) ...[
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Try Again'),
+              const SizedBox(height: 8),
+              Text(
+                ErrorUtils.getNetworkErrorMessage(error),
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
               ),
-            ],
+              if (onRetry != null) ...[
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try Again'),
+                ),
+              ],
             ],
           ),
         ),

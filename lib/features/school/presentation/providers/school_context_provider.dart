@@ -69,7 +69,7 @@ class SchoolContext {
   }
 
   factory SchoolContext.selectionRequired() {
-    return SchoolContext(
+    return const SchoolContext(
       schoolId: null,
       slug: 'select-school',
       schoolName: '',

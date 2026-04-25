@@ -6,6 +6,8 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/portal/presentation/pages/activities_page.dart';
 import '../../features/portal/presentation/pages/explore_page.dart';
+import '../../features/portal/presentation/pages/parent_contact_page.dart';
+import '../../features/portal/presentation/pages/student_release_lab_page.dart';
 import '../../features/portal/presentation/pages/task_detail_page.dart';
 import '../../features/school/presentation/pages/school_entry_page.dart';
 import '../../features/school/presentation/pages/school_selection_page.dart';
@@ -126,10 +128,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           final activityId = state.pathParameters['activityId']!;
           return TaskDetailPage(activityId: activityId);
         },
+        routes: [
+          GoRoute(
+            path: 'parent-contact',
+            builder: (context, state) {
+              final activityId = state.pathParameters['activityId']!;
+              return ParentContactPage(activityId: activityId);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/explore',
         builder: (context, state) => const ExplorePage(),
+      ),
+      GoRoute(
+        path: '/student-release-lab',
+        builder: (context, state) => const StudentReleaseLabPage(),
       ),
       ShellRoute(
         builder: (context, state, child) => ResponsiveScaffold(child: child),

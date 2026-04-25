@@ -21,36 +21,39 @@ class App extends ConsumerWidget {
 
     return ErrorBoundary(
       isRootErrorBoundary: true,
-      child: AppSyncQueueListener(
-        child: SchoolLinkListener(
-          router: router,
-          child: MaterialApp.router(
-            title: '英语打卡',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.lightTheme(
-              ColorScheme.fromSeed(
-                seedColor: themeState.colorSeed.color,
-                brightness: Brightness.light,
-              ),
-            ),
-            darkTheme: AppTheme.darkTheme(
-              ColorScheme.fromSeed(
-                seedColor: themeState.colorSeed.color,
-                brightness: Brightness.dark,
-              ),
-            ),
-            themeMode: themeState.themeMode,
-            locale: locale,
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            supportedLocales: SupportedLocales.locales,
-            routerConfig: router,
+      child: MaterialApp.router(
+        title: '英语打卡',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme(
+          ColorScheme.fromSeed(
+            seedColor: themeState.colorSeed.color,
+            brightness: Brightness.light,
           ),
         ),
+        darkTheme: AppTheme.darkTheme(
+          ColorScheme.fromSeed(
+            seedColor: themeState.colorSeed.color,
+            brightness: Brightness.dark,
+          ),
+        ),
+        themeMode: themeState.themeMode,
+        locale: locale,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: SupportedLocales.locales,
+        routerConfig: router,
+        builder: (context, child) {
+          return AppSyncQueueListener(
+            child: SchoolLinkListener(
+              router: router,
+              child: child ?? const SizedBox.shrink(),
+            ),
+          );
+        },
       ),
     );
   }

@@ -4785,6 +4785,33 @@ class _InlineSubmissionSection extends StatelessWidget {
         : hasSelectedAudio
         ? AudioRecordButtonState.done
         : AudioRecordButtonState.idle;
+    final showSplitActions =
+        hasSelectedAudio &&
+        !isRecording &&
+        !isUnsupportedProtocol &&
+        !requiresPracticeFirst;
+
+    Widget primaryButton({required bool compactMode}) {
+      return FilledButton.icon(
+        onPressed: primaryAction,
+        style: FilledButton.styleFrom(
+          minimumSize: Size.fromHeight(compactMode ? 50 : 52),
+          backgroundColor: const Color(0xFFFF8F4D),
+          foregroundColor: Colors.white,
+        ),
+        icon: isSubmitting
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Icon(primaryIcon),
+        label: Text(primaryLabel),
+      );
+    }
 
     return Container(
       width: double.infinity,
@@ -4853,78 +4880,46 @@ class _InlineSubmissionSection extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 14),
-          if (compact)
+          if (showSplitActions)
             Row(
               children: [
                 Expanded(
                   child: AudioRecordButton(
                     state: recordButtonState,
-                    onPressed: requiresPracticeFirst ? null : onRecordAudio,
-                    compact: true,
+                    onPressed: isSubmitting ? null : onRecordAudio,
+                    compact: compact,
                   ),
                 ),
                 const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: primaryAction,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                      backgroundColor: const Color(0xFFFF8F4D),
-                      foregroundColor: Colors.white,
-                    ),
-                    icon: isSubmitting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Icon(primaryIcon),
-                    label: Text(primaryLabel),
-                  ),
-                ),
+                Expanded(child: primaryButton(compactMode: compact)),
               ],
             )
-          else ...[
+          else
             AudioRecordButton(
               state: recordButtonState,
-              onPressed: requiresPracticeFirst ? null : onRecordAudio,
+              onPressed: isUnsupportedProtocol || requiresPracticeFirst
+                  ? null
+                  : onRecordAudio,
+              compact: compact,
             ),
+          if (!showSplitActions &&
+              (isUnsupportedProtocol || requiresPracticeFirst)) ...[
             const SizedBox(height: 10),
-            FilledButton.icon(
-              onPressed: primaryAction,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(52),
-                backgroundColor: const Color(0xFFFF8F4D),
-                foregroundColor: Colors.white,
-              ),
-              icon: isSubmitting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Icon(primaryIcon),
-              label: Text(primaryLabel),
-            ),
+            primaryButton(compactMode: compact),
+          ],
+          if (showSplitActions && !compact && onClearSelectedAudio != null) ...[
             const SizedBox(height: 12),
-            if (hasSelectedAudio && onClearSelectedAudio != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _RoundOutlineIconButton(
-                  onPressed: isSubmitting ? null : onClearSelectedAudio,
-                  tooltip: '删除这段音频',
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: Color(0xFFDC2626),
-                  ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _RoundOutlineIconButton(
+                onPressed: isSubmitting ? null : onClearSelectedAudio,
+                tooltip: '删除这段音频',
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Color(0xFFDC2626),
                 ),
               ),
+            ),
           ],
         ],
       ),

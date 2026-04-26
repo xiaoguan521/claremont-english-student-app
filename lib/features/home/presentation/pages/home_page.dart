@@ -3305,17 +3305,22 @@ class _StudentSidePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          flex: 12,
-          child: _ProfileCenterCard(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWideShort =
+            constraints.maxWidth > 560 && constraints.maxHeight < 270;
+        final isLowHeight = constraints.maxHeight < 430;
+
+        if (isWideShort) {
+          return _LearningFocusPanel(
             currentUserEmail: currentUserEmail,
+            highlightedActivityId: highlightedActivityId,
             summary: summary,
             dailyGrowth: dailyGrowth,
             parentSummary: parentSummary,
             featureFlags: featureFlags,
-            onTap: () => _showProfileCenterDialog(
+            isHorizontal: true,
+            onProfileTap: () => _showProfileCenterDialog(
               context,
               currentUserEmail: currentUserEmail,
               summary: summary,
@@ -3323,22 +3328,449 @@ class _StudentSidePanel extends StatelessWidget {
               parentSummary: parentSummary,
               featureFlags: featureFlags,
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Expanded(
-          flex: 8,
-          child: _HomeUtilityGrid(
+            onSettingsTap: () => _showSettingsDialog(context, currentUserEmail),
+          );
+        }
+
+        if (isLowHeight) {
+          return _LearningFocusPanel(
             currentUserEmail: currentUserEmail,
             highlightedActivityId: highlightedActivityId,
             summary: summary,
             dailyGrowth: dailyGrowth,
             parentSummary: parentSummary,
-            schoolContext: schoolContext,
             featureFlags: featureFlags,
+            compactOnly: true,
+            onProfileTap: () => _showProfileCenterDialog(
+              context,
+              currentUserEmail: currentUserEmail,
+              summary: summary,
+              dailyGrowth: dailyGrowth,
+              parentSummary: parentSummary,
+              featureFlags: featureFlags,
+            ),
+            onSettingsTap: () => _showSettingsDialog(context, currentUserEmail),
+          );
+        }
+
+        return Column(
+          children: [
+            Expanded(
+              flex: isLowHeight ? 12 : 10,
+              child: _LearningFocusPanel(
+                currentUserEmail: currentUserEmail,
+                highlightedActivityId: highlightedActivityId,
+                summary: summary,
+                dailyGrowth: dailyGrowth,
+                parentSummary: parentSummary,
+                featureFlags: featureFlags,
+                onProfileTap: () => _showProfileCenterDialog(
+                  context,
+                  currentUserEmail: currentUserEmail,
+                  summary: summary,
+                  dailyGrowth: dailyGrowth,
+                  parentSummary: parentSummary,
+                  featureFlags: featureFlags,
+                ),
+                onSettingsTap: () =>
+                    _showSettingsDialog(context, currentUserEmail),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              flex: isLowHeight ? 8 : 7,
+              child: _HomeUtilityGrid(
+                currentUserEmail: currentUserEmail,
+                highlightedActivityId: highlightedActivityId,
+                summary: summary,
+                dailyGrowth: dailyGrowth,
+                parentSummary: parentSummary,
+                schoolContext: schoolContext,
+                featureFlags: featureFlags,
+              ),
+            ),
+            if (!isLowHeight) ...[
+              const SizedBox(height: 12),
+              Expanded(
+                flex: 4,
+                child: _ProfileCenterCard(
+                  currentUserEmail: currentUserEmail,
+                  summary: summary,
+                  dailyGrowth: dailyGrowth,
+                  parentSummary: parentSummary,
+                  featureFlags: featureFlags,
+                  onTap: () => _showProfileCenterDialog(
+                    context,
+                    currentUserEmail: currentUserEmail,
+                    summary: summary,
+                    dailyGrowth: dailyGrowth,
+                    parentSummary: parentSummary,
+                    featureFlags: featureFlags,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _LearningFocusPanel extends StatelessWidget {
+  const _LearningFocusPanel({
+    required this.currentUserEmail,
+    required this.highlightedActivityId,
+    required this.summary,
+    required this.dailyGrowth,
+    required this.parentSummary,
+    required this.featureFlags,
+    required this.onProfileTap,
+    required this.onSettingsTap,
+    this.isHorizontal = false,
+    this.compactOnly = false,
+  });
+
+  final String? currentUserEmail;
+  final String highlightedActivityId;
+  final PortalSummary summary;
+  final DailyGrowthSummary dailyGrowth;
+  final ParentContactSummary? parentSummary;
+  final StudentFeatureFlags featureFlags;
+  final VoidCallback onProfileTap;
+  final VoidCallback onSettingsTap;
+  final bool isHorizontal;
+  final bool compactOnly;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = _studentDisplayName(currentUserEmail);
+    final stars = _dailyStarCoins(summary, dailyGrowth, parentSummary);
+    final completedTasks = dailyGrowth.completedTasks;
+    final progressText = completedTasks > 0
+        ? '已完成 $completedTasks 句'
+        : '${summary.pendingTasks} 项待完成';
+    final rewardText = featureFlags.showGrowthRewards ? '$stars 星币' : '今日积分';
+
+    final heroAction = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.go('/activities/$highlightedActivityId'),
+        borderRadius: BorderRadius.circular(26),
+        child: Container(
+          padding: EdgeInsets.all(isHorizontal ? 14 : 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFE36B), Color(0xFFFFA94D)],
+            ),
+            borderRadius: BorderRadius.circular(26),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFA94D).withValues(alpha: 0.22),
+                blurRadius: 16,
+                offset: const Offset(0, 9),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: isHorizontal ? 46 : 52,
+                height: isHorizontal ? 46 : 52,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.78),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Color(0xFFB45309),
+                  size: 34,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '继续今天作业',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: const Color(0xFF55320A),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      progressText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF7A4A00),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Color(0xFF7A4A00)),
+            ],
           ),
         ),
-      ],
+      ),
+    );
+
+    final quickActions = [
+      _LearningQuickAction(
+        label: '今日任务',
+        icon: Icons.fact_check_rounded,
+        color: const Color(0xFF5DB9FF),
+        onTap: () => _showTodayTasksDialog(context, summary),
+      ),
+      _LearningQuickAction(
+        label: '点评',
+        icon: Icons.rate_review_rounded,
+        color: const Color(0xFFFF8F4D),
+        onTap: () => _showFeedbackDialog(context, summary),
+      ),
+      _LearningQuickAction(
+        label: '家长通',
+        icon: Icons.family_restroom_rounded,
+        color: const Color(0xFF78D85F),
+        onTap: () =>
+            context.go('/activities/$highlightedActivityId/parent-contact'),
+      ),
+      _LearningQuickAction(
+        label: '设置',
+        icon: Icons.settings_rounded,
+        color: const Color(0xFF94A3B8),
+        onTap: onSettingsTap,
+      ),
+    ];
+
+    return Container(
+      padding: EdgeInsets.all(isHorizontal ? 12 : 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: 0.9),
+            const Color(0xFFF0FAFF).withValues(alpha: 0.92),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.72),
+          width: 1.4,
+        ),
+      ),
+      child: isHorizontal
+          ? Row(
+              children: [
+                Expanded(flex: 42, child: heroAction),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 58,
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _StudentMiniIdentity(
+                              displayName: displayName,
+                              rewardText: rewardText,
+                              onTap: onProfileTap,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            for (
+                              var index = 0;
+                              index < quickActions.length;
+                              index++
+                            ) ...[
+                              if (index > 0) const SizedBox(width: 8),
+                              Expanded(child: quickActions[index]),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : compactOnly
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _StudentMiniIdentity(
+                  displayName: displayName,
+                  rewardText: rewardText,
+                  onTap: onProfileTap,
+                ),
+                const SizedBox(height: 10),
+                Expanded(child: heroAction),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: quickActions[1]),
+                    const SizedBox(width: 8),
+                    Expanded(child: quickActions[2]),
+                  ],
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _StudentMiniIdentity(
+                  displayName: displayName,
+                  rewardText: rewardText,
+                  onTap: onProfileTap,
+                ),
+                const SizedBox(height: 12),
+                Expanded(flex: 5, child: heroAction),
+                const SizedBox(height: 12),
+                Expanded(
+                  flex: 4,
+                  child: GridView.builder(
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: quickActions.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                          childAspectRatio: 2.35,
+                        ),
+                    itemBuilder: (context, index) => quickActions[index],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _StudentMiniIdentity extends StatelessWidget {
+  const _StudentMiniIdentity({
+    required this.displayName,
+    required this.rewardText,
+    required this.onTap,
+  });
+
+  final String displayName;
+  final String rewardText;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: const BoxDecoration(
+                color: Color(0xFFDDEAFE),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.person_rounded,
+                color: Color(0xFF5370A4),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: const Color(0xFF1E293B),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              rewardText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: const Color(0xFF64748B),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LearningQuickAction extends StatelessWidget {
+  const _LearningQuickAction({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.11),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: const Color(0xFF1E293B),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

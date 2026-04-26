@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/ui/app_ui_tokens.dart';
+
+const _kHeroSceneShadowHeight = 26.0;
+const _kHeroSceneBaseWidth = 164.0;
+const _kHeroSceneBaseHeight = 160.0;
+const _kHeroSceneFaceSize = 60.0;
+
 class K12StatusBadge extends StatelessWidget {
   const K12StatusBadge({
     super.key,
@@ -8,7 +15,7 @@ class K12StatusBadge extends StatelessWidget {
     required this.color,
     required this.foregroundColor,
     this.onTap,
-    this.margin = const EdgeInsets.only(left: 10),
+    this.margin = const EdgeInsets.only(left: AppUiTokens.spaceSm - 2),
   });
 
   final IconData icon;
@@ -21,11 +28,14 @@ class K12StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final badge = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: AppUiTokens.spaceSm - 2,
+      ),
       margin: margin,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.72),
           width: 1.4,
@@ -42,7 +52,7 @@ class K12StatusBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 18, color: foregroundColor),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppUiTokens.spaceXs),
           Text(
             label,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -62,7 +72,7 @@ class K12StatusBadge extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
         child: badge,
       ),
     );
@@ -86,10 +96,13 @@ class K12PlayToken extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: AppUiTokens.spaceSm - 2,
+      ),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.3),
@@ -102,7 +115,7 @@ class K12PlayToken extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 18, color: foregroundColor),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppUiTokens.spaceXs),
           Text(
             label,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -133,16 +146,19 @@ class K12RewardChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppUiTokens.spaceSm,
+        vertical: AppUiTokens.spaceSm - 2,
+      ),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusSm),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 18, color: foregroundColor),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppUiTokens.spaceXs - 2),
           Text(
             label,
             maxLines: 1,
@@ -171,7 +187,7 @@ class K12CartoonHeroScene extends StatelessWidget {
           right: 10,
           bottom: 10,
           child: Container(
-            height: 26,
+            height: _kHeroSceneShadowHeight,
             decoration: BoxDecoration(
               color: const Color(0x330D58B9),
               borderRadius: BorderRadius.circular(999),
@@ -207,165 +223,168 @@ class K12CartoonHeroScene extends StatelessWidget {
         ),
         Align(
           alignment: Alignment.bottomCenter,
-          child: SizedBox(
-            width: 164,
-            height: 160,
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 52,
-                  top: 12,
-                  child: Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFE28A),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.86),
-                        width: 2,
-                      ),
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          left: 12,
-                          top: 22,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF1C4B95),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: 12,
-                          top: 22,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF1C4B95),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                        const Positioned(
-                          left: 21,
-                          bottom: 15,
-                          child: Icon(
-                            Icons.sentiment_very_satisfied_rounded,
-                            color: Color(0xFF1C4B95),
-                            size: 18,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 42,
-                  top: 64,
-                  child: Container(
-                    width: 82,
-                    height: 70,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF72D0FF), Color(0xFF2E8EFF)],
-                      ),
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.82),
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 24,
-                  top: 82,
-                  child: Transform.rotate(
-                    angle: -0.18,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: SizedBox(
+              width: _kHeroSceneBaseWidth,
+              height: _kHeroSceneBaseHeight,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 52,
+                    top: 12,
                     child: Container(
-                      width: 42,
-                      height: 58,
+                      width: _kHeroSceneFaceSize,
+                      height: _kHeroSceneFaceSize,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFE28A),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.86),
+                          width: 2,
+                        ),
+                      ),
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            left: 12,
+                            top: 22,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF1C4B95),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 12,
+                            top: 22,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF1C4B95),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                          const Positioned(
+                            left: 21,
+                            bottom: 15,
+                            child: Icon(
+                              Icons.sentiment_very_satisfied_rounded,
+                              color: Color(0xFF1C4B95),
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 42,
+                    top: 64,
+                    child: Container(
+                      width: 82,
+                      height: 70,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [Color(0xFFFFEF95), Color(0xFFFFC44C)],
+                          colors: [Color(0xFF72D0FF), Color(0xFF2E8EFF)],
                         ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.menu_book_rounded,
-                          color: Color(0xFF195AB6),
-                          size: 24,
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          width: 2,
                         ),
                       ),
                     ),
                   ),
-                ),
-                Positioned(
-                  right: 22,
-                  top: 88,
-                  child: Transform.rotate(
-                    angle: 0.14,
-                    child: Container(
-                      width: 12,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Color(0xFFFFD447), Color(0xFFFF8F4D)],
+                  Positioned(
+                    left: 24,
+                    top: 82,
+                    child: Transform.rotate(
+                      angle: -0.18,
+                      child: Container(
+                        width: 42,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFFFFEF95), Color(0xFFFFC44C)],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  right: 18,
-                  top: 74,
-                  child: Transform.rotate(
-                    angle: 0.14,
-                    child: Container(
-                      width: 16,
-                      height: 18,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF4CD37E),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          topRight: Radius.circular(4),
-                          bottomLeft: Radius.circular(2),
-                          bottomRight: Radius.circular(2),
+                        child: const Center(
+                          child: Icon(
+                            Icons.menu_book_rounded,
+                            color: Color(0xFF195AB6),
+                            size: 24,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Positioned(
-                  left: 46,
-                  bottom: 4,
-                  child: Transform.rotate(
-                    angle: 0.06,
-                    child: Container(
-                      width: 74,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2D6CC7),
-                        borderRadius: BorderRadius.circular(999),
+                  Positioned(
+                    right: 22,
+                    top: 88,
+                    child: Transform.rotate(
+                      angle: 0.14,
+                      child: Container(
+                        width: 12,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0xFFFFD447), Color(0xFFFF8F4D)],
+                          ),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                  Positioned(
+                    right: 18,
+                    top: 74,
+                    child: Transform.rotate(
+                      angle: 0.14,
+                      child: Container(
+                        width: 16,
+                        height: 18,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF4CD37E),
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(12),
+                            topRight: Radius.circular(4),
+                            bottomLeft: Radius.circular(2),
+                            bottomRight: Radius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 46,
+                    bottom: 4,
+                    child: Transform.rotate(
+                      angle: 0.06,
+                      child: Container(
+                        width: 74,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2D6CC7),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

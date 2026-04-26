@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/ui/app_breakpoints.dart';
 import '../../../../core/widgets/brand_avatar.dart';
 import '../providers/auth_provider.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
@@ -83,66 +84,77 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1040),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isPhone = constraints.maxWidth < 720;
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.all(isPhone ? 14 : 24),
-                    child: Card(
-                      elevation: 12,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(32),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(isPhone ? 16 : 24),
-                        child: isPhone
-                            ? Column(
-                                children: [
-                                  _SchoolHero(
-                                    schoolContext: schoolContext,
-                                    isPhone: true,
-                                  ),
-                                  const SizedBox(height: 18),
-                                  _LoginForm(
-                                    formKey: _formKey,
-                                    emailController: _emailController,
-                                    passwordController: _passwordController,
-                                    isLoading: authState.isLoading,
-                                    onLogin: _onLogin,
-                                  ),
-                                ],
-                              )
-                            : Row(
-                                children: [
-                                  Expanded(
-                                    child: _SchoolHero(
-                                      schoolContext: schoolContext,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 24),
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(8),
-                                      child: _LoginForm(
+          child: LayoutBuilder(
+            builder: (context, viewport) {
+              final contentMaxWidth = responsiveWidthCap(
+                viewport.maxWidth,
+                fraction: 0.94,
+                min: 320.0,
+                max: 1040.0,
+              );
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: contentMaxWidth),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isPhone = constraints.maxWidth < 720;
+                      return SingleChildScrollView(
+                        padding: EdgeInsets.all(isPhone ? 14 : 24),
+                        child: Card(
+                          elevation: 12,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(32),
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.all(isPhone ? 16 : 24),
+                            child: isPhone
+                                ? Column(
+                                    children: [
+                                      _SchoolHero(
+                                        schoolContext: schoolContext,
+                                        isPhone: true,
+                                      ),
+                                      const SizedBox(height: 18),
+                                      _LoginForm(
                                         formKey: _formKey,
                                         emailController: _emailController,
                                         passwordController: _passwordController,
                                         isLoading: authState.isLoading,
                                         onLogin: _onLogin,
                                       ),
-                                    ),
+                                    ],
+                                  )
+                                : Row(
+                                    children: [
+                                      Expanded(
+                                        child: _SchoolHero(
+                                          schoolContext: schoolContext,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 24),
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(8),
+                                          child: _LoginForm(
+                                            formKey: _formKey,
+                                            emailController: _emailController,
+                                            passwordController:
+                                                _passwordController,
+                                            isLoading: authState.isLoading,
+                                            onLogin: _onLogin,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ),

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/ui/app_breakpoints.dart';
+import '../../../../core/ui/app_ui_tokens.dart';
+import '../../../../core/widgets/adaptive_dialog_scaffold.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../portal/data/portal_models.dart';
 import '../../../portal/presentation/providers/portal_providers.dart';
@@ -12,6 +15,9 @@ import '../../../portal/presentation/widgets/tablet_shell.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
 import '../widgets/k12_dashboard_widgets.dart';
 import '../widgets/k12_playful_widgets.dart';
+
+const _kWideContentDecorOrbLargeSize = 220.0;
+const _kWideContentDecorOrbSmallSize = 180.0;
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -89,38 +95,19 @@ class HomePage extends ConsumerWidget {
         ];
         child = LayoutBuilder(
           builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 1160;
-            final useCompactDensity = constraints.maxWidth < 800;
-            final content = isWide
-                ? _WideHomeLayout(
-                    schoolContext: schoolContext,
-                    currentUserEmail: currentUserEmail,
-                    highlightedActivityId: highlightedActivity.id,
-                    highlightedActivityTitle: highlightedActivity.title,
-                    highlightedClassName: highlightedActivity.className,
-                    highlightedDateLabel: highlightedActivity.dateLabel,
-                    summary: summary,
-                    dailyGrowth: dailyGrowth,
-                    parentSummary: parentSummary,
-                    resumeSummary: resumeSummary,
-                    featureFlags: featureFlags,
-                  )
-                : _CompactHomeLayout(
-                    schoolContext: schoolContext,
-                    currentUserEmail: currentUserEmail,
-                    highlightedActivityId: highlightedActivity.id,
-                    highlightedActivityTitle: highlightedActivity.title,
-                    highlightedClassName: highlightedActivity.className,
-                    highlightedDateLabel: highlightedActivity.dateLabel,
-                    summary: summary,
-                    dailyGrowth: dailyGrowth,
-                    parentSummary: parentSummary,
-                    resumeSummary: resumeSummary,
-                    featureFlags: featureFlags,
-                    useCompactDensity: useCompactDensity,
-                  );
-
-            return content;
+            return _WideHomeLayout(
+              schoolContext: schoolContext,
+              currentUserEmail: currentUserEmail,
+              highlightedActivityId: highlightedActivity.id,
+              highlightedActivityTitle: highlightedActivity.title,
+              highlightedClassName: highlightedActivity.className,
+              highlightedDateLabel: highlightedActivity.dateLabel,
+              summary: summary,
+              dailyGrowth: dailyGrowth,
+              parentSummary: parentSummary,
+              resumeSummary: resumeSummary,
+              featureFlags: featureFlags,
+            );
           },
         );
       }
@@ -223,12 +210,14 @@ class _StateMessage extends StatelessWidget {
 void _showSchoolInfoDialog(BuildContext context, SchoolContext schoolContext) {
   showDialog<void>(
     context: context,
-    builder: (context) => Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: _SchoolPanel(schoolContext: schoolContext, isCompact: true),
+    builder: (context) => AdaptiveDialogScaffold(
+      title: '我的学校',
+      maxDialogWidth: 620,
+      maxDialogHeight: 420,
+      bodyBuilder: (context, _, __) => _SchoolPanel(
+        schoolContext: schoolContext,
+        isCompact: true,
+        showHeading: false,
       ),
     ),
   );
@@ -237,13 +226,12 @@ void _showSchoolInfoDialog(BuildContext context, SchoolContext schoolContext) {
 void _showFeedbackDialog(BuildContext context, PortalSummary summary) {
   showDialog<void>(
     context: context,
-    builder: (context) => Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: _FeedbackPanel(summary: summary, isCompact: true),
-      ),
+    builder: (context) => AdaptiveDialogScaffold(
+      title: '老师点评',
+      maxDialogWidth: 620,
+      maxDialogHeight: 420,
+      bodyBuilder: (context, _, __) =>
+          _FeedbackPanel(summary: summary, isCompact: true, showHeading: false),
     ),
   );
 }
@@ -265,112 +253,142 @@ void _showScheduleDialog(BuildContext context) {
     trailing: const [
       _DashboardHeaderChip(icon: Icons.event_available_rounded, label: '约课'),
     ],
-    child: Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF94B8F3).withValues(alpha: 0.14),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 900;
+        final monthWidth = responsiveWidthCap(
+          constraints.maxWidth,
+          fraction: compact ? 0.22 : 0.16,
+          min: 132.0,
+          max: 188.0,
+        );
+        final dayCellWidth = compact ? 116.0 : 134.0;
+
+        return Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppUiTokens.spaceXs),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(AppUiTokens.radiusLg),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF94B8F3).withValues(alpha: 0.14),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 170,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 18,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F8FF),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '26年04月',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              color: const Color(0xFF2C66D5),
-                              fontWeight: FontWeight.w900,
-                            ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: monthWidth,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: compact
+                            ? AppUiTokens.spaceSm + 2
+                            : AppUiTokens.spaceLg - 2,
+                        vertical: compact
+                            ? AppUiTokens.spaceMd
+                            : AppUiTokens.spaceLg - 2,
                       ),
-                    ),
-                    const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: Color(0xFF2C66D5),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Row(
-                  children: weekItems
-                      .map(
-                        (item) => Expanded(
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: item.$3
-                                  ? const Color(0xFF245BDC)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  item.$1,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineSmall
-                                      ?.copyWith(
-                                        color: item.$3
-                                            ? Colors.white
-                                            : const Color(0xFF1E293B),
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  item.$2,
-                                  style: Theme.of(context).textTheme.titleLarge
-                                      ?.copyWith(
-                                        color: item.$3
-                                            ? Colors.white
-                                            : const Color(0xFF334155),
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                ),
-                              ],
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F8FF),
+                        borderRadius: BorderRadius.circular(
+                          AppUiTokens.radiusMd,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '26年04月',
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    color: const Color(0xFF2C66D5),
+                                    fontWeight: FontWeight.w900,
+                                  ),
                             ),
                           ),
-                        ),
-                      )
-                      .toList(),
-                ),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Color(0xFF2C66D5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: weekItems
+                            .map(
+                              (item) => Container(
+                                width: dayCellWidth,
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                padding: EdgeInsets.symmetric(
+                                  vertical: compact ? 14 : 16,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: item.$3
+                                      ? const Color(0xFF245BDC)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      item.$1,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineSmall
+                                          ?.copyWith(
+                                            color: item.$3
+                                                ? Colors.white
+                                                : const Color(0xFF1E293B),
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      item.$2,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: item.$3
+                                                ? Colors.white
+                                                : const Color(0xFF334155),
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Expanded(
-          child: _DashboardEmptyState(
-            icon: Icons.note_alt_outlined,
-            title: '暂无课程',
-          ),
-        ),
-      ],
+            ),
+            const SizedBox(height: 24),
+            const Expanded(
+              child: _DashboardEmptyState(
+                icon: Icons.note_alt_outlined,
+                title: '暂无课程',
+              ),
+            ),
+          ],
+        );
+      },
     ),
   );
 }
@@ -498,48 +516,10 @@ void _showDashboardContentDialog(
 }) {
   showDialog<void>(
     context: context,
-    builder: (dialogContext) => Dialog(
-      backgroundColor: const Color(0xFFEAF5FF),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(34)),
-      child: SizedBox(
-        width: 1320,
-        height: 720,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.9),
-                      foregroundColor: const Color(0xFF17335F),
-                      minimumSize: const Size(58, 58),
-                    ),
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                  ),
-                  const SizedBox(width: 18),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(dialogContext).textTheme.displaySmall
-                          ?.copyWith(
-                            color: const Color(0xFF17335F),
-                            fontWeight: FontWeight.w900,
-                          ),
-                    ),
-                  ),
-                  ...trailing,
-                ],
-              ),
-              const SizedBox(height: 18),
-              Expanded(child: child),
-            ],
-          ),
-        ),
-      ),
+    builder: (dialogContext) => AdaptiveDialogScaffold(
+      title: title,
+      trailing: trailing,
+      bodyBuilder: (context, _, __) => child,
     ),
   );
 }
@@ -571,263 +551,252 @@ void _showProfileCenterDialog(
 
   showDialog<void>(
     context: context,
-    builder: (context) => Dialog(
-      backgroundColor: const Color(0xFFEAF5FF),
-      insetPadding: const EdgeInsets.all(26),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(34)),
-      child: SizedBox(
-        width: 1080,
-        height: 640,
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Row(
-            children: [
-              Expanded(
-                flex: 5,
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(22),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 84,
-                                height: 84,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFDDEAFE),
-                                  borderRadius: BorderRadius.circular(28),
-                                ),
-                                child: const Icon(
-                                  Icons.person_rounded,
-                                  color: Color(0xFF6A7EA7),
-                                  size: 52,
-                                ),
-                              ),
-                              const SizedBox(width: 18),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      displayName,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .headlineSmall
-                                          ?.copyWith(
-                                            color: const Color(0xFF1E293B),
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      '用户名：${currentUserEmail ?? 'student@claremont.local'}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            color: const Color(0xFF334155),
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'APP使用截止日期至：2099-12-31',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            color: const Color(0xFF64748B),
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              FilledButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFF65E3D1),
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text('编辑'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _ProfileMetricItem(
-                                  icon: Icons.star_rounded,
-                                  color: const Color(0xFFFFD34D),
-                                  value: '$stars',
-                                  label: featureFlags.showGrowthRewards
-                                      ? '星币'
-                                      : '积分',
-                                ),
-                              ),
-                              Expanded(
-                                child: _ProfileMetricItem(
-                                  icon: Icons.local_fire_department_rounded,
-                                  color: const Color(0xFFFF8A3D),
-                                  value: '${dailyGrowth.bestCombo}',
-                                  label: '连对',
-                                ),
-                              ),
-                              Expanded(
-                                child: _ProfileMetricItem(
-                                  icon: Icons.workspace_premium_rounded,
-                                  color: const Color(0xFFFF9E62),
-                                  value: '${summary.completedActivities}',
-                                  label: '徽章',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Expanded(
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(22),
+    builder: (context) => AdaptiveDialogScaffold(
+      title: '个人中心',
+      maxDialogWidth: 1080,
+      maxDialogHeight: 640,
+      bodyBuilder: (context, screenType, dialogSize) {
+        final useStacked =
+            screenType == AppScreenType.mobile || dialogSize.width < 940;
+        final actionColumns = useStacked ? 3 : 4;
+        final leftPane = Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 84,
+                        height: 84,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.78),
+                          color: const Color(0xFFDDEAFE),
                           borderRadius: BorderRadius.circular(28),
-                          gradient: const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [Color(0xFFFFF9F2), Color(0xFFFCEFE0)],
-                          ),
                         ),
+                        child: const Icon(
+                          Icons.person_rounded,
+                          color: Color(0xFF6A7EA7),
+                          size: 52,
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '恭喜获得小白勋章',
+                              displayName,
                               style: Theme.of(context).textTheme.headlineSmall
                                   ?.copyWith(
-                                    color: const Color(0xFFB5792B),
+                                    color: const Color(0xFF1E293B),
                                     fontWeight: FontWeight.w900,
                                   ),
                             ),
-                            const SizedBox(height: 24),
-                            Expanded(
-                              child: Center(
-                                child: Container(
-                                  width: 210,
-                                  height: 210,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: RadialGradient(
-                                      colors: [
-                                        const Color(
-                                          0xFFB6C9FF,
-                                        ).withValues(alpha: 0.95),
-                                        const Color(
-                                          0xFF7284D9,
-                                        ).withValues(alpha: 0.92),
-                                      ],
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.shield_moon_rounded,
-                                    color: Colors.white,
-                                    size: 116,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 8),
                             Text(
-                              'Lv.1      Lv.2      Lv.3      Lv.4      Lv.5',
+                              '用户名：${currentUserEmail ?? 'student@claremont.local'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
-                                    color: const Color(0xFF9B6A30),
-                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF334155),
+                                    fontWeight: FontWeight.w700,
                                   ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 6),
                             Text(
-                              '还差100星星升级至Lv.2',
+                              'APP使用截止日期至：2099-12-31',
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
-                                    color: const Color(0xFF9B6A30),
+                                    color: const Color(0xFF64748B),
                                     fontWeight: FontWeight.w700,
                                   ),
                             ),
                           ],
                         ),
                       ),
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF65E3D1),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('编辑'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ProfileMetricItem(
+                          icon: Icons.star_rounded,
+                          color: const Color(0xFFFFD34D),
+                          value: '$stars',
+                          label: featureFlags.showGrowthRewards ? '星币' : '积分',
+                        ),
+                      ),
+                      Expanded(
+                        child: _ProfileMetricItem(
+                          icon: Icons.local_fire_department_rounded,
+                          color: const Color(0xFFFF8A3D),
+                          value: '${dailyGrowth.bestCombo}',
+                          label: '连对',
+                        ),
+                      ),
+                      Expanded(
+                        child: _ProfileMetricItem(
+                          icon: Icons.workspace_premium_rounded,
+                          color: const Color(0xFFFF9E62),
+                          value: '${summary.completedActivities}',
+                          label: '徽章',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.78),
+                  borderRadius: BorderRadius.circular(28),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFFFFF9F2), Color(0xFFFCEFE0)],
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      '恭喜获得小白勋章',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: const Color(0xFFB5792B),
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 24),
+                    Expanded(
+                      child: Center(
+                        child: Container(
+                          width: useStacked ? 168 : 210,
+                          height: useStacked ? 168 : 210,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                const Color(0xFFB6C9FF).withValues(alpha: 0.95),
+                                const Color(0xFF7284D9).withValues(alpha: 0.92),
+                              ],
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.shield_moon_rounded,
+                            color: Colors.white,
+                            size: useStacked ? 92 : 116,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Lv.1      Lv.2      Lv.3      Lv.4      Lv.5',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF9B6A30),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '还差100星星升级至Lv.2',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF9B6A30),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 20),
-              Expanded(
-                flex: 5,
-                child: Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  child: GridView.builder(
-                    itemCount: actions.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          mainAxisSpacing: 20,
-                          crossAxisSpacing: 18,
-                          childAspectRatio: 0.88,
-                        ),
-                    itemBuilder: (context, index) {
-                      final item = actions[index];
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 68,
-                            height: 68,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF9DE6FF), Color(0xFF68C9FF)],
-                              ),
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: Icon(item.$2, color: Colors.white, size: 34),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            item.$1,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: const Color(0xFF1E293B),
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
+            ),
+          ],
+        );
+        final rightPane = Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
           ),
-        ),
-      ),
+          child: GridView.builder(
+            itemCount: actions.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: actionColumns,
+              mainAxisSpacing: useStacked ? 16 : 20,
+              crossAxisSpacing: useStacked ? 14 : 18,
+              childAspectRatio: useStacked ? 1 : 0.88,
+            ),
+            itemBuilder: (context, index) {
+              final item = actions[index];
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF9DE6FF), Color(0xFF68C9FF)],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Icon(item.$2, color: Colors.white, size: 34),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    item.$1,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+
+        if (useStacked) {
+          return Column(
+            children: [
+              Expanded(flex: 8, child: leftPane),
+              const SizedBox(height: 18),
+              Expanded(flex: 7, child: rightPane),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(flex: 5, child: leftPane),
+            const SizedBox(width: 20),
+            Expanded(flex: 5, child: rightPane),
+          ],
+        );
+      },
     ),
   );
 }
@@ -836,37 +805,53 @@ void _showMessagesDialog(BuildContext context, PortalSummary summary) {
   const categories = ['学校通知', '班级通知', '任务提醒', '课程提醒', '请假提醒', '好友请求', '其他消息'];
   showDialog<void>(
     context: context,
-    builder: (context) => Dialog(
-      backgroundColor: const Color(0xFFEAF5FF),
-      insetPadding: const EdgeInsets.all(30),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-      child: SizedBox(
-        width: 1120,
-        height: 620,
-        child: Row(
-          children: [
-            Container(
-              width: 280,
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 18),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  bottomLeft: Radius.circular(30),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '消息中心',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: const Color(0xFF1E293B),
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  ...categories.asMap().entries.map((entry) {
+    builder: (context) => AdaptiveDialogScaffold(
+      title: '消息中心',
+      maxDialogWidth: 1120,
+      maxDialogHeight: 620,
+      bodyBuilder: (context, screenType, dialogSize) {
+        final useStacked =
+            screenType == AppScreenType.mobile || dialogSize.width < 940;
+        final categoryRail = Container(
+          width: useStacked ? double.infinity : dialogSize.width * 0.26,
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 18),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.all(Radius.circular(30)),
+          ),
+          child: useStacked
+              ? Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: categories.asMap().entries.map((entry) {
+                    final selected = entry.key == 0;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? const Color(0xFFDCEBFF)
+                            : const Color(0xFFF4F8FF),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(
+                        entry.value,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: selected
+                                  ? const Color(0xFF2160D4)
+                                  : const Color(0xFF1E293B),
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    );
+                  }).toList(),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: categories.asMap().entries.map((entry) {
                     final selected = entry.key == 0;
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -890,62 +875,74 @@ void _showMessagesDialog(BuildContext context, PortalSummary summary) {
                         ),
                       ),
                     );
-                  }),
+                  }).toList(),
+                ),
+        );
+        final messageBody = Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFEAF5FF),
+            borderRadius: BorderRadius.all(Radius.circular(30)),
+          ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 84,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Icon(
+                      Icons.inventory_2_outlined,
+                      color: Color(0xFFBCC8D9),
+                      size: 44,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    '暂无学校通知',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: const Color(0xFF6B7A90),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '当前待完成任务 ${summary.pendingTasks} 项，新的消息会在这里提醒你。',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF94A3B8),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
             ),
-            Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEAF5FF),
-                  borderRadius: BorderRadius.only(
-                    topRight: Radius.circular(30),
-                    bottomRight: Radius.circular(30),
-                  ),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 84,
-                        height: 84,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: const Icon(
-                          Icons.inventory_2_outlined,
-                          color: Color(0xFFBCC8D9),
-                          size: 44,
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        '暂无学校通知',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              color: const Color(0xFF6B7A90),
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        '当前待完成任务 ${summary.pendingTasks} 项，新的消息会在这里提醒你。',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: const Color(0xFF94A3B8),
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          ),
+        );
+
+        if (useStacked) {
+          return Column(
+            children: [
+              categoryRail,
+              const SizedBox(height: 16),
+              Expanded(child: messageBody),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            categoryRail,
+            const SizedBox(width: 18),
+            Expanded(child: messageBody),
           ],
-        ),
-      ),
+        );
+      },
     ),
   );
 }
@@ -965,82 +962,69 @@ void _showMomentsDialog(
 
   showDialog<void>(
     context: context,
-    builder: (context) => Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(34),
-      child: Container(
-        width: 760,
-        padding: const EdgeInsets.all(26),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF5DB9FF).withValues(alpha: 0.16),
-              blurRadius: 24,
-              offset: const Offset(0, 14),
+    builder: (context) => AdaptiveDialogScaffold(
+      title: '学习动态',
+      backgroundColor: Colors.white,
+      maxDialogWidth: 760,
+      maxDialogHeight: 620,
+      radius: 30,
+      bodyBuilder: (context, _, __) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '把今天和本周的学习节奏整理在这里。',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: const Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '学习动态',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: const Color(0xFF1E293B),
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '把今天和本周的学习节奏整理在这里。',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF64748B),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 22),
-            ...timeline.map(
-              (item) => Container(
-                margin: const EdgeInsets.only(bottom: 14),
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF5FAFF),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
+          ),
+          const SizedBox(height: 22),
+          Expanded(
+            child: ListView(
+              children: timeline
+                  .map(
+                    (item) => Container(
+                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF84D7FF).withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(14),
+                        color: const Color(0xFFF5FAFF),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(
-                        Icons.bolt_rounded,
-                        color: Color(0xFF2E7BEF),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        item,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: const Color(0xFF1E293B),
-                              fontWeight: FontWeight.w800,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF84D7FF,
+                              ).withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(14),
                             ),
+                            child: const Icon(
+                              Icons.bolt_rounded,
+                              color: Color(0xFF2E7BEF),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              item,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFF1E293B),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  )
+                  .toList(),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     ),
   );
@@ -1061,80 +1045,53 @@ void _showSettingsDialog(BuildContext context, String? currentUserEmail) {
 
   showDialog<void>(
     context: context,
-    builder: (context) => Dialog(
-      backgroundColor: const Color(0xFFEAF5FF),
-      insetPadding: const EdgeInsets.all(34),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-      child: SizedBox(
-        width: 980,
-        height: 660,
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '系统设置',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: const Color(0xFF1E293B),
-                  fontWeight: FontWeight.w900,
+    builder: (context) => AdaptiveDialogScaffold(
+      title: '系统设置',
+      maxDialogWidth: 980,
+      maxDialogHeight: 660,
+      bodyBuilder: (context, _, __) => ListView.separated(
+        itemCount: rows.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 14),
+        itemBuilder: (context, index) {
+          final row = rows[index];
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    row.$1,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: rows.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 14),
-                  itemBuilder: (context, index) {
-                    final row = rows[index];
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 20,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              row.$1,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: const Color(0xFF1E293B),
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                          ),
-                          if (row.$2.isNotEmpty)
-                            Text(
-                              row.$2,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: row.$1 == '发现新版本'
-                                        ? const Color(0xFFD19400)
-                                        : const Color(0xFF3B82F6),
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                          if (row.$3) ...[
-                            const SizedBox(width: 10),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: Color(0xFF3B82F6),
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+                if (row.$2.isNotEmpty)
+                  Text(
+                    row.$2,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: row.$1 == '发现新版本'
+                          ? const Color(0xFFD19400)
+                          : const Color(0xFF3B82F6),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                if (row.$3) ...[
+                  const SizedBox(width: 10),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF3B82F6),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
       ),
     ),
   );
@@ -1189,88 +1146,210 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final layoutWidth = size.width;
+    final layoutHeight = size.height;
+    final preferWideRow = layoutWidth >= 900 && layoutHeight < 560;
+    final useStackedWide =
+        (layoutWidth < 1120 || layoutHeight < 640) && !preferWideRow;
+    final useCompactWideDensity = layoutWidth < 980 || layoutHeight < 560;
+    final useLowHeightWide = layoutHeight < 700;
+    final sidePanelWidth = useStackedWide ? layoutWidth : 300.0;
+    final sidePanelWideWidth = responsiveWidthCap(
+      layoutWidth,
+      fraction: 0.24,
+      min: 260.0,
+      max: 320.0,
+    );
+    final readingRailWidth = useCompactWideDensity
+        ? responsiveWidthCap(
+            layoutWidth,
+            fraction: 0.19,
+            min: 168.0,
+            max: 204.0,
+          )
+        : responsiveWidthCap(
+            layoutWidth,
+            fraction: 0.2,
+            min: 196.0,
+            max: 236.0,
+          );
     final pages = [
       _WidePageFrame(
-        child: Row(
-          children: [
-            Expanded(
-              flex: 6,
-              child: _EntranceMotion(
-                delay: const Duration(milliseconds: 40),
-                child: _WideHeroStage(
-                  child: _CompactHeroPanel(
-                    schoolContext: widget.schoolContext,
-                    currentUserEmail: widget.currentUserEmail,
-                    highlightedActivityId: widget.highlightedActivityId,
-                    highlightedActivityTitle: widget.highlightedActivityTitle,
-                    highlightedClassName: widget.highlightedClassName,
-                    highlightedDateLabel: widget.highlightedDateLabel,
-                    summary: widget.summary,
-                    dailyGrowth: widget.dailyGrowth,
-                    parentSummary: widget.parentSummary,
-                    resumeSummary: widget.resumeSummary,
-                    featureFlags: widget.featureFlags,
-                    useCompactDensity: false,
+        child: useStackedWide
+            ? Column(
+                children: [
+                  Expanded(
+                    flex: useLowHeightWide ? 62 : 55,
+                    child: _EntranceMotion(
+                      delay: const Duration(milliseconds: 40),
+                      child: _WideHeroStage(
+                        child: _UnifiedHeroPanel(
+                          schoolContext: widget.schoolContext,
+                          currentUserEmail: widget.currentUserEmail,
+                          highlightedActivityId: widget.highlightedActivityId,
+                          highlightedActivityTitle:
+                              widget.highlightedActivityTitle,
+                          highlightedClassName: widget.highlightedClassName,
+                          highlightedDateLabel: widget.highlightedDateLabel,
+                          summary: widget.summary,
+                          dailyGrowth: widget.dailyGrowth,
+                          parentSummary: widget.parentSummary,
+                          resumeSummary: widget.resumeSummary,
+                          featureFlags: widget.featureFlags,
+                          useCompactDensity: useCompactWideDensity,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              flex: 5,
-              child: _EntranceMotion(
-                delay: const Duration(milliseconds: 110),
-                child: _WideSummaryStage(
-                  child: _SummaryGrid(
-                    summary: widget.summary,
-                    dailyGrowth: widget.dailyGrowth,
-                    activityId: widget.highlightedActivityId,
-                    parentSummary: widget.parentSummary,
-                    featureFlags: widget.featureFlags,
-                    isCompact: true,
+                  SizedBox(height: useLowHeightWide ? 8 : 12),
+                  Expanded(
+                    flex: useLowHeightWide ? 38 : 45,
+                    child: _EntranceMotion(
+                      delay: const Duration(milliseconds: 110),
+                      child: _WideSummaryStage(
+                        child: _SummaryGrid(
+                          summary: widget.summary,
+                          dailyGrowth: widget.dailyGrowth,
+                          activityId: widget.highlightedActivityId,
+                          parentSummary: widget.parentSummary,
+                          featureFlags: widget.featureFlags,
+                          isCompact: true,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    flex: 6,
+                    child: _EntranceMotion(
+                      delay: const Duration(milliseconds: 40),
+                      child: _WideHeroStage(
+                        child: _UnifiedHeroPanel(
+                          schoolContext: widget.schoolContext,
+                          currentUserEmail: widget.currentUserEmail,
+                          highlightedActivityId: widget.highlightedActivityId,
+                          highlightedActivityTitle:
+                              widget.highlightedActivityTitle,
+                          highlightedClassName: widget.highlightedClassName,
+                          highlightedDateLabel: widget.highlightedDateLabel,
+                          summary: widget.summary,
+                          dailyGrowth: widget.dailyGrowth,
+                          parentSummary: widget.parentSummary,
+                          resumeSummary: widget.resumeSummary,
+                          featureFlags: widget.featureFlags,
+                          useCompactDensity: false,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    flex: 5,
+                    child: _EntranceMotion(
+                      delay: const Duration(milliseconds: 110),
+                      child: _WideSummaryStage(
+                        child: _SummaryGrid(
+                          summary: widget.summary,
+                          dailyGrowth: widget.dailyGrowth,
+                          activityId: widget.highlightedActivityId,
+                          parentSummary: widget.parentSummary,
+                          featureFlags: widget.featureFlags,
+                          isCompact: true,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
       _WidePageFrame(
-        child: Row(
-          children: [
-            SizedBox(
-              width: 300,
-              child: _EntranceMotion(
-                delay: const Duration(milliseconds: 80),
-                child: _WideSideStage(
-                  child: _StudentSidePanel(
-                    schoolContext: widget.schoolContext,
-                    currentUserEmail: widget.currentUserEmail,
-                    highlightedActivityId: widget.highlightedActivityId,
-                    summary: widget.summary,
-                    dailyGrowth: widget.dailyGrowth,
-                    parentSummary: widget.parentSummary,
-                    featureFlags: widget.featureFlags,
+        child: useStackedWide
+            ? Column(
+                children: [
+                  SizedBox(
+                    height: useLowHeightWide
+                        ? 176
+                        : useCompactWideDensity
+                        ? 220
+                        : 248,
+                    width: sidePanelWidth,
+                    child: _EntranceMotion(
+                      delay: const Duration(milliseconds: 80),
+                      child: _WideSideStage(
+                        child: _StudentSidePanel(
+                          schoolContext: widget.schoolContext,
+                          currentUserEmail: widget.currentUserEmail,
+                          highlightedActivityId: widget.highlightedActivityId,
+                          summary: widget.summary,
+                          dailyGrowth: widget.dailyGrowth,
+                          parentSummary: widget.parentSummary,
+                          featureFlags: widget.featureFlags,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _EntranceMotion(
-                delay: const Duration(milliseconds: 120),
-                child: _WideContentStage(
-                  showcase: _WideLearningShowcaseArea(
-                    summary: widget.summary,
-                    highlightedActivityTitle: widget.highlightedActivityTitle,
-                    highlightedClassName: widget.highlightedClassName,
+                  SizedBox(height: useLowHeightWide ? 8 : 12),
+                  Expanded(
+                    child: _EntranceMotion(
+                      delay: const Duration(milliseconds: 120),
+                      child: _WideContentStage(
+                        showcase: _WideLearningShowcaseArea(
+                          summary: widget.summary,
+                          highlightedActivityTitle:
+                              widget.highlightedActivityTitle,
+                          highlightedClassName: widget.highlightedClassName,
+                          compact: useCompactWideDensity,
+                        ),
+                        readingRail: _ReadingShowcaseColumn(
+                          compact: useCompactWideDensity,
+                        ),
+                        readingRailWidth: readingRailWidth,
+                      ),
+                    ),
                   ),
-                  readingRail: const _ReadingShowcaseColumn(),
-                ),
+                ],
+              )
+            : Row(
+                children: [
+                  SizedBox(
+                    width: sidePanelWideWidth,
+                    child: _EntranceMotion(
+                      delay: const Duration(milliseconds: 80),
+                      child: _WideSideStage(
+                        child: _StudentSidePanel(
+                          schoolContext: widget.schoolContext,
+                          currentUserEmail: widget.currentUserEmail,
+                          highlightedActivityId: widget.highlightedActivityId,
+                          summary: widget.summary,
+                          dailyGrowth: widget.dailyGrowth,
+                          parentSummary: widget.parentSummary,
+                          featureFlags: widget.featureFlags,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: _EntranceMotion(
+                      delay: const Duration(milliseconds: 120),
+                      child: _WideContentStage(
+                        showcase: _WideLearningShowcaseArea(
+                          summary: widget.summary,
+                          highlightedActivityTitle:
+                              widget.highlightedActivityTitle,
+                          highlightedClassName: widget.highlightedClassName,
+                        ),
+                        readingRail: const _ReadingShowcaseColumn(),
+                        readingRailWidth: readingRailWidth,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     ];
 
@@ -1957,57 +2036,112 @@ class _TaskCenterCoverIllustration extends StatelessWidget {
             ),
             child: Stack(
               children: [
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  top: 16,
-                  child: Container(
-                    height: compact ? 18 : 22,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFE6B0),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 20,
-                  right: 24,
-                  top: compact ? 42 : 46,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          children: List.generate(
-                            3,
-                            (index) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Container(
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFD89A),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
+                Positioned.fill(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 120;
+                      final isUltraNarrow = constraints.maxWidth < 48;
+                      return Stack(
+                        children: [
+                          Positioned(
+                            left: isNarrow ? 12 : 16,
+                            right: isNarrow ? 12 : 16,
+                            top: isNarrow ? 12 : 16,
+                            child: Container(
+                              height: compact ? 18 : 22,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFE6B0),
+                                borderRadius: BorderRadius.circular(999),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Container(
-                        width: compact ? 52 : 62,
-                        height: compact ? 52 : 62,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: const Icon(
-                          Icons.search_rounded,
-                          color: Color(0xFF73B7FF),
-                          size: 30,
-                        ),
-                      ),
-                    ],
+                          Positioned(
+                            left: isNarrow ? 12 : 20,
+                            right: isNarrow ? 12 : 24,
+                            top: isNarrow
+                                ? 34
+                                : compact
+                                ? 42
+                                : 46,
+                            child: isUltraNarrow
+                                ? Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.92,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.search_rounded,
+                                        color: Color(0xFF73B7FF),
+                                        size: 12,
+                                      ),
+                                    ),
+                                  )
+                                : Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          children: List.generate(
+                                            isNarrow ? 2 : 3,
+                                            (index) => Padding(
+                                              padding: EdgeInsets.only(
+                                                bottom: isNarrow ? 6 : 8,
+                                              ),
+                                              child: Container(
+                                                height: isNarrow ? 6 : 7,
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFFFD89A,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        999,
+                                                      ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: isNarrow ? 8 : 14),
+                                      Container(
+                                        width: isNarrow
+                                            ? 28
+                                            : compact
+                                            ? 52
+                                            : 62,
+                                        height: isNarrow
+                                            ? 28
+                                            : compact
+                                            ? 52
+                                            : 62,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.92,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            isNarrow ? 10 : 18,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.search_rounded,
+                                          color: const Color(0xFF73B7FF),
+                                          size: isNarrow ? 16 : 30,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ],
@@ -2434,205 +2568,397 @@ class _ReviewCenterTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Row(
-            children:
-                [
-                  const SizedBox(width: 370, child: Text('点评内容')),
-                  const SizedBox(width: 24),
-                  const Expanded(child: Text('所属')),
-                  const SizedBox(width: 32),
-                  const SizedBox(width: 140, child: Text('点评老师')),
-                  const SizedBox(width: 28),
-                  const SizedBox(width: 140, child: Text('点评时间')),
-                  const SizedBox(width: 28),
-                  const SizedBox(width: 76, child: Text('操作')),
-                ].map((widget) {
-                  if (widget is Text) {
-                    return DefaultTextStyle.merge(
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: const Color(0xFF17335F),
-                        fontWeight: FontWeight.w900,
-                      ),
-                      child: widget,
-                    );
-                  }
-                  return widget;
-                }).toList(),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Expanded(
-          child: ListView.separated(
-            itemCount: rows.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final row = rows[index];
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 940;
+        final tableLabelStyle = Theme.of(context).textTheme.titleLarge
+            ?.copyWith(
+              color: const Color(0xFF17335F),
+              fontWeight: FontWeight.w900,
+            );
+
+        Widget buildCompactRow(_ReviewCenterRowData row) {
+          return Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    SizedBox(
-                      width: 370,
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 112,
-                            height: 84,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFFF3C7), Color(0xFFFFD783)],
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Icon(
-                              Icons.music_note_rounded,
-                              size: 40,
-                              color: Color(0xFFCC7B00),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  row.title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineSmall
-                                      ?.copyWith(
-                                        color: const Color(0xFF1E293B),
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                ),
-                                const SizedBox(height: 10),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: const Color(0xFF7E78D8),
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    row.tag,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(
-                                          color: const Color(0xFF645BD1),
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                    Container(
+                      width: 96,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFF3C7), Color(0xFFFFD783)],
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: const Icon(
+                        Icons.music_note_rounded,
+                        size: 36,
+                        color: Color(0xFFCC7B00),
                       ),
                     ),
-                    const SizedBox(width: 24),
+                    const SizedBox(width: 14),
                     Expanded(
-                      child: Text(
-                        row.belongTo,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              color: const Color(0xFF1F315B),
-                              fontWeight: FontWeight.w800,
-                              height: 1.35,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(width: 32),
-                    SizedBox(
-                      width: 140,
-                      child: Text(
-                        row.teacher,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              color: const Color(0xFF1F315B),
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(width: 28),
-                    SizedBox(
-                      width: 140,
-                      child: Text(
-                        row.dateLabel,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              color: const Color(0xFF1F315B),
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(width: 28),
-                    SizedBox(
-                      width: 76,
-                      child: Stack(
-                        clipBehavior: Clip.none,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.manage_search_rounded,
-                                color: Color(0xFF304B86),
-                                size: 40,
-                              ),
-                              Text(
-                                '查看',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: const Color(0xFF5A6577),
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                              ),
-                            ],
-                          ),
-                          if (row.highlighted)
-                            Positioned(
-                              right: 12,
-                              top: 2,
-                              child: Container(
-                                width: 12,
-                                height: 12,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFFF4A3D),
-                                  shape: BoxShape.circle,
+                          Text(
+                            row.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: const Color(0xFF1E293B),
+                                  fontWeight: FontWeight.w900,
                                 ),
-                              ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
                             ),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: const Color(0xFF7E78D8),
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              row.tag,
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    color: const Color(0xFF645BD1),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ],
                 ),
-              );
-            },
+                const SizedBox(height: 14),
+                _CompactInfoLine(label: '所属', value: row.belongTo),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _CompactInfoLine(
+                        label: '点评老师',
+                        value: row.teacher,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _CompactInfoLine(
+                        label: '点评时间',
+                        value: row.dateLabel,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _CompactActionChip(
+                    label: '查看',
+                    highlighted: row.highlighted,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        Widget buildWideRow(_ReviewCenterRowData row) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 42,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 112,
+                        height: 84,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFFF3C7), Color(0xFFFFD783)],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.music_note_rounded,
+                          size: 40,
+                          color: Color(0xFFCC7B00),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              row.title,
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    color: const Color(0xFF1E293B),
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: const Color(0xFF7E78D8),
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                row.tag,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      color: const Color(0xFF645BD1),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  flex: 24,
+                  child: Text(
+                    row.belongTo,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: const Color(0xFF1F315B),
+                      fontWeight: FontWeight.w800,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  flex: 13,
+                  child: Text(
+                    row.teacher,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: const Color(0xFF1F315B),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  flex: 13,
+                  child: Text(
+                    row.dateLabel,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: const Color(0xFF1F315B),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                SizedBox(
+                  width: 76,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.manage_search_rounded,
+                            color: Color(0xFF304B86),
+                            size: 40,
+                          ),
+                          Text(
+                            '查看',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: const Color(0xFF5A6577),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
+                      if (row.highlighted)
+                        Positioned(
+                          right: 12,
+                          top: 2,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFF4A3D),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            if (!compact) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 18,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.94),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 42,
+                      child: Text('点评内容', style: tableLabelStyle),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      flex: 24,
+                      child: Text('所属', style: tableLabelStyle),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      flex: 13,
+                      child: Text('点评老师', style: tableLabelStyle),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      flex: 13,
+                      child: Text('点评时间', style: tableLabelStyle),
+                    ),
+                    const SizedBox(width: 20),
+                    const SizedBox(width: 76, child: Text('操作')),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+            Expanded(
+              child: ListView.separated(
+                itemCount: rows.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) => compact
+                    ? buildCompactRow(rows[index])
+                    : buildWideRow(rows[index]),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CompactInfoLine extends StatelessWidget {
+  const _CompactInfoLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: const Color(0xFF1F315B),
+          fontWeight: FontWeight.w700,
+          height: 1.35,
+        ),
+        children: [
+          TextSpan(
+            text: '$label：',
+            style: const TextStyle(color: Color(0xFF64748B)),
+          ),
+          TextSpan(text: value),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactActionChip extends StatelessWidget {
+  const _CompactActionChip({required this.label, this.highlighted = false});
+
+  final String label;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF4F8FF),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.manage_search_rounded,
+                color: Color(0xFF304B86),
+                size: 22,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: const Color(0xFF5A6577),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
         ),
+        if (highlighted)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFF4A3D),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -2659,161 +2985,213 @@ class _TaskCenterTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Row(
-            children:
-                [
-                  const SizedBox(width: 380, child: Text('详情')),
-                  const SizedBox(width: 32),
-                  const SizedBox(width: 300, child: Text('对象')),
-                  const SizedBox(width: 32),
-                  const SizedBox(width: 240, child: Text('状态')),
-                  const Spacer(),
-                  const SizedBox(width: 76, child: Text('操作')),
-                ].map((widget) {
-                  if (widget is Text) {
-                    return DefaultTextStyle.merge(
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: const Color(0xFF17335F),
-                        fontWeight: FontWeight.w900,
-                      ),
-                      child: widget,
-                    );
-                  }
-                  return widget;
-                }).toList(),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Expanded(
-          child: ListView.separated(
-            itemCount: rows.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final row = rows[index];
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 940;
+        final tableLabelStyle = Theme.of(context).textTheme.titleLarge
+            ?.copyWith(
+              color: const Color(0xFF17335F),
+              fontWeight: FontWeight.w900,
+            );
+
+        Widget buildCompactRow(_TaskCenterRowData row) {
+          return Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    SizedBox(
-                      width: 380,
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 112,
-                            height: 84,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFFF5D2), Color(0xFFFFD27C)],
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Icon(
-                              Icons.edit_calendar_rounded,
-                              size: 42,
-                              color: Color(0xFFCC7B00),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              row.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(
-                                    color: const Color(0xFF1F315B),
-                                    fontWeight: FontWeight.w900,
-                                    height: 1.35,
-                                  ),
-                            ),
-                          ),
-                        ],
+                    Container(
+                      width: 96,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFF5D2), Color(0xFFFFD27C)],
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: const Icon(
+                        Icons.edit_calendar_rounded,
+                        size: 38,
+                        color: Color(0xFFCC7B00),
                       ),
                     ),
-                    const SizedBox(width: 32),
-                    SizedBox(
-                      width: 300,
+                    const SizedBox(width: 14),
+                    Expanded(
                       child: Text(
-                        row.target,
+                        row.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              color: const Color(0xFF1F315B),
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(width: 32),
-                    SizedBox(
-                      width: 240,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            row.range,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  color: const Color(0xFF1F315B),
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            row.status,
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  color: const Color(0xFF9AA3AF),
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Spacer(),
-                    SizedBox(
-                      width: 76,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.manage_search_rounded,
-                            color: Color(0xFF304B86),
-                            size: 40,
-                          ),
-                          Text(
-                            '查看',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  color: const Color(0xFF5A6577),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ],
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: const Color(0xFF1F315B),
+                          fontWeight: FontWeight.w900,
+                          height: 1.3,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              );
-            },
-          ),
-        ),
-      ],
+                const SizedBox(height: 14),
+                _CompactInfoLine(label: '对象', value: row.target),
+                const SizedBox(height: 8),
+                _CompactInfoLine(label: '时间', value: row.range),
+                const SizedBox(height: 8),
+                _CompactInfoLine(label: '状态', value: row.status),
+                const SizedBox(height: 14),
+                const Align(
+                  alignment: Alignment.centerRight,
+                  child: _CompactActionChip(label: '查看'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        Widget buildWideRow(_TaskCenterRowData row) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 40,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 112,
+                        height: 84,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFFF5D2), Color(0xFFFFD27C)],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.edit_calendar_rounded,
+                          size: 42,
+                          color: Color(0xFFCC7B00),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          row.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: const Color(0xFF1F315B),
+                                fontWeight: FontWeight.w900,
+                                height: 1.35,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  flex: 28,
+                  child: Text(
+                    row.target,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: const Color(0xFF1F315B),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  flex: 24,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        row.range,
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              color: const Color(0xFF1F315B),
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        row.status,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: const Color(0xFF9AA3AF),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 20),
+                const SizedBox(
+                  width: 76,
+                  child: _CompactActionChip(label: '查看'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            if (!compact) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 18,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.94),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 40,
+                      child: Text('详情', style: tableLabelStyle),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      flex: 28,
+                      child: Text('对象', style: tableLabelStyle),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      flex: 24,
+                      child: Text('状态', style: tableLabelStyle),
+                    ),
+                    const SizedBox(width: 20),
+                    const SizedBox(width: 76, child: Text('操作')),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+            Expanded(
+              child: ListView.separated(
+                itemCount: rows.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) => compact
+                    ? buildCompactRow(rows[index])
+                    : buildWideRow(rows[index]),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -2997,10 +3375,208 @@ class _ProfileCenterCard extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isTight =
-                constraints.maxHeight < 290 || constraints.maxWidth < 300;
+                constraints.maxHeight < 320 || constraints.maxWidth < 300;
+            final isLowHeight = constraints.maxHeight < 220;
+            final isUltraLowHeight = constraints.maxHeight < 280;
+
+            if (constraints.maxHeight < 130) {
+              return Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.88),
+                      const Color(0xFFF4FBFF).withValues(alpha: 0.9),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.76),
+                    width: 1.4,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _ProfileMetricItem(
+                        icon: Icons.star_rounded,
+                        color: const Color(0xFFFFD34D),
+                        value: '$stars',
+                        label: featureFlags.showGrowthRewards ? '星币' : '积分',
+                        isCompact: true,
+                        hideLabel: true,
+                      ),
+                    ),
+                    Expanded(
+                      child: _ProfileMetricItem(
+                        icon: Icons.local_fire_department_rounded,
+                        color: const Color(0xFFFF8A3D),
+                        value: '$combo',
+                        label: '连对',
+                        isCompact: true,
+                        hideLabel: true,
+                      ),
+                    ),
+                    Expanded(
+                      child: _ProfileMetricItem(
+                        icon: Icons.workspace_premium_rounded,
+                        color: const Color(0xFFFF9E62),
+                        value: '$badgeCount',
+                        label: '徽章',
+                        isCompact: true,
+                        hideLabel: true,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            if (isUltraLowHeight) {
+              return Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.88),
+                      const Color(0xFFF4FBFF).withValues(alpha: 0.9),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.76),
+                    width: 1.4,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF77C7FF), Color(0xFF477AF6)],
+                            ),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '个人中心',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: const Color(0xFF6B8ED6).withValues(alpha: 0.9),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFDDEAFE), Color(0xFFBFD7FF)],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.person_rounded,
+                            color: Color(0xFF667AA8),
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: const Color(0xFF1E293B),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF8FF),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _ProfileMetricItem(
+                              icon: Icons.star_rounded,
+                              color: const Color(0xFFFFD34D),
+                              value: '$stars',
+                              label: featureFlags.showGrowthRewards
+                                  ? '星币'
+                                  : '积分',
+                              isCompact: true,
+                              hideLabel: true,
+                            ),
+                          ),
+                          Expanded(
+                            child: _ProfileMetricItem(
+                              icon: Icons.local_fire_department_rounded,
+                              color: const Color(0xFFFF8A3D),
+                              value: '$combo',
+                              label: '连对',
+                              isCompact: true,
+                              hideLabel: true,
+                            ),
+                          ),
+                          Expanded(
+                            child: _ProfileMetricItem(
+                              icon: Icons.workspace_premium_rounded,
+                              color: const Color(0xFFFF9E62),
+                              value: '$badgeCount',
+                              label: '徽章',
+                              isCompact: true,
+                              hideLabel: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
 
             return Container(
-              padding: EdgeInsets.all(isTight ? 12 : 16),
+              padding: EdgeInsets.all(
+                isLowHeight
+                    ? 10
+                    : isTight
+                    ? 12
+                    : 16,
+              ),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -3030,8 +3606,16 @@ class _ProfileCenterCard extends StatelessWidget {
                     children: [
                       Container(
                         padding: EdgeInsets.symmetric(
-                          horizontal: isTight ? 14 : 18,
-                          vertical: isTight ? 6 : 8,
+                          horizontal: isUltraLowHeight
+                              ? 12
+                              : isTight
+                              ? 14
+                              : 18,
+                          vertical: isUltraLowHeight
+                              ? 5
+                              : isTight
+                              ? 6
+                              : 8,
                         ),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -3054,7 +3638,11 @@ class _ProfileCenterCard extends StatelessWidget {
                               ?.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w900,
-                                fontSize: isTight ? 18 : null,
+                                fontSize: isUltraLowHeight
+                                    ? 15
+                                    : isTight
+                                    ? 18
+                                    : null,
                               ),
                         ),
                       ),
@@ -3065,12 +3653,26 @@ class _ProfileCenterCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  SizedBox(height: isTight ? 8 : 14),
+                  SizedBox(
+                    height: isLowHeight
+                        ? 6
+                        : isTight
+                        ? 8
+                        : 14,
+                  ),
                   Row(
                     children: [
                       Container(
-                        width: isTight ? 50 : 62,
-                        height: isTight ? 50 : 62,
+                        width: isUltraLowHeight
+                            ? 40
+                            : isTight
+                            ? 50
+                            : 62,
+                        height: isUltraLowHeight
+                            ? 40
+                            : isTight
+                            ? 50
+                            : 62,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFFDDEAFE), Color(0xFFBFD7FF)],
@@ -3082,10 +3684,20 @@ class _ProfileCenterCard extends StatelessWidget {
                         child: Icon(
                           Icons.person_rounded,
                           color: const Color(0xFF667AA8),
-                          size: isTight ? 30 : 42,
+                          size: isUltraLowHeight
+                              ? 24
+                              : isTight
+                              ? 30
+                              : 42,
                         ),
                       ),
-                      SizedBox(width: isTight ? 10 : 14),
+                      SizedBox(
+                        width: isUltraLowHeight
+                            ? 8
+                            : isTight
+                            ? 10
+                            : 14,
+                      ),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3103,64 +3715,90 @@ class _ProfileCenterCard extends StatelessWidget {
                                         ?.copyWith(
                                           color: const Color(0xFF1E293B),
                                           fontWeight: FontWeight.w900,
-                                          fontSize: isTight ? 20 : 24,
+                                          fontSize: isUltraLowHeight
+                                              ? 16
+                                              : isTight
+                                              ? 20
+                                              : 24,
                                         ),
                                   ),
                                 ),
-                                Container(
-                                  width: isTight ? 20 : 22,
-                                  height: isTight ? 20 : 22,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFFF5348),
-                                    shape: BoxShape.circle,
+                                if (!isUltraLowHeight)
+                                  Container(
+                                    width: isTight ? 20 : 22,
+                                    height: isTight ? 20 : 22,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFFF5348),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      '${summary.pendingTasks}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
                                   ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    '${summary.pendingTasks}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                  ),
-                                ),
                               ],
                             ),
-                            SizedBox(height: isTight ? 2 : 6),
-                            Text(
-                              currentUserEmail ?? 'student@claremont.local',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(
-                                    color: const Color(0xFF64748B),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: isTight ? 12 : null,
-                                  ),
+                            SizedBox(
+                              height: isLowHeight
+                                  ? 0
+                                  : isTight
+                                  ? 2
+                                  : 6,
                             ),
-                            SizedBox(height: isTight ? 2 : 4),
-                            Text(
-                              '点开查看成长档案',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: const Color(0xFF7B91AC),
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
+                            if (!isUltraLowHeight)
+                              Text(
+                                currentUserEmail ?? 'student@claremont.local',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: const Color(0xFF64748B),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: isTight ? 12 : null,
+                                    ),
+                              ),
+                            if (!isLowHeight) ...[
+                              SizedBox(height: isTight ? 2 : 4),
+                              Text(
+                                '点开查看成长档案',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: const Color(0xFF7B91AC),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: isTight ? 10 : 14),
+                  const Spacer(),
                   Container(
                     padding: EdgeInsets.symmetric(
-                      horizontal: isTight ? 8 : 10,
-                      vertical: isTight ? 8 : 10,
+                      horizontal: isUltraLowHeight
+                          ? 4
+                          : isLowHeight
+                          ? 6
+                          : isTight
+                          ? 8
+                          : 10,
+                      vertical: isUltraLowHeight
+                          ? 4
+                          : isLowHeight
+                          ? 6
+                          : isTight
+                          ? 8
+                          : 10,
                     ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEFF8FF),
@@ -3174,7 +3812,8 @@ class _ProfileCenterCard extends StatelessWidget {
                             color: const Color(0xFFFFD34D),
                             value: '$stars',
                             label: featureFlags.showGrowthRewards ? '星币' : '积分',
-                            isCompact: isTight,
+                            isCompact: isTight || isUltraLowHeight,
+                            hideLabel: isUltraLowHeight,
                           ),
                         ),
                         Expanded(
@@ -3183,7 +3822,8 @@ class _ProfileCenterCard extends StatelessWidget {
                             color: const Color(0xFFFF8A3D),
                             value: '$combo',
                             label: '连对',
-                            isCompact: isTight,
+                            isCompact: isTight || isUltraLowHeight,
+                            hideLabel: isUltraLowHeight,
                           ),
                         ),
                         Expanded(
@@ -3192,7 +3832,8 @@ class _ProfileCenterCard extends StatelessWidget {
                             color: const Color(0xFFFF9E62),
                             value: '$badgeCount',
                             label: '徽章',
-                            isCompact: isTight,
+                            isCompact: isTight || isUltraLowHeight,
+                            hideLabel: isUltraLowHeight,
                           ),
                         ),
                       ],
@@ -3215,6 +3856,7 @@ class _ProfileMetricItem extends StatelessWidget {
     required this.value,
     required this.label,
     this.isCompact = false,
+    this.hideLabel = false,
   });
 
   final IconData icon;
@@ -3222,38 +3864,69 @@ class _ProfileMetricItem extends StatelessWidget {
   final String value;
   final String label;
   final bool isCompact;
+  final bool hideLabel;
 
   @override
   Widget build(BuildContext context) {
+    final compactMetric = isCompact || hideLabel;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: isCompact ? 36 : 48,
-          height: isCompact ? 36 : 48,
+          width: hideLabel
+              ? 28
+              : isCompact
+              ? 36
+              : 48,
+          height: hideLabel
+              ? 28
+              : isCompact
+              ? 36
+              : 48,
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(hideLabel ? 12 : 16),
           ),
-          child: Icon(icon, color: color, size: isCompact ? 20 : 28),
+          child: Icon(
+            icon,
+            color: color,
+            size: hideLabel
+                ? 16
+                : isCompact
+                ? 20
+                : 28,
+          ),
         ),
-        SizedBox(height: isCompact ? 6 : 10),
+        SizedBox(
+          height: hideLabel
+              ? 2
+              : isCompact
+              ? 6
+              : 10,
+        ),
         Text(
           value,
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             color: const Color(0xFF1E293B),
             fontWeight: FontWeight.w900,
-            fontSize: isCompact ? 20 : null,
+            fontSize: hideLabel
+                ? 16
+                : isCompact
+                ? 20
+                : null,
           ),
         ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: const Color(0xFF64748B),
-            fontWeight: FontWeight.w700,
-            fontSize: isCompact ? 11 : null,
+        if (!hideLabel) ...[
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: const Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
+              fontSize: compactMetric ? 11 : null,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -3414,702 +4087,6 @@ class _HomeUtilityButton extends StatelessWidget {
   }
 }
 
-class _CompactHomeLayout extends StatelessWidget {
-  const _CompactHomeLayout({
-    required this.schoolContext,
-    required this.currentUserEmail,
-    required this.highlightedActivityId,
-    required this.highlightedActivityTitle,
-    required this.highlightedClassName,
-    required this.highlightedDateLabel,
-    required this.summary,
-    required this.dailyGrowth,
-    required this.parentSummary,
-    required this.resumeSummary,
-    required this.featureFlags,
-    this.useCompactDensity = false,
-  });
-
-  final SchoolContext schoolContext;
-  final String? currentUserEmail;
-  final String highlightedActivityId;
-  final String highlightedActivityTitle;
-  final String highlightedClassName;
-  final String highlightedDateLabel;
-  final PortalSummary summary;
-  final DailyGrowthSummary dailyGrowth;
-  final ParentContactSummary? parentSummary;
-  final _HomeResumeSummary resumeSummary;
-  final StudentFeatureFlags featureFlags;
-  final bool useCompactDensity;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final gap = useCompactDensity ? 12.0 : 16.0;
-        return K12PlayfulDashboardFrame(
-          padding: EdgeInsets.all(useCompactDensity ? 14 : 18),
-          child: Column(
-            children: [
-              Expanded(
-                flex: useCompactDensity ? 42 : 44,
-                child: _EntranceMotion(
-                  delay: const Duration(milliseconds: 40),
-                  child: _CompactHeroPanel(
-                    schoolContext: schoolContext,
-                    currentUserEmail: currentUserEmail,
-                    highlightedActivityId: highlightedActivityId,
-                    highlightedActivityTitle: highlightedActivityTitle,
-                    highlightedClassName: highlightedClassName,
-                    highlightedDateLabel: highlightedDateLabel,
-                    summary: summary,
-                    dailyGrowth: dailyGrowth,
-                    parentSummary: parentSummary,
-                    resumeSummary: resumeSummary,
-                    featureFlags: featureFlags,
-                    useCompactDensity: useCompactDensity,
-                  ),
-                ),
-              ),
-              SizedBox(height: gap),
-              Expanded(
-                flex: useCompactDensity ? 34 : 32,
-                child: _EntranceMotion(
-                  delay: const Duration(milliseconds: 120),
-                  child: _CompactDashboardGrid(
-                    summary: summary,
-                    dailyGrowth: dailyGrowth,
-                    activityId: highlightedActivityId,
-                    parentSummary: parentSummary,
-                    featureFlags: featureFlags,
-                    useCompactDensity: useCompactDensity,
-                  ),
-                ),
-              ),
-              SizedBox(height: gap),
-              Expanded(
-                flex: useCompactDensity ? 24 : 24,
-                child: _EntranceMotion(
-                  delay: const Duration(milliseconds: 200),
-                  child: _CompactFooterRow(
-                    highlightedActivityTitle: highlightedActivityTitle,
-                    highlightedClassName: highlightedClassName,
-                    summary: summary,
-                    useCompactDensity: useCompactDensity,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _CompactHeroPanel extends StatelessWidget {
-  const _CompactHeroPanel({
-    required this.schoolContext,
-    required this.currentUserEmail,
-    required this.highlightedActivityId,
-    required this.highlightedActivityTitle,
-    required this.highlightedClassName,
-    required this.highlightedDateLabel,
-    required this.summary,
-    required this.dailyGrowth,
-    required this.parentSummary,
-    required this.resumeSummary,
-    required this.featureFlags,
-    required this.useCompactDensity,
-  });
-
-  final SchoolContext schoolContext;
-  final String? currentUserEmail;
-  final String highlightedActivityId;
-  final String highlightedActivityTitle;
-  final String highlightedClassName;
-  final String highlightedDateLabel;
-  final PortalSummary summary;
-  final DailyGrowthSummary dailyGrowth;
-  final ParentContactSummary? parentSummary;
-  final _HomeResumeSummary resumeSummary;
-  final StudentFeatureFlags featureFlags;
-  final bool useCompactDensity;
-
-  @override
-  Widget build(BuildContext context) {
-    final displayName = _studentDisplayName(currentUserEmail);
-    final dailyStars = _dailyStarCoins(summary, dailyGrowth, parentSummary);
-    final completedTasks = dailyGrowth.completedTasks;
-    final showGrowthRewards = featureFlags.showGrowthRewards;
-    final badgeText = resumeSummary.resumeTaskIndex != null
-        ? '继续第 ${resumeSummary.resumeTaskIndex} 句'
-        : completedTasks > 0
-        ? '已完成 $completedTasks 句'
-        : '今天开始闯关';
-    final heroSubtitle = summary.pendingTasks > 0
-        ? '还有 ${summary.pendingTasks} 项小任务等你完成'
-        : '今天的主线任务已经准备好了';
-    final metaLabel = '$highlightedClassName · $highlightedDateLabel';
-
-    return Container(
-      padding: EdgeInsets.all(useCompactDensity ? 18 : 22),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF5DB9FF), Color(0xFF2D8DFF), Color(0xFF69D5FF)],
-        ),
-        borderRadius: BorderRadius.circular(34),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.34),
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF2D8DFF).withValues(alpha: 0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -8,
-            right: -6,
-            child: Container(
-              width: useCompactDensity ? 88 : 108,
-              height: useCompactDensity ? 88 : 108,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [Color(0xFFFFE36E), Color(0xFFFFBB3E)],
-                ),
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '今日主线',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  if (showGrowthRewards)
-                    K12PlayToken(
-                      icon: Icons.stars_rounded,
-                      label: '$dailyStars 星币',
-                      color: const Color(0xFFFFE36B),
-                      foregroundColor: const Color(0xFF7A4A00),
-                    ),
-                ],
-              ),
-              SizedBox(height: useCompactDensity ? 10 : 12),
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '$displayName 同学',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  color: const Color(0xFFFFF5C4),
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '先完成这份作业',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.05,
-                                ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            heroSubtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: Colors.white.withValues(alpha: 0.94),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          const Spacer(),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: [
-                              K12HeroBadge(
-                                icon: Icons.play_circle_rounded,
-                                label: badgeText,
-                              ),
-                              K12HeroBadge(
-                                icon: Icons.class_rounded,
-                                label: metaLabel,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(width: useCompactDensity ? 8 : 14),
-                    SizedBox(
-                      width: useCompactDensity ? 102 : 128,
-                      child: const AspectRatio(
-                        aspectRatio: 1,
-                        child: K12CartoonHeroScene(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: useCompactDensity ? 10 : 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFE36B),
-                        foregroundColor: const Color(0xFF195AB6),
-                        elevation: 0,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: useCompactDensity ? 12 : 14,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      onPressed: () =>
-                          context.go('/activities/$highlightedActivityId'),
-                      icon: const Icon(Icons.play_circle_fill_rounded),
-                      label: Text(
-                        resumeSummary.resumeTaskIndex == null
-                            ? '开始作业'
-                            : '继续第 ${resumeSummary.resumeTaskIndex} 句',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  IconButton.filled(
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.18),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                    ),
-                    onPressed: () => context.go('/activities'),
-                    icon: const Icon(Icons.menu_book_rounded),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CompactDashboardGrid extends StatelessWidget {
-  const _CompactDashboardGrid({
-    required this.summary,
-    required this.dailyGrowth,
-    required this.activityId,
-    required this.parentSummary,
-    required this.featureFlags,
-    required this.useCompactDensity,
-  });
-
-  final PortalSummary summary;
-  final DailyGrowthSummary dailyGrowth;
-  final String activityId;
-  final ParentContactSummary? parentSummary;
-  final StudentFeatureFlags featureFlags;
-  final bool useCompactDensity;
-
-  @override
-  Widget build(BuildContext context) {
-    final dailyStars = _dailyStarCoins(summary, dailyGrowth, parentSummary);
-    final cards = [
-      (
-        'Reading',
-        '${summary.inProgressActivities}',
-        Icons.auto_stories_rounded,
-        const Color(0xFF5DB9FF),
-        () => context.go('/activities'),
-      ),
-      (
-        'Word',
-        '${summary.totalActivities}',
-        featureFlags.showFunZonePromos
-            ? Icons.translate_rounded
-            : Icons.fact_check_rounded,
-        const Color(0xFFFFC941),
-        () => context.go(
-          featureFlags.showFunZonePromos ? '/explore' : '/activities',
-        ),
-      ),
-      (
-        'Speak',
-        dailyGrowth.bestCombo > 0
-            ? '${dailyGrowth.bestCombo}'
-            : '${summary.pendingTasks}',
-        Icons.record_voice_over_rounded,
-        const Color(0xFF78E55A),
-        () => context.go('/activities/$activityId'),
-      ),
-      (
-        featureFlags.showGrowthRewards ? 'Badges' : 'Tasks',
-        featureFlags.showGrowthRewards
-            ? '$dailyStars'
-            : '${dailyGrowth.completedTasks > 0 ? dailyGrowth.completedTasks : summary.pendingTasks}',
-        featureFlags.showGrowthRewards
-            ? Icons.workspace_premium_rounded
-            : Icons.checklist_rounded,
-        const Color(0xFF55D9C5),
-        () => context.go('/activities'),
-      ),
-    ];
-
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: cards.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: useCompactDensity ? 10 : 12,
-        mainAxisSpacing: useCompactDensity ? 10 : 12,
-        childAspectRatio: useCompactDensity ? 1.16 : 1.28,
-      ),
-      itemBuilder: (context, index) {
-        final card = cards[index];
-        return _CompactGridCard(
-          title: card.$1,
-          value: card.$2,
-          icon: card.$3,
-          color: card.$4,
-          onTap: card.$5,
-          useCompactDensity: useCompactDensity,
-        );
-      },
-    );
-  }
-}
-
-class _CompactGridCard extends StatelessWidget {
-  const _CompactGridCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    required this.useCompactDensity,
-  });
-
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final bool useCompactDensity;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(26),
-      child: Container(
-        padding: EdgeInsets.all(useCompactDensity ? 14 : 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color.withValues(alpha: 0.98),
-              color.withValues(alpha: 0.82),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.7),
-            width: 1.6,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: useCompactDensity ? 42 : 46,
-              height: useCompactDensity ? 42 : 46,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.24),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(
-                icon,
-                color: const Color(0xFF195AB6),
-                size: useCompactDensity ? 22 : 24,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: const Color(0xFF114178),
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF114178),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CompactFooterRow extends StatelessWidget {
-  const _CompactFooterRow({
-    required this.highlightedActivityTitle,
-    required this.highlightedClassName,
-    required this.summary,
-    required this.useCompactDensity,
-  });
-
-  final String highlightedActivityTitle;
-  final String highlightedClassName;
-  final PortalSummary summary;
-  final bool useCompactDensity;
-
-  @override
-  Widget build(BuildContext context) {
-    final gap = useCompactDensity ? 10.0 : 12.0;
-    return Row(
-      children: [
-        Expanded(
-          child: _CompactFooterCard(
-            title: '点评中心',
-            subtitle: '查看老师刚批完的录音和口语点评',
-            icon: Icons.rate_review_rounded,
-            accent: const Color(0xFFFF8F4D),
-            coverStyle: _DashboardCoverStyle.review,
-            onTap: () => _showReviewCenterDialog(
-              context,
-              activityTitle: highlightedActivityTitle,
-              className: highlightedClassName,
-            ),
-            useCompactDensity: useCompactDensity,
-          ),
-        ),
-        SizedBox(width: gap),
-        Expanded(
-          child: _CompactFooterCard(
-            title: '任务中心',
-            subtitle: summary.pendingTasks > 0
-                ? '还有 ${summary.pendingTasks} 项等你完成'
-                : '查看历史打卡活动和课堂任务',
-            icon: Icons.checklist_rounded,
-            accent: const Color(0xFF78E55A),
-            coverStyle: _DashboardCoverStyle.taskCenter,
-            onTap: () => _showTaskCenterDialog(
-              context,
-              activityTitle: highlightedActivityTitle,
-              className: highlightedClassName,
-            ),
-            useCompactDensity: useCompactDensity,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CompactFooterCard extends StatelessWidget {
-  const _CompactFooterCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.accent,
-    required this.coverStyle,
-    required this.onTap,
-    required this.useCompactDensity,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color accent;
-  final _DashboardCoverStyle coverStyle;
-  final VoidCallback onTap;
-  final bool useCompactDensity;
-
-  String get _ribbonLabel {
-    switch (coverStyle) {
-      case _DashboardCoverStyle.review:
-        return '点评中心';
-      case _DashboardCoverStyle.taskCenter:
-        return '任务中心';
-      case _DashboardCoverStyle.schedule:
-        return '课程计划';
-      case _DashboardCoverStyle.todayTask:
-        return '今日任务';
-      case _DashboardCoverStyle.gradedReading:
-        return '分级阅读';
-      case _DashboardCoverStyle.phonics:
-        return '自然拼读';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        decoration: k12PlasticPanelDecoration(accent: accent, radius: 24),
-        child: Column(
-          children: [
-            SizedBox(
-              height: useCompactDensity ? 134 : 156,
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      accent.withValues(alpha: 0.22),
-                      accent.withValues(alpha: 0.12),
-                      Colors.white.withValues(alpha: 0.82),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      left: -7,
-                      top: 14,
-                      child: _DashboardSideRibbon(
-                        label: _ribbonLabel,
-                        compact: useCompactDensity,
-                      ),
-                    ),
-                    Positioned(
-                      left: -8,
-                      bottom: -14,
-                      child: Container(
-                        width: 110,
-                        height: 110,
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.2),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 18,
-                      top: 14,
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.82),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Icon(icon, color: accent, size: 30),
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-                        child: _DashboardIllustration(
-                          style: coverStyle,
-                          accent: accent,
-                          compact: useCompactDensity,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              padding: EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: useCompactDensity ? 10 : 12,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.94),
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: const Color(0xFF1E293B),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _WideHeroStage extends StatelessWidget {
   const _WideHeroStage({required this.child});
 
@@ -4175,7 +4152,12 @@ class _WideSummaryStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      padding: const EdgeInsets.fromLTRB(
+        AppUiTokens.spaceMd,
+        14,
+        AppUiTokens.spaceMd,
+        AppUiTokens.spaceMd,
+      ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -4185,7 +4167,7 @@ class _WideSummaryStage extends StatelessWidget {
             const Color(0xFFEFF9FF).withValues(alpha: 0.7),
           ],
         ),
-        borderRadius: BorderRadius.circular(34),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusXl),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.58),
           width: 1.5,
@@ -4263,7 +4245,7 @@ class _WideSideStage extends StatelessWidget {
             const Color(0xFFE8F7FF).withValues(alpha: 0.78),
           ],
         ),
-        borderRadius: BorderRadius.circular(34),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusXl),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.56),
           width: 1.5,
@@ -4307,11 +4289,13 @@ class _WideLearningShowcaseArea extends StatelessWidget {
     required this.summary,
     required this.highlightedActivityTitle,
     required this.highlightedClassName,
+    this.compact = false,
   });
 
   final PortalSummary summary;
   final String highlightedActivityTitle;
   final String highlightedClassName;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -4324,10 +4308,11 @@ class _WideLearningShowcaseArea extends StatelessWidget {
             ribbonLabel: '课程计划',
             accent: const Color(0xFF73B7FF),
             coverStyle: _DashboardCoverStyle.schedule,
+            compact: compact,
             onTap: () => _showScheduleDialog(context),
           ),
         ),
-        const SizedBox(width: 18),
+        SizedBox(width: compact ? 12 : 18),
         Expanded(
           flex: 64,
           child: Column(
@@ -4342,10 +4327,11 @@ class _WideLearningShowcaseArea extends StatelessWidget {
                         ribbonLabel: '今日任务',
                         accent: const Color(0xFFFFC941),
                         coverStyle: _DashboardCoverStyle.todayTask,
+                        compact: compact,
                         onTap: () => _showTodayTasksDialog(context, summary),
                       ),
                     ),
-                    const SizedBox(width: 18),
+                    SizedBox(width: compact ? 12 : 18),
                     Expanded(
                       child: _WideShowcaseCard(
                         title: '点评中心',
@@ -4353,6 +4339,7 @@ class _WideLearningShowcaseArea extends StatelessWidget {
                         accent: const Color(0xFFFF8F4D),
                         coverStyle: _DashboardCoverStyle.review,
                         badgeLabel: '3',
+                        compact: compact,
                         onTap: () => _showReviewCenterDialog(
                           context,
                           activityTitle: highlightedActivityTitle,
@@ -4363,7 +4350,7 @@ class _WideLearningShowcaseArea extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: compact ? 12 : 18),
               Expanded(
                 flex: 42,
                 child: _WideShowcaseCard(
@@ -4371,6 +4358,7 @@ class _WideLearningShowcaseArea extends StatelessWidget {
                   ribbonLabel: '任务中心',
                   accent: const Color(0xFF78E55A),
                   coverStyle: _DashboardCoverStyle.taskCenter,
+                  compact: compact,
                   onTap: () => _showTaskCenterDialog(
                     context,
                     activityTitle: highlightedActivityTitle,
@@ -4394,6 +4382,7 @@ class _WideShowcaseCard extends StatelessWidget {
     required this.coverStyle,
     required this.onTap,
     this.badgeLabel,
+    this.compact = false,
   });
 
   final String title;
@@ -4402,241 +4391,311 @@ class _WideShowcaseCard extends StatelessWidget {
   final _DashboardCoverStyle coverStyle;
   final VoidCallback onTap;
   final String? badgeLabel;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(30),
-      child: Container(
-        decoration: k12PlasticPanelDecoration(accent: accent, radius: 30),
-        child: Column(
-          children: [
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      accent.withValues(alpha: 0.14),
-                      accent.withValues(alpha: 0.05),
-                      Colors.white.withValues(alpha: 0.9),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isShort = constraints.maxHeight < 120;
+        return InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Container(
+            decoration: k12PlasticPanelDecoration(accent: accent, radius: 30),
+            child: isShort
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: const Color(0xFF1E293B),
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                    ),
+                  )
+                : Column(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                accent.withValues(alpha: 0.14),
+                                accent.withValues(alpha: 0.05),
+                                Colors.white.withValues(alpha: 0.9),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(26),
+                          ),
+                          child: Stack(
+                            children: [
+                              Positioned(
+                                left: -8,
+                                top: compact ? 14 : 18,
+                                child: _DashboardSideRibbon(
+                                  label: ribbonLabel,
+                                  width: compact ? 40 : 46,
+                                  radius: compact ? 18 : 20,
+                                  compact: compact,
+                                ),
+                              ),
+                              if (badgeLabel != null)
+                                Positioned(
+                                  top: compact ? 12 : 16,
+                                  right: compact ? 12 : 16,
+                                  child: Container(
+                                    width: compact ? 28 : 34,
+                                    height: compact ? 28 : 34,
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFFFF5348,
+                                      ).withValues(alpha: 0.92),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      badgeLabel!,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              Positioned(
+                                left: compact ? 14 : 18,
+                                right: compact ? 14 : 18,
+                                bottom: compact ? 8 : 10,
+                                child: Container(
+                                  height: compact ? 10 : 14,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                              ),
+                              Positioned.fill(
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    compact ? 14 : 18,
+                                    compact ? 12 : 14,
+                                    compact ? 14 : 18,
+                                    compact ? 14 : 18,
+                                  ),
+                                  child: _DashboardIllustration(
+                                    style: coverStyle,
+                                    accent: accent,
+                                    compact: compact,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 14 : 18,
+                          vertical: compact ? 11 : 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.94),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.025),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style:
+                              (compact
+                                      ? Theme.of(context).textTheme.titleLarge
+                                      : Theme.of(
+                                          context,
+                                        ).textTheme.headlineMedium)
+                                  ?.copyWith(
+                                    color: const Color(0xFF1E293B),
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                        ),
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(26),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      left: -8,
-                      top: 18,
-                      child: _DashboardSideRibbon(
-                        label: ribbonLabel,
-                        width: 46,
-                        radius: 20,
-                      ),
-                    ),
-                    if (badgeLabel != null)
-                      Positioned(
-                        top: 16,
-                        right: 16,
-                        child: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFFFF5348,
-                            ).withValues(alpha: 0.92),
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            badgeLabel!,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                        ),
-                      ),
-                    Positioned(
-                      left: 18,
-                      right: 18,
-                      bottom: 10,
-                      child: Container(
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-                        child: _DashboardIllustration(
-                          style: coverStyle,
-                          accent: accent,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.94),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.025),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: const Color(0xFF1E293B),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _WideContentStage extends StatelessWidget {
-  const _WideContentStage({required this.showcase, required this.readingRail});
+  const _WideContentStage({
+    required this.showcase,
+    required this.readingRail,
+    required this.readingRailWidth,
+  });
 
   final Widget showcase;
   final Widget readingRail;
+  final double readingRailWidth;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.white.withValues(alpha: 0.24),
-            const Color(0xFFF0FAFF).withValues(alpha: 0.72),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(34),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.58),
-          width: 1.5,
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: -42,
-            bottom: -64,
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                color: const Color(0xFF8FEA74).withValues(alpha: 0.11),
-                shape: BoxShape.circle,
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLowHeight = constraints.maxHeight < 220;
+        return Container(
+          padding: EdgeInsets.fromLTRB(
+            AppUiTokens.spaceMd,
+            isLowHeight ? 10 : 14,
+            AppUiTokens.spaceMd,
+            AppUiTokens.spaceMd,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white.withValues(alpha: 0.24),
+                const Color(0xFFF0FAFF).withValues(alpha: 0.72),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(AppUiTokens.radiusXl),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.58),
+              width: 1.5,
             ),
           ),
-          Positioned(
-            right: -34,
-            top: -26,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFDB63).withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 14),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.64),
-                        borderRadius: BorderRadius.circular(999),
+              Positioned(
+                left: -42,
+                bottom: -64,
+                child: Container(
+                  width: _kWideContentDecorOrbLargeSize,
+                  height: _kWideContentDecorOrbLargeSize,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8FEA74).withValues(alpha: 0.11),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Positioned(
+                right: -34,
+                top: -26,
+                child: Container(
+                  width: _kWideContentDecorOrbSmallSize,
+                  height: _kWideContentDecorOrbSmallSize,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFDB63).withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!isLowHeight)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppUiTokens.spaceXs,
+                        0,
+                        AppUiTokens.spaceXs,
+                        14,
                       ),
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.auto_stories_rounded,
-                            color: Color(0xFF3369D7),
-                            size: 20,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: AppUiTokens.spaceXs,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.64),
+                              borderRadius: BorderRadius.circular(
+                                AppUiTokens.radiusPill,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.auto_stories_rounded,
+                                  color: Color(0xFF3369D7),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '今日学习地图',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: const Color(0xFF1E293B),
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(width: 8),
+                          const Spacer(),
                           Text(
-                            '今日学习地图',
-                            style: Theme.of(context).textTheme.titleMedium
+                            '课程、任务、点评与阅读都在这里',
+                            style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                                  color: const Color(0xFF1E293B),
-                                  fontWeight: FontWeight.w900,
+                                  color: const Color(0xFF547089),
+                                  fontWeight: FontWeight.w700,
                                 ),
                           ),
                         ],
                       ),
                     ),
-                    const Spacer(),
-                    Text(
-                      '课程、任务、点评与阅读都在这里',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF547089),
-                        fontWeight: FontWeight.w700,
-                      ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(flex: 74, child: showcase),
+                        SizedBox(width: isLowHeight ? 12 : 18),
+                        SizedBox(width: readingRailWidth, child: readingRail),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(flex: 74, child: showcase),
-                    const SizedBox(width: 18),
-                    SizedBox(width: 228, child: readingRail),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
 class _ReadingShowcaseColumn extends StatelessWidget {
-  const _ReadingShowcaseColumn();
+  const _ReadingShowcaseColumn({this.compact = false});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -4649,10 +4708,11 @@ class _ReadingShowcaseColumn extends StatelessWidget {
             title: '国家地理PM',
             accent: const Color(0xFF87D76A),
             coverStyle: _DashboardCoverStyle.gradedReading,
+            compact: compact,
             onTap: () => context.go('/explore'),
           ),
         ),
-        const SizedBox(height: 18),
+        SizedBox(height: compact ? 12 : 18),
         Expanded(
           flex: 6,
           child: _ReadingShowcaseCard(
@@ -4660,6 +4720,7 @@ class _ReadingShowcaseColumn extends StatelessWidget {
             title: '自然拼读',
             accent: const Color(0xFF73B7FF),
             coverStyle: _DashboardCoverStyle.phonics,
+            compact: compact,
             onTap: () => context.go('/explore'),
           ),
         ),
@@ -4675,6 +4736,7 @@ class _ReadingShowcaseCard extends StatelessWidget {
     required this.accent,
     required this.coverStyle,
     required this.onTap,
+    this.compact = false,
   });
 
   final String ribbonLabel;
@@ -4682,97 +4744,513 @@ class _ReadingShowcaseCard extends StatelessWidget {
   final Color accent;
   final _DashboardCoverStyle coverStyle;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(28),
-      child: Container(
-        decoration: k12PlasticPanelDecoration(accent: accent, radius: 28),
-        child: Column(
-          children: [
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      accent.withValues(alpha: 0.13),
-                      accent.withValues(alpha: 0.05),
-                      Colors.white.withValues(alpha: 0.9),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isShort = constraints.maxHeight < 120;
+        return InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(28),
+          child: Container(
+            decoration: k12PlasticPanelDecoration(accent: accent, radius: 28),
+            child: isShort
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: const Color(0xFF1E293B),
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                    ),
+                  )
+                : Column(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                accent.withValues(alpha: 0.13),
+                                accent.withValues(alpha: 0.05),
+                                Colors.white.withValues(alpha: 0.9),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: Stack(
+                            children: [
+                              Positioned(
+                                left: -8,
+                                top: compact ? 12 : 16,
+                                child: _DashboardSideRibbon(
+                                  label: ribbonLabel,
+                                  width: compact ? 38 : 44,
+                                  radius: compact ? 16 : 18,
+                                  compact: compact,
+                                ),
+                              ),
+                              Positioned(
+                                left: compact ? 12 : 14,
+                                right: compact ? 12 : 14,
+                                bottom: compact ? 8 : 10,
+                                child: Container(
+                                  height: compact ? 10 : 12,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                              ),
+                              Positioned.fill(
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    compact ? 14 : 18,
+                                    compact ? 12 : 14,
+                                    compact ? 12 : 14,
+                                    compact ? 12 : 16,
+                                  ),
+                                  child: _DashboardIllustration(
+                                    style: coverStyle,
+                                    accent: accent,
+                                    compact: compact,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 12 : 14,
+                          vertical: compact ? 10 : 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.94),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.025),
+                              blurRadius: 7,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: const Color(0xFF1E293B),
+                                fontWeight: FontWeight.w900,
+                                height: 1.04,
+                                fontSize: compact ? 22 : null,
+                              ),
+                        ),
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      left: -8,
-                      top: 16,
-                      child: _DashboardSideRibbon(
-                        label: ribbonLabel,
-                        width: 44,
-                        radius: 18,
-                      ),
-                    ),
-                    Positioned(
-                      left: 14,
-                      right: 14,
-                      bottom: 10,
-                      child: Container(
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 14, 14, 16),
-                        child: _DashboardIllustration(
-                          style: coverStyle,
-                          accent: accent,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _UnifiedHeroPanel extends StatelessWidget {
+  const _UnifiedHeroPanel({
+    required this.schoolContext,
+    required this.currentUserEmail,
+    required this.highlightedActivityId,
+    required this.highlightedActivityTitle,
+    required this.highlightedClassName,
+    required this.highlightedDateLabel,
+    required this.summary,
+    required this.dailyGrowth,
+    required this.parentSummary,
+    required this.resumeSummary,
+    required this.featureFlags,
+    required this.useCompactDensity,
+  });
+
+  final SchoolContext schoolContext;
+  final String? currentUserEmail;
+  final String highlightedActivityId;
+  final String highlightedActivityTitle;
+  final String highlightedClassName;
+  final String highlightedDateLabel;
+  final PortalSummary summary;
+  final DailyGrowthSummary dailyGrowth;
+  final ParentContactSummary? parentSummary;
+  final _HomeResumeSummary resumeSummary;
+  final StudentFeatureFlags featureFlags;
+  final bool useCompactDensity;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = _studentDisplayName(currentUserEmail);
+    final dailyStars = _dailyStarCoins(summary, dailyGrowth, parentSummary);
+    final completedTasks = dailyGrowth.completedTasks;
+    final showGrowthRewards = featureFlags.showGrowthRewards;
+    final badgeText = resumeSummary.resumeTaskIndex != null
+        ? '继续第 ${resumeSummary.resumeTaskIndex} 句'
+        : completedTasks > 0
+        ? '已完成 $completedTasks 句'
+        : '今天开始闯关';
+    final heroSubtitle = summary.pendingTasks > 0
+        ? '还有 ${summary.pendingTasks} 项小任务等你完成'
+        : '今天的主线任务已经准备好了';
+    final metaLabel = '$highlightedClassName · $highlightedDateLabel';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLowHeight = constraints.maxHeight < 190;
+        final isUltraLowHeight = constraints.maxHeight < 260;
+        final compactDensity = useCompactDensity || isLowHeight;
+
+        if (isUltraLowHeight) {
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF5DB9FF),
+                  Color(0xFF2D8DFF),
+                  Color(0xFF69D5FF),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(34),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.34),
+                width: 2,
               ),
             ),
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.94),
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.025),
-                    blurRadius: 7,
-                    offset: const Offset(0, 3),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '今日主线',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '$displayName 同学',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: const Color(0xFFFFF5C4),
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '先完成今天作业',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 48,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: K12CartoonHeroScene(),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          padding: EdgeInsets.all(compactDensity ? 16 : 22),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF5DB9FF), Color(0xFF2D8DFF), Color(0xFF69D5FF)],
+            ),
+            borderRadius: BorderRadius.circular(34),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.34),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2D8DFF).withValues(alpha: 0.22),
+                blurRadius: 24,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                top: -8,
+                right: -6,
+                child: Container(
+                  width: compactDensity ? 88 : 108,
+                  height: compactDensity ? 88 : 108,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFFFE36E), Color(0xFFFFBB3E)],
+                    ),
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '今日主线',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ),
+                      const Spacer(),
+                      if (showGrowthRewards)
+                        K12PlayToken(
+                          icon: Icons.stars_rounded,
+                          label: '$dailyStars 星币',
+                          color: const Color(0xFFFFE36B),
+                          foregroundColor: const Color(0xFF7A4A00),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: compactDensity ? 8 : 12),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: isUltraLowHeight
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      '$displayName 同学',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            color: const Color(0xFFFFF5C4),
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '先完成今天作业',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                  ],
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '$displayName 同学',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: const Color(0xFFFFF5C4),
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                    SizedBox(height: compactDensity ? 4 : 6),
+                                    Text(
+                                      '先完成这份作业',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineSmall
+                                          ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w900,
+                                            height: 1.05,
+                                          ),
+                                    ),
+                                    if (!isLowHeight) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        heroSubtitle,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: Colors.white.withValues(
+                                                alpha: 0.94,
+                                              ),
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ],
+                                    const Spacer(),
+                                    Wrap(
+                                      spacing: compactDensity ? 8 : 10,
+                                      runSpacing: compactDensity ? 8 : 10,
+                                      children: [
+                                        K12HeroBadge(
+                                          icon: Icons.play_circle_rounded,
+                                          label: badgeText,
+                                        ),
+                                        if (!isLowHeight)
+                                          K12HeroBadge(
+                                            icon: Icons.class_rounded,
+                                            label: metaLabel,
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                        ),
+                        SizedBox(width: compactDensity ? 8 : 14),
+                        SizedBox(
+                          width: isUltraLowHeight
+                              ? 48
+                              : compactDensity
+                              ? 86
+                              : 128,
+                          child: const AspectRatio(
+                            aspectRatio: 1,
+                            child: K12CartoonHeroScene(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: compactDensity ? 8 : 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFE36B),
+                            foregroundColor: const Color(0xFF195AB6),
+                            elevation: 0,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: compactDensity ? 10 : 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          onPressed: () =>
+                              context.go('/activities/$highlightedActivityId'),
+                          icon: const Icon(Icons.play_circle_fill_rounded),
+                          label: Text(
+                            isUltraLowHeight
+                                ? (resumeSummary.resumeTaskIndex == null
+                                      ? '开始'
+                                      : '继续')
+                                : (resumeSummary.resumeTaskIndex == null
+                                      ? '开始作业'
+                                      : '继续第 ${resumeSummary.resumeTaskIndex} 句'),
+                          ),
+                        ),
+                      ),
+                      if (!isUltraLowHeight) ...[
+                        SizedBox(width: compactDensity ? 8 : 10),
+                        IconButton.filled(
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.18,
+                            ),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          onPressed: () => context.go('/activities'),
+                          icon: const Icon(Icons.menu_book_rounded),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: const Color(0xFF1E293B),
-                  fontWeight: FontWeight.w900,
-                  height: 1.04,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -4802,6 +5280,7 @@ class _SummaryGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final spacing = isCompact ? 10.0 : 12.0;
+        final useCompactSummaryStrip = constraints.maxHeight < 190;
         final cardsPerRow = constraints.maxWidth >= 340 ? 2 : 1;
         final itemWidth = cardsPerRow == 1
             ? constraints.maxWidth
@@ -4866,6 +5345,18 @@ class _SummaryGrid extends StatelessWidget {
           ),
         ];
 
+        if (useCompactSummaryStrip) {
+          final compactCards = cards.take(2).toList();
+          return Row(
+            children: [
+              for (var index = 0; index < compactCards.length; index++) ...[
+                if (index > 0) SizedBox(width: spacing),
+                Expanded(child: compactCards[index]),
+              ],
+            ],
+          );
+        }
+
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
@@ -4899,78 +5390,100 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(28),
-      child: Container(
-        padding: EdgeInsets.all(isCompact ? 16 : 18),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color.withValues(alpha: 0.98),
-              color.withValues(alpha: 0.82),
-            ],
-          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTinyHeight = constraints.maxHeight < 70;
+        final isNarrow =
+            constraints.maxWidth < 220 || constraints.maxHeight < 90;
+        return InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.68),
-            width: 1.8,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.28),
-              blurRadius: 18,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -10,
-              right: -4,
-              child: Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  shape: BoxShape.circle,
-                ),
+          child: Container(
+            padding: EdgeInsets.all(isCompact ? 16 : 18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  color.withValues(alpha: 0.98),
+                  color.withValues(alpha: 0.82),
+                ],
               ),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.68),
+                width: 1.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.28),
+                  blurRadius: 18,
+                  offset: const Offset(0, 12),
+                ),
+              ],
             ),
-            Row(
+            child: Stack(
               children: [
-                Container(
-                  width: isCompact ? 48 : 54,
-                  height: isCompact ? 48 : 54,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.24),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: const Color(0xFF195AB6),
-                    size: isCompact ? 24 : 28,
+                Positioned(
+                  top: -10,
+                  right: -4,
+                  child: Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
-                SizedBox(width: isCompact ? 12 : 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: const Color(0xFF114178),
-                          fontWeight: FontWeight.w900,
-                        ),
+                if (isTinyHeight)
+                  Center(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: const Color(0xFF114178),
+                        fontWeight: FontWeight.w900,
                       ),
-                      const SizedBox(height: 4),
+                    ),
+                  )
+                else if (isNarrow)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.24),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              icon,
+                              color: const Color(0xFF195AB6),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFF114178),
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
                       Text(
                         subtitle,
                         maxLines: 1,
@@ -4981,41 +5494,114 @@ class _SummaryCard extends StatelessWidget {
                           height: 1.25,
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          value,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: const Color(0xFF114178),
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Container(
+                        width: isCompact ? 48 : 54,
+                        height: isCompact ? 48 : 54,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.24),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Icon(
+                          icon,
+                          color: const Color(0xFF195AB6),
+                          size: isCompact ? 24 : 28,
+                        ),
+                      ),
+                      SizedBox(width: isCompact ? 12 : 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    color: const Color(0xFF114178),
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: const Color(0xFF124D7A),
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.25,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Text(
+                          value,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: const Color(0xFF114178),
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Text(
-                    value,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: const Color(0xFF114178),
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _FeedbackPanel extends StatelessWidget {
-  const _FeedbackPanel({required this.summary, this.isCompact = false});
+  const _FeedbackPanel({
+    required this.summary,
+    this.isCompact = false,
+    this.showHeading = true,
+  });
 
   final PortalSummary summary;
   final bool isCompact;
+  final bool showHeading;
 
   @override
   Widget build(BuildContext context) {
@@ -5029,14 +5615,16 @@ class _FeedbackPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '老师反馈',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: const Color(0xFF1E293B),
-              fontWeight: FontWeight.w900,
+          if (showHeading) ...[
+            Text(
+              '老师反馈',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: const Color(0xFF1E293B),
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
+            const SizedBox(height: 14),
+          ],
           _FeedbackLine(
             icon: Icons.mark_chat_unread_rounded,
             title: '先完成今天的作业',
@@ -5111,10 +5699,15 @@ class _FeedbackLine extends StatelessWidget {
 }
 
 class _SchoolPanel extends StatelessWidget {
-  const _SchoolPanel({required this.schoolContext, this.isCompact = false});
+  const _SchoolPanel({
+    required this.schoolContext,
+    this.isCompact = false,
+    this.showHeading = true,
+  });
 
   final SchoolContext schoolContext;
   final bool isCompact;
+  final bool showHeading;
 
   @override
   Widget build(BuildContext context) {
@@ -5128,14 +5721,16 @@ class _SchoolPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '我的学校',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: const Color(0xFF1E293B),
-              fontWeight: FontWeight.w900,
+          if (showHeading) ...[
+            Text(
+              '我的学校',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: const Color(0xFF1E293B),
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
+          ],
           Text(
             schoolContext.displayName,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(

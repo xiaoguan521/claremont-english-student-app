@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/ui/app_breakpoints.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/school_context_provider.dart';
 
@@ -22,64 +23,83 @@ class SchoolSelectionPage extends ConsumerWidget {
             colors: [Color(0xFF2F67F6), Color(0xFF69C8FF), Color(0xFFF6F7FB)],
           ),
         ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 960),
-            child: Card(
-              elevation: 12,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: optionsAsync.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (_, _) => const _StateMessage(
-                    title: '学校列表加载失败',
-                    message: '请稍后重试，或联系老师确认账号权限。',
-                  ),
-                  data: (options) {
-                    if (options.isEmpty) {
-                      return const _StateMessage(
-                        title: '当前账号还没有绑定学校',
-                        message: '请联系老师或管理员为你开通学校权限。',
-                      );
-                    }
-
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '选择今天要进入的学校',
-                          style: Theme.of(context).textTheme.headlineMedium
-                              ?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          currentUserEmail == null
-                              ? '这个账号已绑定多个学校，请先选择一个学校再继续学习。'
-                              : '$currentUserEmail 已绑定多个学校，请先选择今天要进入的学校。',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: const Color(0xFF64748B),
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                        const SizedBox(height: 24),
-                        ...options.map(
-                          (option) => Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _SchoolChoiceCard(option: option),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, viewport) {
+              final contentMaxWidth = responsiveWidthCap(
+                viewport.maxWidth,
+                fraction: 0.94,
+                min: 320.0,
+                max: 960.0,
+              );
+              final outerPadding = viewport.maxWidth < 720 ? 16.0 : 24.0;
+              final innerPadding = viewport.maxWidth < 720 ? 20.0 : 28.0;
+              return Center(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(outerPadding),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: contentMaxWidth),
+                    child: Card(
+                      elevation: 12,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(32),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(innerPadding),
+                        child: optionsAsync.when(
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
+                          error: (_, _) => const _StateMessage(
+                            title: '学校列表加载失败',
+                            message: '请稍后重试，或联系老师确认账号权限。',
                           ),
+                          data: (options) {
+                            if (options.isEmpty) {
+                              return const _StateMessage(
+                                title: '当前账号还没有绑定学校',
+                                message: '请联系老师或管理员为你开通学校权限。',
+                              );
+                            }
+
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '选择今天要进入的学校',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium
+                                      ?.copyWith(fontWeight: FontWeight.w900),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  currentUserEmail == null
+                                      ? '这个账号已绑定多个学校，请先选择一个学校再继续学习。'
+                                      : '$currentUserEmail 已绑定多个学校，请先选择今天要进入的学校。',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: const Color(0xFF64748B),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                                const SizedBox(height: 24),
+                                ...options.map(
+                                  (option) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 14),
+                                    child: _SchoolChoiceCard(option: option),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
-                      ],
-                    );
-                  },
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),

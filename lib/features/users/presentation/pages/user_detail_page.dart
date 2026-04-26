@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/ui/app_breakpoints.dart';
 import '../providers/users_provider.dart';
 import '../widgets/edit_user_form.dart';
 
@@ -16,6 +17,13 @@ class UserDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(selectedUserProvider(userId));
+    final viewportWidth = MediaQuery.of(context).size.width;
+    final contentMaxWidth = responsiveWidthCap(
+      viewportWidth,
+      fraction: 0.94,
+      min: 320,
+      max: 800,
+    );
     
     return Scaffold(
       appBar: AppBar(
@@ -51,7 +59,7 @@ class UserDetailPage extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 800),
+                constraints: BoxConstraints(maxWidth: contentMaxWidth),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

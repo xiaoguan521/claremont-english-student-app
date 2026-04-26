@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/user.dart';
+import '../../../../core/ui/app_breakpoints.dart';
 import '../providers/users_provider.dart';
 
 class EditUserForm extends ConsumerStatefulWidget {
@@ -56,14 +57,19 @@ class _EditUserFormState extends ConsumerState<EditUserForm> {
 
   @override
   Widget build(BuildContext context) {
+    final viewportWidth = MediaQuery.of(context).size.width;
+    final contentMaxWidth = responsiveWidthCap(
+      viewportWidth,
+      fraction: 0.92,
+      min: 280,
+      max: 500,
+    );
+
     return AlertDialog(
       title: const Text('Edit User'),
       content: SingleChildScrollView(
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 500,
-            minWidth: MediaQuery.of(context).size.width * 0.9,
-          ),
+          constraints: BoxConstraints(maxWidth: contentMaxWidth),
           child: Form(
             key: _formKey,
             child: Column(
@@ -118,7 +124,7 @@ class _EditUserFormState extends ConsumerState<EditUserForm> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _selectedRole,
+                  initialValue: _selectedRole,
                   decoration: const InputDecoration(
                     labelText: 'Role',
                     prefixIcon: Icon(Icons.badge_outlined),
@@ -137,7 +143,7 @@ class _EditUserFormState extends ConsumerState<EditUserForm> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _selectedDepartment,
+                  initialValue: _selectedDepartment,
                   decoration: const InputDecoration(
                     labelText: 'Department',
                     prefixIcon: Icon(Icons.business_outlined),

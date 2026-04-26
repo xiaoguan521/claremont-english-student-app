@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:responsive_builder/responsive_builder.dart';
 
+import '../../../../core/ui/app_breakpoints.dart';
 import '../../data/portal_models.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
 import '../providers/portal_providers.dart';
@@ -81,17 +83,16 @@ class ActivitiesPage extends ConsumerWidget {
         );
       }
 
-      content = LayoutBuilder(
-        builder: (context, constraints) {
-          final isPhone = constraints.maxWidth < 760;
+      content = ResponsiveBuilder(
+        builder: (context, sizing) {
+          final localSize = sizing.localWidgetSize;
+          final screenType = appScreenTypeFromSizing(sizing);
+          final isPortraitMobile = isPortraitMobileLayout(sizing);
           final isLandscapePhone =
-              constraints.maxWidth > constraints.maxHeight &&
-              constraints.maxWidth < 1100;
+              screenType == AppScreenType.mobile &&
+              localSize.width > localSize.height;
           final visualScale = isLandscapePhone
-              ? _activityLandscapeVisualScale(
-                  constraints.maxWidth,
-                  constraints.maxHeight,
-                )
+              ? _activityLandscapeVisualScale(localSize.width, localSize.height)
               : 1.0;
           final textScale = isLandscapePhone
               ? (MediaQuery.textScalerOf(context).scale(1) * visualScale).clamp(
@@ -99,7 +100,7 @@ class ActivitiesPage extends ConsumerWidget {
                   1.0,
                 )
               : MediaQuery.textScalerOf(context).scale(1);
-          final isShortViewport = constraints.maxHeight < 760;
+          final isShortViewport = localSize.height < 760;
           final list = activities.isEmpty
               ? _ActivitiesStateMessage(
                   title: _isSameDay(selectedDate, today)
@@ -110,9 +111,9 @@ class ActivitiesPage extends ConsumerWidget {
                       : '可以切换到别的日期，看看前后几天的作业安排。',
                 )
               : ListView.separated(
-                  shrinkWrap: isPhone,
-                  primary: !isPhone,
-                  physics: isPhone
+                  shrinkWrap: isPortraitMobile,
+                  primary: false,
+                  physics: isPortraitMobile
                       ? const NeverScrollableScrollPhysics()
                       : const AlwaysScrollableScrollPhysics(),
                   itemCount: activities.length,
@@ -126,159 +127,7 @@ class ActivitiesPage extends ConsumerWidget {
                   },
                 );
 
-          if (isLandscapePhone) {
-            final designWidth = constraints.maxWidth < 980
-                ? 980.0
-                : constraints.maxWidth;
-            final designHeight = constraints.maxHeight.clamp(320.0, 460.0);
-            final railWidth = (designWidth * 0.22).clamp(176.0, 236.0);
-            final gap = designWidth < 900 ? 10.0 : 14.0;
-            final landscapeList = activities.isEmpty
-                ? list
-                : Scrollbar(
-                    thumbVisibility: true,
-                    radius: const Radius.circular(999),
-                    child: list,
-                  );
-
-            final content = MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: TextScaler.linear(textScale)),
-              child: SizedBox(
-                width: designWidth,
-                height: designHeight,
-                child: Column(
-                  children: [
-                    _HomeworkCalendarStrip(
-                      dates: calendarDates,
-                      selectedDate: selectedDate,
-                      today: today,
-                      activityCountByDate: activityCountByDate,
-                      visualScale: visualScale,
-                      onSelectDate: (date) =>
-                          ref
-                                  .read(selectedActivityDateProvider.notifier)
-                                  .state =
-                              date,
-                    ),
-                    SizedBox(height: 14 * visualScale),
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: railWidth * visualScale,
-                            child: SingleChildScrollView(
-                              child: _ActionRail(
-                                summary: summary,
-                                selectedDate: selectedDate,
-                                today: today,
-                                isCompact: true,
-                                visualScale: visualScale,
-                                onResetToToday: !_isSameDay(selectedDate, today)
-                                    ? () =>
-                                          ref
-                                                  .read(
-                                                    selectedActivityDateProvider
-                                                        .notifier,
-                                                  )
-                                                  .state =
-                                              today
-                                    : null,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: gap * visualScale),
-                          Expanded(
-                            child: Container(
-                              padding: EdgeInsets.all(
-                                (designWidth < 900 ? 14 : 18) * visualScale,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.82),
-                                borderRadius: BorderRadius.circular(28),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              _isSameDay(selectedDate, today)
-                                                  ? '今天'
-                                                  : _formatDateLabel(
-                                                      selectedDate,
-                                                    ),
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .headlineSmall
-                                                  ?.copyWith(
-                                                    color: const Color(
-                                                      0xFF1E293B,
-                                                    ),
-                                                    fontWeight: FontWeight.w900,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 12 * visualScale,
-                                          vertical: 8 * visualScale,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFFF2E4),
-                                          borderRadius: BorderRadius.circular(
-                                            18,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          '${activities.length} 份作业',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleSmall
-                                              ?.copyWith(
-                                                color: const Color(0xFFFF8F4D),
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  SizedBox(height: 16 * visualScale),
-                                  Expanded(child: landscapeList),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-
-            return SizedBox.expand(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.topLeft,
-                  child: content,
-                ),
-              ),
-            );
-          }
-
-          if (isPhone) {
+          if (isPortraitMobile) {
             return SingleChildScrollView(
               child: Column(
                 children: [
@@ -314,6 +163,23 @@ class ActivitiesPage extends ConsumerWidget {
             );
           }
 
+          final railWidth = (localSize.width * (isLandscapePhone ? 0.28 : 0.24))
+              .clamp(
+                isLandscapePhone ? 168.0 : 220.0,
+                isLandscapePhone ? 228.0 : 280.0,
+              );
+          final stageGap = isLandscapePhone ? 12.0 * visualScale : 20.0;
+          final stagePadding = isLandscapePhone ? 14.0 * visualScale : 18.0;
+          final stageRadius = isLandscapePhone ? 24.0 : 28.0;
+          final railScale = isLandscapePhone ? visualScale : 1.0;
+          final railCompact = isLandscapePhone || isShortViewport;
+          final twoColumnList = activities.isEmpty
+              ? list
+              : Scrollbar(
+                  radius: const Radius.circular(999),
+                  child: list,
+                );
+
           return Column(
             children: [
               _HomeworkCalendarStrip(
@@ -321,39 +187,99 @@ class ActivitiesPage extends ConsumerWidget {
                 selectedDate: selectedDate,
                 today: today,
                 activityCountByDate: activityCountByDate,
+                visualScale: isLandscapePhone ? visualScale : 1.0,
                 onSelectDate: (date) =>
                     ref.read(selectedActivityDateProvider.notifier).state =
                         date,
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: isLandscapePhone ? 14 * visualScale : 18),
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 248,
-                      child: SingleChildScrollView(
-                        child: _ActionRail(
-                          summary: summary,
-                          selectedDate: selectedDate,
-                          today: today,
-                          isCompact: isShortViewport,
-                          onResetToToday: !_isSameDay(selectedDate, today)
-                              ? () =>
-                                    ref
-                                            .read(
-                                              selectedActivityDateProvider
-                                                  .notifier,
-                                            )
-                                            .state =
-                                        today
-                              : null,
+                child: MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(textScale)),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: railWidth,
+                        child: SingleChildScrollView(
+                          child: _ActionRail(
+                            summary: summary,
+                            selectedDate: selectedDate,
+                            today: today,
+                            isCompact: railCompact,
+                            visualScale: railScale,
+                            onResetToToday: !_isSameDay(selectedDate, today)
+                                ? () =>
+                                      ref
+                                              .read(
+                                                selectedActivityDateProvider
+                                                    .notifier,
+                                              )
+                                              .state =
+                                          today
+                                : null,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 20),
-                    Expanded(child: list),
-                  ],
+                      SizedBox(width: stageGap),
+                      Expanded(
+                        child: Container(
+                          padding: EdgeInsets.all(stagePadding),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.82),
+                            borderRadius: BorderRadius.circular(stageRadius),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _isSameDay(selectedDate, today)
+                                          ? '今天'
+                                          : _formatDateLabel(selectedDate),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineSmall
+                                          ?.copyWith(
+                                            color: const Color(0xFF1E293B),
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 12 * railScale,
+                                      vertical: 8 * railScale,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF2E4),
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: Text(
+                                      '${activities.length} 份作业',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            color: const Color(0xFFFF8F4D),
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 16 * railScale),
+                              Expanded(child: twoColumnList),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -488,6 +414,19 @@ class _HomeworkCalendarStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final headerStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: const Color(0xFF64748B),
+      fontWeight: FontWeight.w800,
+    );
+    final dateStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+      color: const Color(0xFF1E293B),
+      fontWeight: FontWeight.w900,
+    );
+    final footerStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+      color: const Color(0xFF64748B),
+      fontWeight: FontWeight.w700,
+    );
+
     return SizedBox(
       height: 108 * visualScale,
       child: ListView.separated(
@@ -525,33 +464,44 @@ class _HomeworkCalendarStrip extends StatelessWidget {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     isToday ? '今天' : _weekdayLabel(date),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: headerStyle?.copyWith(
                       color: isSelected
                           ? Colors.white.withValues(alpha: 0.9)
                           : const Color(0xFF64748B),
-                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  Text(
-                    '${date.month}/${date.day}',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: isSelected
-                          ? Colors.white
-                          : const Color(0xFF1E293B),
-                      fontWeight: FontWeight.w900,
+                  SizedBox(height: 4 * visualScale),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '${date.month}/${date.day}',
+                          style: dateStyle?.copyWith(
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF1E293B),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
+                  SizedBox(height: 4 * visualScale),
                   Text(
                     count > 0 ? '$count 份作业' : '暂无作业',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: footerStyle?.copyWith(
                       color: isSelected
                           ? Colors.white.withValues(alpha: 0.88)
                           : const Color(0xFF64748B),
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],

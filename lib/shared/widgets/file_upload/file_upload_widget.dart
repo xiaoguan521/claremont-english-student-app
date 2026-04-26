@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../../core/ui/app_breakpoints.dart';
 
 enum FileUploadType {
   image,
@@ -64,6 +65,12 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final viewportHeight = MediaQuery.of(context).size.height;
+    final dropzoneHeight = responsiveClampedValue(
+      viewportHeight * 0.14,
+      min: 104,
+      max: 132,
+    );
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,7 +82,7 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
             onTap: _pickFiles,
             child: Container(
               width: double.infinity,
-              height: 120,
+              height: dropzoneHeight,
               decoration: BoxDecoration(
                 border: Border.all(
                   color: _isDragOver 
@@ -373,7 +380,7 @@ class DocumentUploadWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return FileUploadWidget(
       type: FileUploadType.document,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'rtf'],
+      allowedExtensions: const ['pdf', 'doc', 'docx', 'txt', 'rtf'],
       multiple: multiple,
       maxSizeInBytes: maxSizeInBytes,
       onFilesSelected: onDocumentsSelected,

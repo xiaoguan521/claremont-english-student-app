@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/ui/app_breakpoints.dart';
 import '../../../home/presentation/widgets/k12_dashboard_widgets.dart';
 import '../../../home/presentation/widgets/k12_playful_widgets.dart';
 import '../providers/student_feature_flags_provider.dart';
@@ -145,42 +146,58 @@ class ExplorePage extends ConsumerWidget {
                                 ),
                               ],
                             )
-                          : const Row(
-                              children: [
-                                Expanded(child: _ExploreHeroCopy()),
-                                SizedBox(width: 24),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                final heroArtSize = responsiveWidthCap(
+                                  constraints.maxWidth,
+                                  fraction: 0.2,
+                                  min: 132.0,
+                                  max: 180.0,
+                                );
+                                return Row(
                                   children: [
-                                    SizedBox(
-                                      width: 180,
-                                      height: 180,
-                                      child: K12CartoonHeroScene(),
-                                    ),
-                                    SizedBox(height: 12),
-                                    Wrap(
-                                      spacing: 10,
-                                      runSpacing: 10,
+                                    const Expanded(child: _ExploreHeroCopy()),
+                                    const SizedBox(width: 24),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
                                       children: [
-                                        K12StatusBadge(
-                                          icon: Icons.tips_and_updates_rounded,
-                                          label: '4 个功能排队上线',
-                                          color: Color(0xFFFFE36B),
-                                          foregroundColor: Color(0xFF8A4F00),
-                                          margin: EdgeInsets.zero,
+                                        SizedBox(
+                                          width: heroArtSize,
+                                          height: heroArtSize,
+                                          child: const K12CartoonHeroScene(),
                                         ),
-                                        K12StatusBadge(
-                                          icon: Icons.auto_awesome_rounded,
-                                          label: '更多 AI 英语玩法',
-                                          color: Color(0xFF9AF07A),
-                                          foregroundColor: Color(0xFF155B2D),
-                                          margin: EdgeInsets.zero,
+                                        const SizedBox(height: 12),
+                                        const Wrap(
+                                          spacing: 10,
+                                          runSpacing: 10,
+                                          children: [
+                                            K12StatusBadge(
+                                              icon: Icons
+                                                  .tips_and_updates_rounded,
+                                              label: '4 个功能排队上线',
+                                              color: Color(0xFFFFE36B),
+                                              foregroundColor: Color(
+                                                0xFF8A4F00,
+                                              ),
+                                              margin: EdgeInsets.zero,
+                                            ),
+                                            K12StatusBadge(
+                                              icon: Icons.auto_awesome_rounded,
+                                              label: '更多 AI 英语玩法',
+                                              color: Color(0xFF9AF07A),
+                                              foregroundColor: Color(
+                                                0xFF155B2D,
+                                              ),
+                                              margin: EdgeInsets.zero,
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
                                   ],
-                                ),
-                              ],
+                                );
+                              },
                             ),
                     ),
                   if (featureFlags.showFunZonePromos) ...[

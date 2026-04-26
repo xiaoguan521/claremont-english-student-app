@@ -17,6 +17,9 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:uuid/uuid.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../../core/ui/app_breakpoints.dart';
+import '../../../../core/ui/app_ui_tokens.dart';
+import '../../../../core/widgets/adaptive_dialog_scaffold.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
 import '../../data/app_event_log_repository.dart';
 import '../../data/portal_models.dart';
@@ -597,22 +600,14 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
     if (mounted) {
       final continueRequest = await showDialog<bool>(
         context: context,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('需要麦克风权限'),
-            content: const Text('录音提交作业时需要使用麦克风。点“继续”后，系统会弹出权限请求。'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('暂不'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('继续'),
-              ),
-            ],
-          );
-        },
+        builder: (dialogContext) => _PermissionInfoDialog(
+          title: '需要麦克风权限',
+          message: '录音提交作业时需要使用麦克风。点“继续”后，系统会弹出权限请求。',
+          secondaryLabel: '暂不',
+          primaryLabel: '继续',
+          onSecondary: () => Navigator.of(dialogContext).pop(false),
+          onPrimary: () => Navigator.of(dialogContext).pop(true),
+        ),
       );
 
       if (continueRequest != true) {
@@ -635,25 +630,17 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
       }
       await showDialog<void>(
         context: context,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('麦克风权限未开启'),
-            content: const Text('当前无法录音。请到系统设置里开启麦克风权限后，再回来提交作业。'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('知道了'),
-              ),
-              FilledButton(
-                onPressed: () async {
-                  Navigator.of(dialogContext).pop();
-                  await openAppSettings();
-                },
-                child: const Text('去设置'),
-              ),
-            ],
-          );
-        },
+        builder: (dialogContext) => _PermissionInfoDialog(
+          title: '麦克风权限未开启',
+          message: '当前无法录音。请到系统设置里开启麦克风权限后，再回来提交作业。',
+          secondaryLabel: '知道了',
+          primaryLabel: '去设置',
+          onSecondary: () => Navigator.of(dialogContext).pop(),
+          onPrimary: () async {
+            Navigator.of(dialogContext).pop();
+            await openAppSettings();
+          },
+        ),
       );
       return false;
     }
@@ -3763,128 +3750,111 @@ class _TeachingVideoDialogState extends State<_TeachingVideoDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 760),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${widget.title} · 配套动画',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: const Color(0xFF1E293B),
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+    return AdaptiveDialogScaffold(
+      title: '${widget.title} · 配套动画',
+      backgroundColor: Colors.white,
+      maxDialogWidth: 760,
+      maxDialogHeight: 560,
+      radius: 28,
+      contentPadding: const EdgeInsets.all(20),
+      bodyBuilder: (context, screenType, dialogSize) {
+        final compact = screenType == AppScreenType.mobile;
+        final loadingHeight = compact ? 200.0 : 260.0;
+        final playButtonSize = compact ? 76.0 : 96.0;
+        final playIconSize = compact ? 46.0 : 56.0;
+
+        if (_errorMessage != null) {
+          return _PdfStateMessage(title: '动画暂时打不开', message: _errorMessage!);
+        }
+        if (_initializeFuture == null || _controller == null) {
+          return SizedBox(
+            height: loadingHeight,
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        return FutureBuilder<void>(
+          future: _initializeFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return SizedBox(
+                height: loadingHeight,
+                child: const Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError) {
+              return const _PdfStateMessage(
+                title: '动画暂时打不开',
+                message: '这段动画还没有准备好，请稍后再试。',
+              );
+            }
+            final controller = _controller!;
+            return Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: dialogSize.width,
+                  maxHeight: dialogSize.height,
                 ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_errorMessage != null)
-              _PdfStateMessage(title: '动画暂时打不开', message: _errorMessage!)
-            else if (_initializeFuture == null || _controller == null)
-              const SizedBox(
-                height: 260,
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else
-              FutureBuilder<void>(
-                future: _initializeFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const SizedBox(
-                      height: 260,
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  if (snapshot.hasError) {
-                    return const _PdfStateMessage(
-                      title: '动画暂时打不开',
-                      message: '这段动画还没有准备好，请稍后再试。',
-                    );
-                  }
-                  final controller = _controller!;
-                  return AspectRatio(
-                    aspectRatio: controller.value.aspectRatio == 0
-                        ? 16 / 9
-                        : controller.value.aspectRatio,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          DecoratedBox(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFF112331),
-                                  Color(0xFF1E293B),
-                                  Color(0xFF0F172A),
-                                ],
-                              ),
+                child: AspectRatio(
+                  aspectRatio: controller.value.aspectRatio == 0
+                      ? 16 / 9
+                      : controller.value.aspectRatio,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        DecoratedBox(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF112331),
+                                Color(0xFF1E293B),
+                                Color(0xFF0F172A),
+                              ],
                             ),
-                            child: VideoPlayer(controller),
                           ),
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: _togglePlayback,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                color: controller.value.isPlaying
-                                    ? Colors.black.withValues(alpha: 0.02)
-                                    : Colors.black.withValues(alpha: 0.14),
-                                child: Center(
-                                  child: AnimatedScale(
+                          child: VideoPlayer(controller),
+                        ),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _togglePlayback,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              color: controller.value.isPlaying
+                                  ? Colors.black.withValues(alpha: 0.02)
+                                  : Colors.black.withValues(alpha: 0.14),
+                              child: Center(
+                                child: AnimatedScale(
+                                  duration: const Duration(milliseconds: 180),
+                                  scale: controller.value.isPlaying ? 0.9 : 1,
+                                  child: AnimatedOpacity(
                                     duration: const Duration(milliseconds: 180),
-                                    scale: controller.value.isPlaying ? 0.9 : 1,
-                                    child: AnimatedOpacity(
-                                      duration: const Duration(
-                                        milliseconds: 180,
-                                      ),
-                                      opacity: controller.value.isPlaying
-                                          ? 0
-                                          : 1,
-                                      child: Container(
-                                        width: 96,
-                                        height: 96,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.92,
-                                          ),
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.18,
-                                              ),
-                                              blurRadius: 24,
-                                              offset: const Offset(0, 10),
+                                    opacity: controller.value.isPlaying ? 0 : 1,
+                                    child: Container(
+                                      width: playButtonSize,
+                                      height: playButtonSize,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.92,
+                                        ),
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.18,
                                             ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          Icons.play_arrow_rounded,
-                                          size: 56,
-                                          color: Color(0xFFFF8F4D),
-                                        ),
+                                            blurRadius: 24,
+                                            offset: const Offset(0, 10),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        Icons.play_arrow_rounded,
+                                        size: playIconSize,
+                                        color: const Color(0xFFFF8F4D),
                                       ),
                                     ),
                                   ),
@@ -3892,42 +3862,43 @@ class _TeachingVideoDialogState extends State<_TeachingVideoDialog> {
                               ),
                             ),
                           ),
-                          Positioned(
-                            right: 14,
-                            bottom: 14,
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 180),
-                              opacity: controller.value.isPlaying ? 1 : 0.84,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.46),
-                                  borderRadius: BorderRadius.circular(999),
+                        ),
+                        Positioned(
+                          right: 14,
+                          bottom: 14,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 180),
+                            opacity: controller.value.isPlaying ? 1 : 0.84,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.46),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 8,
-                                  ),
-                                  child: Icon(
-                                    controller.value.isPlaying
-                                        ? Icons.pause_rounded
-                                        : Icons.play_arrow_rounded,
-                                    size: 20,
-                                    color: Colors.white,
-                                  ),
+                                child: Icon(
+                                  controller.value.isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                  size: 20,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
-          ],
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -5413,40 +5384,32 @@ class _PracticeBreakDialogState extends State<_PracticeBreakDialog> {
   @override
   Widget build(BuildContext context) {
     final canContinue = _remainingSeconds == 0;
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return AdaptiveDialogScaffold(
+      title: '休息一下眼睛吧',
+      backgroundColor: Colors.white,
+      maxDialogWidth: 520,
+      maxDialogHeight: 360,
+      radius: AppUiTokens.radiusLg,
+      contentPadding: AppUiTokens.dialogPadding,
+      bodyBuilder: (context, screenType, _) {
+        final compact = screenType == AppScreenType.mobile;
+        return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 56,
-              height: 56,
+              width: compact ? 50 : 56,
+              height: compact ? 50 : 56,
               decoration: BoxDecoration(
                 color: const Color(0xFFE0F2FE),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.self_improvement_rounded,
-                color: Color(0xFF0284C7),
-                size: 28,
+                color: const Color(0xFF0284C7),
+                size: compact ? 24 : 28,
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              '休息一下眼睛吧',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: const Color(0xFF0F172A),
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: AppUiTokens.spaceMd),
             Text(
               '你已经连续学习了一段时间。看一看远处，转转脖子，再回来继续今天的英语任务。',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -5458,10 +5421,13 @@ class _PracticeBreakDialogState extends State<_PracticeBreakDialog> {
             const SizedBox(height: 18),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: AppUiTokens.spaceSm,
+              ),
               decoration: BoxDecoration(
                 color: const Color(0xFFEAFBF1),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(AppUiTokens.radiusSm),
               ),
               child: Row(
                 children: [
@@ -5485,7 +5451,7 @@ class _PracticeBreakDialogState extends State<_PracticeBreakDialog> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const Spacer(),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -5493,7 +5459,7 @@ class _PracticeBreakDialogState extends State<_PracticeBreakDialog> {
                     ? () => Navigator.of(context).pop()
                     : null,
                 style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
+                  minimumSize: const Size.fromHeight(AppUiTokens.chipHeight),
                   backgroundColor: const Color(0xFF2FA77D),
                   foregroundColor: Colors.white,
                 ),
@@ -5501,8 +5467,87 @@ class _PracticeBreakDialogState extends State<_PracticeBreakDialog> {
               ),
             ),
           ],
-        ),
+        );
+      },
+    );
+  }
+}
+
+class _PermissionInfoDialog extends StatelessWidget {
+  const _PermissionInfoDialog({
+    required this.title,
+    required this.message,
+    required this.secondaryLabel,
+    required this.primaryLabel,
+    required this.onSecondary,
+    required this.onPrimary,
+  });
+
+  final String title;
+  final String message;
+  final String secondaryLabel;
+  final String primaryLabel;
+  final VoidCallback onSecondary;
+  final VoidCallback onPrimary;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdaptiveDialogScaffold(
+      title: title,
+      backgroundColor: Colors.white,
+      maxDialogWidth: 520,
+      maxDialogHeight: 320,
+      radius: AppUiTokens.spaceXl,
+      contentPadding: const EdgeInsets.fromLTRB(
+        AppUiTokens.spaceLg,
+        AppUiTokens.spaceLg,
+        AppUiTokens.spaceLg,
+        18,
       ),
+      bodyBuilder: (context, screenType, _) {
+        final compact = screenType == AppScreenType.mobile;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF475569),
+                fontWeight: FontWeight.w700,
+                height: 1.5,
+              ),
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onSecondary,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: Size.fromHeight(
+                        compact ? 48 : AppUiTokens.chipHeight,
+                      ),
+                    ),
+                    child: Text(secondaryLabel),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: onPrimary,
+                    style: FilledButton.styleFrom(
+                      minimumSize: Size.fromHeight(
+                        compact ? 48 : AppUiTokens.chipHeight,
+                      ),
+                    ),
+                    child: Text(primaryLabel),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

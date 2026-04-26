@@ -17,8 +17,9 @@ void main() {
   Future<void> pumpStudentHome(
     WidgetTester tester, {
     StudentFeatureFlags featureFlags = const StudentFeatureFlags(),
+    Size viewport = const Size(1400, 900),
   }) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = viewport;
     tester.view.devicePixelRatio = 1.0;
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -103,7 +104,7 @@ void main() {
 
     await tester.tap(find.text('老师点评'));
     await tester.pumpAndSettle();
-    expect(find.text('老师反馈'), findsOneWidget);
+    expect(find.text('先完成今天的作业'), findsOneWidget);
 
     await tester.tapAt(const Offset(8, 8));
     await tester.pumpAndSettle();
@@ -111,6 +112,68 @@ void main() {
     await tester.tap(find.text('英语学习'));
     await tester.pumpAndSettle();
     expect(find.text('我的学校'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('landscape phone home page keeps unified dashboard layout', (
+    WidgetTester tester,
+  ) async {
+    addTearDown(tester.view.reset);
+    await pumpStudentHome(tester, viewport: const Size(932, 430));
+
+    expect(find.text('英语学习'), findsOneWidget);
+    expect(find.text('老师点评'), findsOneWidget);
+    expect(find.text('今日主线'), findsOneWidget);
+
+    await tester.drag(find.byType(PageView), const Offset(-700, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('今日课表'), findsOneWidget);
+    expect(find.text('任务中心'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('compact tablet home page second screen still renders cards', (
+    WidgetTester tester,
+  ) async {
+    addTearDown(tester.view.reset);
+    await pumpStudentHome(tester, viewport: const Size(1080, 640));
+
+    await tester.drag(find.byType(PageView), const Offset(-820, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('今日任务'), findsWidgets);
+    expect(find.text('点评中心'), findsOneWidget);
+    expect(find.text('任务中心'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('home page stays stable across responsive landscape viewports', (
+    WidgetTester tester,
+  ) async {
+    addTearDown(tester.view.reset);
+
+    const viewports = <Size>[
+      Size(932, 430),
+      Size(1080, 640),
+      Size(1200, 700),
+      Size(1400, 900),
+    ];
+
+    for (final viewport in viewports) {
+      await pumpStudentHome(tester, viewport: viewport);
+
+      expect(find.byType(PageView), findsOneWidget);
+      expect(find.text('老师点评'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.drag(find.byType(PageView), const Offset(-760, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.text('今日任务'), findsWidgets);
+      expect(find.text('任务中心'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets('home page hides growth rewards when reward flag is off', (

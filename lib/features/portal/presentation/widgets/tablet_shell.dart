@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/ui/app_breakpoints.dart';
+import '../../../../core/ui/app_ui_tokens.dart';
 import '../../../../core/widgets/brand_avatar.dart';
 
 enum TabletSection { teaching, management, explore }
@@ -144,22 +146,22 @@ class TabletShell extends StatelessWidget {
                                   ? 10
                                   : 14
                             : isCompact
-                            ? 16
-                            : 24,
+                            ? AppUiTokens.spaceMd
+                            : AppUiTokens.spaceXl,
                         isLandscapePhone
                             ? isTightLandscapePhone
                                   ? 8
                                   : 10
                             : isCompact
                             ? 14
-                            : 16,
+                            : AppUiTokens.spaceMd,
                         isLandscapePhone
                             ? isTightLandscapePhone
                                   ? 10
                                   : 14
                             : isCompact
-                            ? 16
-                            : 24,
+                            ? AppUiTokens.spaceMd
+                            : AppUiTokens.spaceXl,
                         isLandscapePhone
                             ? isTightLandscapePhone
                                   ? 6
@@ -197,8 +199,8 @@ class TabletShell extends StatelessWidget {
                               height: isLandscapePhone
                                   ? 8
                                   : isCompact
-                                  ? 12
-                                  : 18,
+                                  ? AppUiTokens.spaceSm
+                                  : AppUiTokens.spaceLg - 2,
                             ),
                             _BottomSectionNav(
                               activeSection: activeSection,
@@ -472,63 +474,77 @@ class _BottomSectionNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 560),
-        padding: EdgeInsets.symmetric(
-          horizontal: isLandscapePhone
-              ? 10
-              : isCompact
-              ? 12
-              : 18,
-          vertical: isLandscapePhone
-              ? 8
-              : isCompact
-              ? 10
-              : 12,
-        ),
-        decoration: BoxDecoration(
-          color: theme.bottomNavColor,
-          borderRadius: BorderRadius.circular(36),
-          border: Border.all(
-            color: theme.titleChipBorderColor.withValues(alpha: 0.6),
-            width: 1.4,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: theme.bottomNavShadowColor,
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final responsiveMaxWidth = constraints.maxWidth.isFinite
+              ? responsiveWidthCap(
+                  constraints.maxWidth,
+                  fraction: 0.96,
+                  min: 280.0,
+                  max: 560.0,
+                )
+              : 560.0;
+          return ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: responsiveMaxWidth),
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: isLandscapePhone
+                    ? 10
+                    : isCompact
+                    ? AppUiTokens.spaceSm
+                    : AppUiTokens.spaceLg - 2,
+                vertical: isLandscapePhone
+                    ? 8
+                    : isCompact
+                    ? 10
+                    : AppUiTokens.spaceSm,
+              ),
+              decoration: BoxDecoration(
+                color: theme.bottomNavColor,
+                borderRadius: BorderRadius.circular(AppUiTokens.radiusXl + 2),
+                border: Border.all(
+                  color: theme.titleChipBorderColor.withValues(alpha: 0.6),
+                  width: 1.4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.bottomNavShadowColor,
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _NavChip(
+                    label: '作业',
+                    icon: Icons.menu_book_rounded,
+                    selected: activeSection == TabletSection.teaching,
+                    onTap: () => context.go('/activities'),
+                    theme: theme,
+                  ),
+                  SizedBox(width: isCompact ? 8 : 12),
+                  _NavChip(
+                    label: '首页',
+                    icon: Icons.dashboard_customize_rounded,
+                    selected: activeSection == TabletSection.management,
+                    onTap: () => context.go('/home'),
+                    theme: theme,
+                  ),
+                  SizedBox(width: isCompact ? 8 : 12),
+                  _NavChip(
+                    label: '更多',
+                    icon: Icons.stars_rounded,
+                    selected: activeSection == TabletSection.explore,
+                    onTap: () => context.go('/explore'),
+                    theme: theme,
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _NavChip(
-              label: '作业',
-              icon: Icons.menu_book_rounded,
-              selected: activeSection == TabletSection.teaching,
-              onTap: () => context.go('/activities'),
-              theme: theme,
-            ),
-            SizedBox(width: isCompact ? 8 : 12),
-            _NavChip(
-              label: '首页',
-              icon: Icons.dashboard_customize_rounded,
-              selected: activeSection == TabletSection.management,
-              onTap: () => context.go('/home'),
-              theme: theme,
-            ),
-            SizedBox(width: isCompact ? 8 : 12),
-            _NavChip(
-              label: '更多',
-              icon: Icons.stars_rounded,
-              selected: activeSection == TabletSection.explore,
-              onTap: () => context.go('/explore'),
-              theme: theme,
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

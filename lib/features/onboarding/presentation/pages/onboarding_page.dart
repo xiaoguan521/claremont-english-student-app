@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/ui/app_breakpoints.dart';
 import '../widgets/onboarding_step.dart';
 import '../../../../core/router/app_router.dart';
 
@@ -17,35 +18,35 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   int _currentPage = 0;
 
   final List<OnboardingStepData> _steps = [
-    OnboardingStepData(
+    const OnboardingStepData(
       title: '欢迎来到英语打卡',
       description: '每天跟着老师布置的任务练听、练读、练说，完成后就能看到 AI 初评和老师反馈。',
       image: Icons.rocket_launch,
-      color: const Color(0xFF2FBF9B),
+      color: Color(0xFF2FBF9B),
     ),
-    OnboardingStepData(
+    const OnboardingStepData(
       title: '按学校自动进入',
       description: '登录后系统会自动识别你的学校；只有一个账号属于多个学校时，才需要手动选择。',
       image: Icons.palette,
-      color: const Color(0xFFFF9B55),
+      color: Color(0xFFFF9B55),
     ),
-    OnboardingStepData(
+    const OnboardingStepData(
       title: '作业流程更清楚',
       description: '打开教材、听示范、录音提交，一条链路完成今天的英语打卡，不会再找不到入口。',
       image: Icons.devices,
       color: Colors.teal,
     ),
-    OnboardingStepData(
+    const OnboardingStepData(
       title: 'AI 初评 + 老师复核',
       description: '提交录音后会先进入 AI 初评，再由老师复核，让你更快看到发音建议和鼓励反馈。',
       image: Icons.settings_input_component,
       color: Colors.orange,
     ),
-    OnboardingStepData(
+    const OnboardingStepData(
       title: '准备开始今天的任务',
       description: '进入首页后先看今日任务，再去完成作业、查看老师反馈和自己的学习进度。',
       image: Icons.star,
-      color: const Color(0xFF68C96A),
+      color: Color(0xFF68C96A),
     ),
   ];
 
@@ -57,6 +58,13 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final viewportWidth = MediaQuery.of(context).size.width;
+    final previousPlaceholderWidth = responsiveClampedValue(
+      viewportWidth * 0.18,
+      min: 84,
+      max: 112,
+    );
+
     return Scaffold(
       body: Stack(
         children: [
@@ -120,7 +128,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                           child: const Text('上一步'),
                         )
                       else
-                        const SizedBox(width: 100),
+                        SizedBox(width: previousPlaceholderWidth),
                       FilledButton(
                         onPressed: _currentPage == _steps.length - 1
                             ? _completeOnboarding

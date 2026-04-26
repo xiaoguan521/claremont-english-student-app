@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/ui/app_ui_tokens.dart';
+
 class K12PlayfulDashboardFrame extends StatelessWidget {
   const K12PlayfulDashboardFrame({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(20),
+    this.padding = const EdgeInsets.all(AppUiTokens.spaceLg),
   });
 
   final Widget child;
@@ -12,7 +14,7 @@ class K12PlayfulDashboardFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(40);
+    final radius = BorderRadius.circular(AppUiTokens.radiusXl + 6);
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -151,16 +153,19 @@ class K12HeroBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: AppUiTokens.spaceSm,
+      ),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusSm),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 18, color: Colors.white),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppUiTokens.spaceXs),
           Flexible(
             child: Text(
               label,
@@ -190,7 +195,7 @@ class K12MiniMetric extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppUiTokens.spaceLg),
       ),
       child: Row(
         children: [
@@ -240,7 +245,7 @@ class K12HeroScheduleLine extends StatelessWidget {
           height: 46,
           decoration: BoxDecoration(
             color: accent,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppUiTokens.spaceMd),
             boxShadow: [
               BoxShadow(
                 color: accent.withValues(alpha: 0.32),
@@ -251,7 +256,7 @@ class K12HeroScheduleLine extends StatelessWidget {
           ),
           child: Icon(icon, color: const Color(0xFF2257B1)),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppUiTokens.spaceSm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

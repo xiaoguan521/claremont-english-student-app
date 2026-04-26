@@ -92,10 +92,25 @@ void main() {
     addTearDown(tester.view.reset);
     await pumpStudentHome(tester);
 
-    expect(find.text('English Adventure Dashboard'), findsOneWidget);
-    expect(find.text('Reading Lab'), findsOneWidget);
-    expect(find.text('我的学校'), findsOneWidget);
-    expect(find.text('查看全部作业'), findsOneWidget);
+    expect(find.text('今日英语'), findsOneWidget);
+    expect(find.text('阅读'), findsOneWidget);
+    expect(find.text('老师点评'), findsOneWidget);
+
+    await tester.drag(find.byType(PageView), const Offset(-900, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('今日任务'), findsWidgets);
+    expect(find.text('点评中心'), findsOneWidget);
+
+    await tester.tap(find.text('老师点评'));
+    await tester.pumpAndSettle();
+    expect(find.text('老师反馈'), findsOneWidget);
+
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('英语学习'));
+    await tester.pumpAndSettle();
+    expect(find.text('我的学校'), findsWidgets);
   });
 
   testWidgets('home page hides growth rewards when reward flag is off', (
@@ -112,7 +127,7 @@ void main() {
     );
 
     expect(find.textContaining('星币'), findsNothing);
-    expect(find.text('Task Board'), findsOneWidget);
+    expect(find.text('任务'), findsOneWidget);
   });
 
   testWidgets(

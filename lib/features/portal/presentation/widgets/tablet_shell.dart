@@ -80,6 +80,7 @@ class TabletShell extends StatelessWidget {
   final String brandName;
   final String? brandLogoUrl;
   final String? brandSubtitle;
+  final VoidCallback? onBrandTap;
   final Widget child;
   final List<Widget>? actions;
   final TabletShellTheme theme;
@@ -92,6 +93,7 @@ class TabletShell extends StatelessWidget {
     this.brandName = '',
     this.brandLogoUrl,
     this.brandSubtitle,
+    this.onBrandTap,
     this.actions,
     this.theme = TabletShellTheme.classic,
     super.key,
@@ -143,28 +145,28 @@ class TabletShell extends StatelessWidget {
                                   : 14
                             : isCompact
                             ? 16
-                            : 28,
+                            : 24,
                         isLandscapePhone
                             ? isTightLandscapePhone
                                   ? 8
                                   : 10
                             : isCompact
                             ? 14
-                            : 22,
+                            : 16,
                         isLandscapePhone
                             ? isTightLandscapePhone
                                   ? 10
                                   : 14
                             : isCompact
                             ? 16
-                            : 28,
+                            : 24,
                         isLandscapePhone
                             ? isTightLandscapePhone
                                   ? 6
                                   : 8
                             : isCompact
                             ? 14
-                            : 18,
+                            : 14,
                       ),
                       child: Column(
                         children: [
@@ -174,6 +176,7 @@ class TabletShell extends StatelessWidget {
                             brandName: brandName,
                             brandLogoUrl: brandLogoUrl,
                             brandSubtitle: brandSubtitle,
+                            onBrandTap: onBrandTap,
                             actions: actions,
                             isCompact: isCompact,
                             isLandscapePhone: isLandscapePhone,
@@ -186,7 +189,7 @@ class TabletShell extends StatelessWidget {
                                       : 10
                                 : isCompact
                                 ? 14
-                                : 20,
+                                : 14,
                           ),
                           Expanded(child: child),
                           if (showBottomNav) ...[
@@ -224,6 +227,7 @@ class _TopBar extends StatelessWidget {
   final String brandName;
   final String? brandLogoUrl;
   final String? brandSubtitle;
+  final VoidCallback? onBrandTap;
   final List<Widget>? actions;
   final bool isCompact;
   final bool isLandscapePhone;
@@ -235,6 +239,7 @@ class _TopBar extends StatelessWidget {
     this.brandLogoUrl,
     this.subtitle,
     this.brandSubtitle,
+    this.onBrandTap,
     this.actions,
     required this.isCompact,
     required this.isLandscapePhone,
@@ -251,128 +256,146 @@ class _TopBar extends StatelessWidget {
     final secondaryBrandText = brandName.trim().isNotEmpty
         ? brandSubtitle?.trim()
         : null;
+    final brandChipChild = Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isLandscapePhone
+            ? tightLandscapePhone
+                  ? 8
+                  : 10
+            : isCompact
+            ? 10
+            : 14,
+        vertical: isLandscapePhone
+            ? tightLandscapePhone
+                  ? 6
+                  : 8
+            : isCompact
+            ? 8
+            : 10,
+      ),
+      decoration: BoxDecoration(
+        color: theme.brandChipColor,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: theme.titleChipBorderColor.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: BrandAvatar(
+              logoUrl: brandLogoUrl?.trim() ?? '',
+              size: isLandscapePhone
+                  ? tightLandscapePhone
+                        ? 30
+                        : 34
+                  : isCompact
+                  ? 36
+                  : 38,
+              borderRadius: 14,
+              backgroundColor: Colors.white,
+              fallbackIcon: Icons.auto_stories_rounded,
+              fallbackIconColor: theme.fallbackIconColor,
+            ),
+          ),
+          SizedBox(
+            width: isLandscapePhone ? (tightLandscapePhone ? 6 : 8) : 10,
+          ),
+          if (primaryBrandText.isNotEmpty)
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    primaryBrandText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: isLandscapePhone
+                          ? tightLandscapePhone
+                                ? 13
+                                : 15
+                          : isCompact
+                          ? 16
+                          : 18,
+                    ),
+                  ),
+                  if (secondaryBrandText != null &&
+                      secondaryBrandText.isNotEmpty &&
+                      !isLandscapePhone)
+                    Text(
+                      secondaryBrandText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          if (onBrandTap != null) ...[
+            SizedBox(width: isLandscapePhone ? 6 : 10),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white.withValues(alpha: 0.88),
+            ),
+          ],
+        ],
+      ),
+    );
+
     final brandChip = ConstrainedBox(
       constraints: BoxConstraints(
         maxWidth: isLandscapePhone
             ? tightLandscapePhone
                   ? 184
                   : 220
-            : 360,
+            : 320,
       ),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isLandscapePhone
-              ? tightLandscapePhone
-                    ? 8
-                    : 10
-              : isCompact
-              ? 12
-              : 16,
-          vertical: isLandscapePhone
-              ? tightLandscapePhone
-                    ? 6
-                    : 8
-              : isCompact
-              ? 10
-              : 12,
-        ),
-        decoration: BoxDecoration(
-          color: theme.brandChipColor,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: theme.titleChipBorderColor.withValues(alpha: 0.5),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: BrandAvatar(
-                logoUrl: brandLogoUrl?.trim() ?? '',
-                size: isLandscapePhone
-                    ? tightLandscapePhone
-                          ? 30
-                          : 34
-                    : isCompact
-                    ? 40
-                    : 42,
-                borderRadius: 14,
-                backgroundColor: Colors.white,
-                fallbackIcon: Icons.auto_stories_rounded,
-                fallbackIconColor: theme.fallbackIconColor,
+      child: onBrandTap == null
+          ? brandChipChild
+          : Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onBrandTap,
+                borderRadius: BorderRadius.circular(24),
+                child: brandChipChild,
               ),
             ),
-            SizedBox(
-              width: isLandscapePhone ? (tightLandscapePhone ? 6 : 8) : 12,
-            ),
-            if (primaryBrandText.isNotEmpty)
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      primaryBrandText,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: isLandscapePhone
-                            ? tightLandscapePhone
-                                  ? 13
-                                  : 15
-                            : isCompact
-                            ? 16
-                            : null,
-                      ),
-                    ),
-                    if (secondaryBrandText != null &&
-                        secondaryBrandText.isNotEmpty &&
-                        !isLandscapePhone)
-                      Text(
-                        secondaryBrandText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
     );
 
     final titleChip = Container(
       padding: EdgeInsets.symmetric(
         horizontal: isLandscapePhone && tightLandscapePhone
-            ? 12
-            : isCompact
-            ? 14
-            : 18,
-        vertical: isLandscapePhone && tightLandscapePhone
             ? 10
             : isCompact
             ? 12
-            : 14,
+            : 16,
+        vertical: isLandscapePhone && tightLandscapePhone
+            ? 8
+            : isCompact
+            ? 10
+            : 11,
       ),
       decoration: BoxDecoration(
         color: theme.titleChipColor,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: theme.titleChipBorderColor, width: 1.4),
       ),
       child: Text(
@@ -384,7 +407,7 @@ class _TopBar extends StatelessWidget {
               ? 15
               : isCompact
               ? 18
-              : null,
+              : 20,
         ),
       ),
     );
@@ -424,7 +447,7 @@ class _TopBar extends StatelessWidget {
     return Row(
       children: [
         brandChip,
-        const SizedBox(width: 18),
+        const SizedBox(width: 12),
         titleChip,
         const Spacer(),
         ...?actions,

@@ -7,6 +7,7 @@ class K12StatusBadge extends StatelessWidget {
     required this.label,
     required this.color,
     required this.foregroundColor,
+    this.onTap,
     this.margin = const EdgeInsets.only(left: 10),
   });
 
@@ -14,11 +15,12 @@ class K12StatusBadge extends StatelessWidget {
   final String label;
   final Color color;
   final Color foregroundColor;
+  final VoidCallback? onTap;
   final EdgeInsetsGeometry margin;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final badge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       margin: margin,
       decoration: BoxDecoration(
@@ -49,6 +51,19 @@ class K12StatusBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+
+    if (onTap == null) {
+      return badge;
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: badge,
       ),
     );
   }

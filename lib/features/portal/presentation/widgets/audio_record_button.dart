@@ -89,15 +89,23 @@ class _AudioRecordButtonState extends State<AudioRecordButton>
       ),
     };
 
-    return FilledButton.icon(
+    return FilledButton(
       onPressed: widget.onPressed,
       style: FilledButton.styleFrom(
-        minimumSize: Size.fromHeight(widget.compact ? 50 : 52),
+        minimumSize: Size.fromHeight(widget.compact ? 54 : 60),
         backgroundColor: backgroundColor,
         foregroundColor: foregroundColor,
+        disabledBackgroundColor: backgroundColor.withValues(alpha: 0.52),
+        disabledForegroundColor: foregroundColor.withValues(alpha: 0.8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        padding: const EdgeInsets.symmetric(horizontal: 18),
       ),
-      icon: widget.state == AudioRecordButtonState.processing
-          ? const SizedBox(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.state == AudioRecordButtonState.processing)
+            const SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(
@@ -105,10 +113,21 @@ class _AudioRecordButtonState extends State<AudioRecordButton>
                 color: Colors.white,
               ),
             )
-          : widget.state == AudioRecordButtonState.recording
-          ? _RecordingPulseIcon(animation: _controller)
-          : Icon(icon),
-      label: Text(label),
+          else if (widget.state == AudioRecordButtonState.recording)
+            _RecordingPulseIcon(animation: _controller)
+          else
+            Icon(icon),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

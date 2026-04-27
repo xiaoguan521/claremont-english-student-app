@@ -56,11 +56,32 @@ jobs:
           APP_DATA_MODE=${APP_DATA_MODE}
           NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+          ALLOW_RELEASE_MOCK_DATA=${ALLOW_RELEASE_MOCK_DATA}
           EOF
         env:
           APP_DATA_MODE: ${{ secrets.APP_DATA_MODE != '' && secrets.APP_DATA_MODE || 'supabase' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          ALLOW_RELEASE_MOCK_DATA: ${{ secrets.ALLOW_RELEASE_MOCK_DATA }}
+
+      - name: Validate release runtime env
+        shell: bash
+        run: |
+          if [[ "${APP_DATA_MODE}" != "supabase" && "${ALLOW_RELEASE_MOCK_DATA}" != "true" ]]; then
+            echo "Release builds must use APP_DATA_MODE=supabase unless ALLOW_RELEASE_MOCK_DATA=true for internal QA."
+            exit 1
+          fi
+          if [[ "${APP_DATA_MODE}" == "supabase" ]]; then
+            if [[ -z "${NEXT_PUBLIC_SUPABASE_URL}" || -z "${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}" ]]; then
+              echo "SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY secrets are required for release Supabase builds."
+              exit 1
+            fi
+          fi
+        env:
+          APP_DATA_MODE: ${{ secrets.APP_DATA_MODE != '' && secrets.APP_DATA_MODE || 'supabase' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          ALLOW_RELEASE_MOCK_DATA: ${{ secrets.ALLOW_RELEASE_MOCK_DATA }}
 
       - name: Decode Android keystore
         if: env.HAS_ANDROID_SIGNING == 'true'
@@ -88,8 +109,11 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
       - name: Run tests
-        run: flutter test test/widget_test.dart
+        run: flutter test
 
       - name: Build release APK
         run: flutter build apk --release
@@ -132,11 +156,32 @@ jobs:
           APP_DATA_MODE=${APP_DATA_MODE}
           NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+          ALLOW_RELEASE_MOCK_DATA=${ALLOW_RELEASE_MOCK_DATA}
           EOF
         env:
           APP_DATA_MODE: ${{ secrets.APP_DATA_MODE != '' && secrets.APP_DATA_MODE || 'supabase' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          ALLOW_RELEASE_MOCK_DATA: ${{ secrets.ALLOW_RELEASE_MOCK_DATA }}
+
+      - name: Validate release runtime env
+        shell: bash
+        run: |
+          if [[ "${APP_DATA_MODE}" != "supabase" && "${ALLOW_RELEASE_MOCK_DATA}" != "true" ]]; then
+            echo "Release builds must use APP_DATA_MODE=supabase unless ALLOW_RELEASE_MOCK_DATA=true for internal QA."
+            exit 1
+          fi
+          if [[ "${APP_DATA_MODE}" == "supabase" ]]; then
+            if [[ -z "${NEXT_PUBLIC_SUPABASE_URL}" || -z "${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}" ]]; then
+              echo "SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY secrets are required for release Supabase builds."
+              exit 1
+            fi
+          fi
+        env:
+          APP_DATA_MODE: ${{ secrets.APP_DATA_MODE != '' && secrets.APP_DATA_MODE || 'supabase' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          ALLOW_RELEASE_MOCK_DATA: ${{ secrets.ALLOW_RELEASE_MOCK_DATA }}
 
       - name: Get dependencies
         run: flutter pub get

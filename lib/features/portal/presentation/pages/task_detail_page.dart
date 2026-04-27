@@ -4752,6 +4752,11 @@ class _InlineSubmissionSection extends StatelessWidget {
                     ? (compact ? '再交' : '再次提交')
                     : (compact ? '提交' : '提交这一句')))
         : (compact ? '录音' : '开始录音');
+    final submitLabel = submissionFlowStatus == SubmissionFlowStatus.failed
+        ? (compact ? '重交' : '重新提交')
+        : submissionFlowStatus == SubmissionFlowStatus.completed
+        ? (compact ? '再交' : '再次提交')
+        : (compact ? '提交' : '提交这一句');
     final primaryIcon = isUnsupportedProtocol
         ? Icons.skip_next_rounded
         : requiresPracticeFirst
@@ -4782,8 +4787,6 @@ class _InlineSubmissionSection extends StatelessWidget {
         ? AudioRecordButtonState.processing
         : isRecording
         ? AudioRecordButtonState.recording
-        : hasSelectedAudio
-        ? AudioRecordButtonState.done
         : AudioRecordButtonState.idle;
     final showSplitActions =
         hasSelectedAudio &&
@@ -4862,10 +4865,8 @@ class _InlineSubmissionSection extends StatelessWidget {
             _AudioInfoCard(
               title: '准备好了',
               fileName: selectedAudioLabel!,
-              onAction: onPlaySelectedAudio,
-              onDelete: onClearSelectedAudio,
-              isPlaying: isSelectedAudioPlaying,
-              isLoading: isSelectedAudioLoading,
+              onAction: null,
+              onDelete: null,
             ),
           ],
           if (existingAudioLabel != null &&
@@ -4881,18 +4882,16 @@ class _InlineSubmissionSection extends StatelessWidget {
           ],
           const SizedBox(height: 14),
           if (showSplitActions)
-            Row(
-              children: [
-                Expanded(
-                  child: AudioRecordButton(
-                    state: recordButtonState,
-                    onPressed: isSubmitting ? null : onRecordAudio,
-                    compact: compact,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(child: primaryButton(compactMode: compact)),
-              ],
+            _RecordedAudioActionRow(
+              compact: compact,
+              isSubmitting: isSubmitting,
+              isPlaying: isSelectedAudioPlaying,
+              isLoading: isSelectedAudioLoading,
+              submitLabel: submitLabel,
+              onPlay: onPlaySelectedAudio,
+              onRecordAgain: onRecordAudio,
+              onDelete: onClearSelectedAudio,
+              onSubmit: canSubmit ? onPrimaryAction : null,
             )
           else
             AudioRecordButton(
@@ -4907,22 +4906,154 @@ class _InlineSubmissionSection extends StatelessWidget {
             const SizedBox(height: 10),
             primaryButton(compactMode: compact),
           ],
-          if (showSplitActions && !compact && onClearSelectedAudio != null) ...[
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _RoundOutlineIconButton(
-                onPressed: isSubmitting ? null : onClearSelectedAudio,
-                tooltip: '删除这段音频',
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                  color: Color(0xFFDC2626),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
+    );
+  }
+}
+
+class _RecordedAudioActionRow extends StatelessWidget {
+  const _RecordedAudioActionRow({
+    required this.compact,
+    required this.isSubmitting,
+    required this.isPlaying,
+    required this.isLoading,
+    required this.submitLabel,
+    required this.onSubmit,
+    this.onPlay,
+    this.onRecordAgain,
+    this.onDelete,
+  });
+
+  final bool compact;
+  final bool isSubmitting;
+  final bool isPlaying;
+  final bool isLoading;
+  final String submitLabel;
+  final VoidCallback? onSubmit;
+  final VoidCallback? onPlay;
+  final VoidCallback? onRecordAgain;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final playLabel = isLoading ? '加载' : (isPlaying ? '停止' : '试听');
+    final secondaryHeight = compact ? 48.0 : 52.0;
+    final children = <Widget>[
+      if (onPlay != null)
+        _RecordedAudioPillButton(
+          label: playLabel,
+          icon: isLoading
+              ? null
+              : isPlaying
+              ? Icons.stop_circle_rounded
+              : Icons.play_circle_fill_rounded,
+          onPressed: isSubmitting ? null : onPlay,
+          isLoading: isLoading,
+          height: secondaryHeight,
+        ),
+      _RecordedAudioPillButton(
+        label: compact ? '重录' : '重录一次',
+        icon: Icons.restart_alt_rounded,
+        onPressed: isSubmitting ? null : onRecordAgain,
+        height: secondaryHeight,
+      ),
+      if (onDelete != null && !compact)
+        _RecordedAudioPillButton(
+          label: '删除',
+          icon: Icons.delete_outline_rounded,
+          onPressed: isSubmitting ? null : onDelete,
+          height: secondaryHeight,
+          danger: true,
+        ),
+    ];
+
+    return Row(
+      children: [
+        for (var index = 0; index < children.length; index++) ...[
+          if (index > 0) const SizedBox(width: 8),
+          Flexible(child: children[index]),
+        ],
+        const SizedBox(width: 10),
+        Expanded(
+          flex: compact ? 2 : 3,
+          child: FilledButton.icon(
+            onPressed: isSubmitting ? null : onSubmit,
+            style: FilledButton.styleFrom(
+              minimumSize: Size.fromHeight(secondaryHeight),
+              backgroundColor: const Color(0xFFFF8F4D),
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: const Color(0xFFFFC4A3),
+              disabledForegroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            icon: isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.cloud_upload_rounded),
+            label: Text(
+              isSubmitting ? '提交中' : submitLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecordedAudioPillButton extends StatelessWidget {
+  const _RecordedAudioPillButton({
+    required this.label,
+    required this.height,
+    this.icon,
+    this.onPressed,
+    this.isLoading = false,
+    this.danger = false,
+  });
+
+  final String label;
+  final double height;
+  final IconData? icon;
+  final VoidCallback? onPressed;
+  final bool isLoading;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final foregroundColor = danger
+        ? const Color(0xFFDC2626)
+        : const Color(0xFF2563EB);
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        minimumSize: Size.fromHeight(height),
+        foregroundColor: foregroundColor,
+        backgroundColor: Colors.white,
+        side: BorderSide(color: foregroundColor.withValues(alpha: 0.22)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+      ),
+      icon: isLoading
+          ? SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: foregroundColor,
+              ),
+            )
+          : Icon(icon, size: 18),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
   }
 }

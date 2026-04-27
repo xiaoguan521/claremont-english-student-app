@@ -101,6 +101,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('今日任务'), findsWidgets);
     expect(find.text('点评中心'), findsOneWidget);
+    expect(find.text('今日学习地图'), findsOneWidget);
 
     await tester.tap(find.text('老师点评'));
     await tester.pumpAndSettle();

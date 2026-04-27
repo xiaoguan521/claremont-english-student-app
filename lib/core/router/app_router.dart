@@ -146,6 +146,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/student-release-lab',
         builder: (context, state) => const StudentReleaseLabPage(),
       ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsPage(),
+      ),
       ShellRoute(
         builder: (context, state, child) => ResponsiveScaffold(child: child),
         routes: [
@@ -169,10 +173,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/notifications',
             builder: (context, state) => const NotificationsPage(),
-          ),
-          GoRoute(
-            path: '/settings',
-            builder: (context, state) => const SettingsPage(),
           ),
           GoRoute(
             path: '/showcase/ui',

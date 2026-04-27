@@ -56,6 +56,13 @@
   - 默认就是 `supabase`
   - 如果不填，工作流会自动写成 `supabase`
 
+### 内部 QA 专用
+
+- `ALLOW_RELEASE_MOCK_DATA`
+  - 默认不要配置
+  - 只有需要构建“Release 形态 + Mock 数据”的内部 QA 包时才允许设置为 `true`
+  - 正式上线包必须保持为空或 `false`
+
 ### Android 正式签名可选 Secret
 
 如果你要让 GitHub Actions 直接产出正式签名的 Android 包，再补下面几个：
@@ -110,6 +117,6 @@
 2. 先配置：
    - `SUPABASE_URL`
    - `SUPABASE_PUBLISHABLE_KEY`
-3. 先手动跑一次 `Flutter Build`，确认 Android `apk/aab` 能正常产出
+3. 先手动跑一次 `Flutter Build`，确认 `flutter analyze --no-fatal-infos`、`flutter test` 和 Android `apk/aab` 能正常产出
 4. 再补 Android keystore 的 4 个 Secret，切到正式签名包
 5. iOS 暂时只保留工程可编译检查，不作为当前发布阻塞项

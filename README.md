@@ -36,6 +36,13 @@ flutter run
 
 - `APP_DATA_MODE=supabase`
 
+生产包要求：
+
+- Release 构建必须使用 `APP_DATA_MODE=supabase`
+- Release 构建必须提供 `SUPABASE_URL` 与 `SUPABASE_ANON_KEY`，或对应的 `NEXT_PUBLIC_...` 变量
+- 如果内部 QA 需要构建使用 Mock 数据的 release 包，必须显式设置 `ALLOW_RELEASE_MOCK_DATA=true`
+- 正式上线包不要设置 `ALLOW_RELEASE_MOCK_DATA=true`
+
 ## Supabase 目录
 
 仓库内的 `supabase/` 目录包含：
@@ -67,6 +74,9 @@ PU Start 已开始从手写 seed 迁到 manifest 规范：
 
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
+- `APP_DATA_MODE`
+
+其中 `APP_DATA_MODE` 正式环境应为 `supabase`。CI 默认也会写入 `supabase`，避免 release 包静默回退到 Mock 数据。
 
 如果后续要产出正式签名 Android 包，还需要额外配置签名相关 Secrets。
 

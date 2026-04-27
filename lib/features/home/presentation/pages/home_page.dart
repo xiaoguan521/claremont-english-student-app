@@ -380,10 +380,16 @@ void _showScheduleDialog(BuildContext context) {
               ),
             ),
             const SizedBox(height: 24),
-            const Expanded(
+            Expanded(
               child: _DashboardEmptyState(
                 icon: Icons.note_alt_outlined,
-                title: '暂无课程',
+                title: '今天没有课程',
+                subtitle: '先完成老师布置的英语任务，学习记录会自动同步给老师。',
+                actionLabel: '去做今日任务',
+                onAction: () {
+                  Navigator.of(context).pop();
+                  context.go('/activities');
+                },
               ),
             ),
           ],
@@ -403,9 +409,15 @@ void _showTodayTasksDialog(BuildContext context, PortalSummary summary) {
       _DashboardHeaderChip(label: '全部', showChevron: true),
     ],
     child: summary.pendingTasks == 0
-        ? const _DashboardEmptyState(
+        ? _DashboardEmptyState(
             icon: Icons.note_alt_outlined,
             title: '暂无学习内容',
+            subtitle: '今天没有新的任务，可以去任务中心看看历史作业和点评。',
+            actionLabel: '查看全部作业',
+            onAction: () {
+              Navigator.of(context).pop();
+              context.go('/activities');
+            },
           )
         : _DashboardTaskList(
             rows: List.generate(
@@ -476,25 +488,29 @@ void _showTaskCenterDialog(
       title: activityTitle,
       target: '$className 周日2:30',
       range: '04月19日-04月23日',
-      status: '已过期',
+      status: '可补做',
+      actionLabel: '补做',
     ),
     _TaskCenterRowData(
       title: '【Kid\'s Box 1 第二版 精装版】3天打卡活动',
       target: '$className 周日2:30',
       range: '04月12日-04月14日',
-      status: '已过期',
+      status: '已点评',
+      actionLabel: '查看',
     ),
     _TaskCenterRowData(
       title: '【Kid\'s Box 1 第二版 精装版】3天打卡活动',
       target: '$className 周日2:30',
       range: '04月05日-04月07日',
-      status: '已过期',
+      status: '已完成',
+      actionLabel: '回看',
     ),
     _TaskCenterRowData(
       title: '【Kid\'s Box 1 第二版 精装版】3天打卡活动',
       target: '$className 周日2:30',
       range: '03月29日-03月31日',
-      status: '已过期',
+      status: '已结束',
+      actionLabel: '查看',
     ),
   ];
 
@@ -1031,16 +1047,58 @@ void _showMomentsDialog(
 }
 
 void _showSettingsDialog(BuildContext context, String? currentUserEmail) {
-  final rows = [
-    ('切换账号', currentUserEmail ?? 'student@claremont.local', true),
-    ('当前版本', '5.3.35.230742', false),
-    ('发现新版本', '立即更新', true),
-    ('语言', '简体中文', true),
-    ('护眼模式', '无限制', true),
-    ('隐私政策', '', true),
-    ('服务使用协议', '', true),
-    ('儿童隐私政策', '', true),
-    ('上传日志', '', true),
+  final sections = [
+    _SettingsDialogSectionData(
+      title: '账号与学校',
+      accent: const Color(0xFF4AA7FF),
+      icon: Icons.school_rounded,
+      items: [
+        _SettingsDialogItemData(
+          title: '当前账号',
+          value: currentUserEmail ?? 'student@claremont.local',
+          icon: Icons.person_rounded,
+        ),
+        const _SettingsDialogItemData(
+          title: '学校学习入口',
+          value: '已绑定',
+          icon: Icons.auto_stories_rounded,
+        ),
+      ],
+    ),
+    const _SettingsDialogSectionData(
+      title: '学习保护',
+      accent: Color(0xFF6BD85F),
+      icon: Icons.health_and_safety_rounded,
+      items: [
+        _SettingsDialogItemData(
+          title: '柔和护眼模式',
+          value: '已开启',
+          icon: Icons.visibility_rounded,
+        ),
+        _SettingsDialogItemData(
+          title: '专注休息提醒',
+          value: '20 分钟',
+          icon: Icons.timer_rounded,
+        ),
+      ],
+    ),
+    const _SettingsDialogSectionData(
+      title: '隐私与支持',
+      accent: Color(0xFFFFB84D),
+      icon: Icons.verified_user_rounded,
+      items: [
+        _SettingsDialogItemData(
+          title: '儿童隐私政策',
+          value: '查看',
+          icon: Icons.child_care_rounded,
+        ),
+        _SettingsDialogItemData(
+          title: '上传日志',
+          value: '帮助排查',
+          icon: Icons.cloud_upload_rounded,
+        ),
+      ],
+    ),
   ];
 
   showDialog<void>(
@@ -1049,52 +1107,246 @@ void _showSettingsDialog(BuildContext context, String? currentUserEmail) {
       title: '系统设置',
       maxDialogWidth: 980,
       maxDialogHeight: 660,
-      bodyBuilder: (context, _, __) => ListView.separated(
-        itemCount: rows.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 14),
-        itemBuilder: (context, index) {
-          final row = rows[index];
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    row.$1,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: const Color(0xFF1E293B),
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+      bodyBuilder: (context, screenType, dialogSize) {
+        final useGrid =
+            screenType != AppScreenType.mobile &&
+            dialogSize.width >= 760 &&
+            dialogSize.height >= 520;
+        final cards = sections
+            .map((section) => _SettingsDialogSection(section: section))
+            .toList();
+
+        return Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFE9F8FF), Color(0xFFFFF6CE)],
                 ),
-                if (row.$2.isNotEmpty)
-                  Text(
-                    row.$2,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: row.$1 == '发现新版本'
-                          ? const Color(0xFFD19400)
-                          : const Color(0xFF3B82F6),
-                      fontWeight: FontWeight.w800,
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(
+                      Icons.settings_rounded,
+                      color: Color(0xFF2E7BEF),
+                      size: 30,
                     ),
                   ),
-                if (row.$3) ...[
-                  const SizedBox(width: 10),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color(0xFF3B82F6),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '把学习环境调舒服一点',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: const Color(0xFF15325F),
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '账号、护眼、隐私和日志支持都在这里。',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: const Color(0xFF5A718A),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: useGrid
+                  ? GridView.count(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      childAspectRatio: 1.7,
+                      children: cards,
+                    )
+                  : ListView.separated(
+                      itemCount: cards.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 14),
+                      itemBuilder: (context, index) => cards[index],
+                    ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      context.go('/student-release-lab');
+                    },
+                    icon: const Icon(Icons.science_rounded),
+                    label: const Text('发布诊断'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      context.go('/settings');
+                    },
+                    icon: const Icon(Icons.open_in_full_rounded),
+                    label: const Text('完整设置'),
+                  ),
+                ),
               ],
             ),
-          );
-        },
-      ),
+          ],
+        );
+      },
     ),
   );
+}
+
+class _SettingsDialogSectionData {
+  const _SettingsDialogSectionData({
+    required this.title,
+    required this.accent,
+    required this.icon,
+    required this.items,
+  });
+
+  final String title;
+  final Color accent;
+  final IconData icon;
+  final List<_SettingsDialogItemData> items;
+}
+
+class _SettingsDialogItemData {
+  const _SettingsDialogItemData({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+}
+
+class _SettingsDialogSection extends StatelessWidget {
+  const _SettingsDialogSection({required this.section});
+
+  final _SettingsDialogSectionData section;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: section.accent.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(section.icon, color: section.accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  section.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: const Color(0xFF15325F),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...section.items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _SettingsDialogItem(item: item),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsDialogItem extends StatelessWidget {
+  const _SettingsDialogItem({required this.item});
+
+  final _SettingsDialogItemData item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5FBFF),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Icon(item.icon, color: const Color(0xFF2C5E9E), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              item.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF1E293B),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              item.value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFF3377D6),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _WideHomeLayout extends StatefulWidget {
@@ -1149,7 +1401,7 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
     final size = MediaQuery.sizeOf(context);
     final layoutWidth = size.width;
     final layoutHeight = size.height;
-    final preferWideRow = layoutWidth >= 900 && layoutHeight < 560;
+    final preferWideRow = layoutWidth >= 720 && layoutHeight < 620;
     final useStackedWide =
         (layoutWidth < 1120 || layoutHeight < 640) && !preferWideRow;
     final useCompactWideDensity = layoutWidth < 980 || layoutHeight < 560;
@@ -1157,8 +1409,8 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
     final sidePanelWidth = useStackedWide ? layoutWidth : 300.0;
     final sidePanelWideWidth = responsiveWidthCap(
       layoutWidth,
-      fraction: 0.24,
-      min: 260.0,
+      fraction: useCompactWideDensity ? 0.22 : 0.24,
+      min: useCompactWideDensity ? 220.0 : 260.0,
       max: 320.0,
     );
     final readingRailWidth = useCompactWideDensity
@@ -1342,8 +1594,11 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
                           highlightedActivityTitle:
                               widget.highlightedActivityTitle,
                           highlightedClassName: widget.highlightedClassName,
+                          compact: useCompactWideDensity,
                         ),
-                        readingRail: const _ReadingShowcaseColumn(),
+                        readingRail: _ReadingShowcaseColumn(
+                          compact: useCompactWideDensity,
+                        ),
                         readingRailWidth: readingRailWidth,
                       ),
                     ),
@@ -2349,10 +2604,19 @@ class _LetterBlock extends StatelessWidget {
 }
 
 class _DashboardEmptyState extends StatelessWidget {
-  const _DashboardEmptyState({required this.icon, required this.title});
+  const _DashboardEmptyState({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final IconData icon;
   final String title;
+  final String? subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -2394,6 +2658,40 @@ class _DashboardEmptyState extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Text(
+                  subtitle!,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF8DA0B8),
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: onAction,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFD34D),
+                  foregroundColor: const Color(0xFF17335F),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                icon: const Icon(Icons.play_circle_fill_rounded),
+                label: Text(actionLabel!),
+              ),
+            ],
           ],
         ),
       ),
@@ -2669,7 +2967,7 @@ class _ReviewCenterTable extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: _CompactActionChip(
-                    label: '查看',
+                    label: row.highlighted ? '看新点评' : '查看点评',
                     highlighted: row.highlighted,
                   ),
                 ),
@@ -2784,27 +3082,13 @@ class _ReviewCenterTable extends StatelessWidget {
                 ),
                 const SizedBox(width: 20),
                 SizedBox(
-                  width: 76,
+                  width: 112,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.manage_search_rounded,
-                            color: Color(0xFF304B86),
-                            size: 40,
-                          ),
-                          Text(
-                            '查看',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  color: const Color(0xFF5A6577),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ],
+                      _CompactActionChip(
+                        label: row.highlighted ? '看新点评' : '查看点评',
+                        highlighted: row.highlighted,
                       ),
                       if (row.highlighted)
                         Positioned(
@@ -2861,7 +3145,7 @@ class _ReviewCenterTable extends StatelessWidget {
                       child: Text('点评时间', style: tableLabelStyle),
                     ),
                     const SizedBox(width: 20),
-                    const SizedBox(width: 76, child: Text('操作')),
+                    const SizedBox(width: 112, child: Text('操作')),
                   ],
                 ),
               ),
@@ -2924,23 +3208,36 @@ class _CompactActionChip extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: const Color(0xFFF4F8FF),
-            borderRadius: BorderRadius.circular(16),
+            color: highlighted
+                ? const Color(0xFFFFE8E0)
+                : const Color(0xFFEAF4FF),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: highlighted
+                  ? const Color(0xFFFF8F4D).withValues(alpha: 0.26)
+                  : const Color(0xFF2D8DFF).withValues(alpha: 0.18),
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.manage_search_rounded,
-                color: Color(0xFF304B86),
+              Icon(
+                highlighted
+                    ? Icons.mark_chat_unread_rounded
+                    : Icons.manage_search_rounded,
+                color: highlighted
+                    ? const Color(0xFFE85D2A)
+                    : const Color(0xFF2C66D5),
                 size: 22,
               ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF5A6577),
-                  fontWeight: FontWeight.w800,
+                  color: highlighted
+                      ? const Color(0xFF9A3F17)
+                      : const Color(0xFF2C66D5),
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],
@@ -2964,18 +3261,74 @@ class _CompactActionChip extends StatelessWidget {
   }
 }
 
+class _TaskStatusPill extends StatelessWidget {
+  const _TaskStatusPill({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (background, foreground, icon) = switch (status) {
+      '可补做' => (
+        const Color(0xFFFFF2E4),
+        const Color(0xFFEA580C),
+        Icons.replay_rounded,
+      ),
+      '已点评' => (
+        const Color(0xFFEAF4FF),
+        const Color(0xFF2C66D5),
+        Icons.mark_chat_read_rounded,
+      ),
+      '已完成' => (
+        const Color(0xFFEAFBF1),
+        const Color(0xFF16A34A),
+        Icons.check_circle_rounded,
+      ),
+      _ => (
+        const Color(0xFFF1F5F9),
+        const Color(0xFF64748B),
+        Icons.flag_rounded,
+      ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: foreground),
+          const SizedBox(width: 6),
+          Text(
+            status,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TaskCenterRowData {
   const _TaskCenterRowData({
     required this.title,
     required this.target,
     required this.range,
     required this.status,
+    required this.actionLabel,
   });
 
   final String title;
   final String target;
   final String range;
   final String status;
+  final String actionLabel;
 }
 
 class _TaskCenterTable extends StatelessWidget {
@@ -3041,11 +3394,14 @@ class _TaskCenterTable extends StatelessWidget {
                 const SizedBox(height: 8),
                 _CompactInfoLine(label: '时间', value: row.range),
                 const SizedBox(height: 8),
-                _CompactInfoLine(label: '状态', value: row.status),
+                _TaskStatusPill(status: row.status),
                 const SizedBox(height: 14),
-                const Align(
+                Align(
                   alignment: Alignment.centerRight,
-                  child: _CompactActionChip(label: '查看'),
+                  child: _CompactActionChip(
+                    label: row.actionLabel,
+                    highlighted: row.status == '可补做',
+                  ),
                 ),
               ],
             ),
@@ -3125,20 +3481,17 @@ class _TaskCenterTable extends StatelessWidget {
                             ),
                       ),
                       const SizedBox(height: 10),
-                      Text(
-                        row.status,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: const Color(0xFF9AA3AF),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                      _TaskStatusPill(status: row.status),
                     ],
                   ),
                 ),
                 const SizedBox(width: 20),
-                const SizedBox(
-                  width: 76,
-                  child: _CompactActionChip(label: '查看'),
+                SizedBox(
+                  width: 100,
+                  child: _CompactActionChip(
+                    label: row.actionLabel,
+                    highlighted: row.status == '可补做',
+                  ),
                 ),
               ],
             ),
@@ -3174,7 +3527,7 @@ class _TaskCenterTable extends StatelessWidget {
                       child: Text('状态', style: tableLabelStyle),
                     ),
                     const SizedBox(width: 20),
-                    const SizedBox(width: 76, child: Text('操作')),
+                    const SizedBox(width: 100, child: Text('操作')),
                   ],
                 ),
               ),
@@ -3240,46 +3593,59 @@ class _WidePageIndicator extends StatelessWidget {
       );
     });
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton.filled(
-          onPressed: onPrevious,
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.white.withValues(alpha: 0.18),
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: Colors.white.withValues(alpha: 0.08),
-            disabledForegroundColor: Colors.white.withValues(alpha: 0.35),
-          ),
-          icon: const Icon(Icons.chevron_left_rounded),
-        ),
-        const SizedBox(width: 12),
-        ...dots.expand((dot) => [dot, const SizedBox(width: 8)]).toList()
-          ..removeLast(),
-        const SizedBox(width: 12),
-        Text(
-          currentIndex == 0
-              ? '向左滑动看更多'
-              : currentIndex == pageCount - 1
-              ? '向右滑动返回上一屏'
-              : '左右滑动切换内容',
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(width: 12),
-        IconButton.filled(
-          onPressed: onNext,
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.white.withValues(alpha: 0.18),
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: Colors.white.withValues(alpha: 0.08),
-            disabledForegroundColor: Colors.white.withValues(alpha: 0.35),
-          ),
-          icon: const Icon(Icons.chevron_right_rounded),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final showHint = constraints.maxWidth >= 720;
+        final hintText = currentIndex == 0
+            ? '向左滑动看更多'
+            : currentIndex == pageCount - 1
+            ? '向右滑动返回上一屏'
+            : '左右滑动切换内容';
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton.filled(
+              onPressed: onPrevious,
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.18),
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.white.withValues(alpha: 0.08),
+                disabledForegroundColor: Colors.white.withValues(alpha: 0.35),
+              ),
+              icon: const Icon(Icons.chevron_left_rounded),
+            ),
+            const SizedBox(width: 12),
+            ...dots.expand((dot) => [dot, const SizedBox(width: 8)]).toList()
+              ..removeLast(),
+            if (showHint) ...[
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  hintText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(width: 12),
+            IconButton.filled(
+              onPressed: onNext,
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.18),
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.white.withValues(alpha: 0.08),
+                disabledForegroundColor: Colors.white.withValues(alpha: 0.35),
+              ),
+              icon: const Icon(Icons.chevron_right_rounded),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -3328,7 +3694,6 @@ class _StudentSidePanel extends StatelessWidget {
               parentSummary: parentSummary,
               featureFlags: featureFlags,
             ),
-            onSettingsTap: () => _showSettingsDialog(context, currentUserEmail),
           );
         }
 
@@ -3349,7 +3714,6 @@ class _StudentSidePanel extends StatelessWidget {
               parentSummary: parentSummary,
               featureFlags: featureFlags,
             ),
-            onSettingsTap: () => _showSettingsDialog(context, currentUserEmail),
           );
         }
 
@@ -3372,8 +3736,6 @@ class _StudentSidePanel extends StatelessWidget {
                   parentSummary: parentSummary,
                   featureFlags: featureFlags,
                 ),
-                onSettingsTap: () =>
-                    _showSettingsDialog(context, currentUserEmail),
               ),
             ),
             const SizedBox(height: 12),
@@ -3426,7 +3788,6 @@ class _LearningFocusPanel extends StatelessWidget {
     required this.parentSummary,
     required this.featureFlags,
     required this.onProfileTap,
-    required this.onSettingsTap,
     this.isHorizontal = false,
     this.compactOnly = false,
   });
@@ -3438,7 +3799,6 @@ class _LearningFocusPanel extends StatelessWidget {
   final ParentContactSummary? parentSummary;
   final StudentFeatureFlags featureFlags;
   final VoidCallback onProfileTap;
-  final VoidCallback onSettingsTap;
   final bool isHorizontal;
   final bool compactOnly;
 
@@ -3545,10 +3905,10 @@ class _LearningFocusPanel extends StatelessWidget {
             context.go('/activities/$highlightedActivityId/parent-contact'),
       ),
       _LearningQuickAction(
-        label: '设置',
-        icon: Icons.settings_rounded,
-        color: const Color(0xFF94A3B8),
-        onTap: onSettingsTap,
+        label: '我的',
+        icon: Icons.account_circle_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: onProfileTap,
       ),
     ];
 
@@ -4738,6 +5098,7 @@ class _WideLearningShowcaseArea extends StatelessWidget {
           child: _WideShowcaseCard(
             title: '今日课表',
             ribbonLabel: '课程计划',
+            statusLabel: '今天 0 节课',
             accent: const Color(0xFF73B7FF),
             coverStyle: _DashboardCoverStyle.schedule,
             compact: compact,
@@ -4757,6 +5118,9 @@ class _WideLearningShowcaseArea extends StatelessWidget {
                       child: _WideShowcaseCard(
                         title: '今日任务',
                         ribbonLabel: '今日任务',
+                        statusLabel: summary.pendingTasks > 0
+                            ? '${summary.pendingTasks} 项待完成'
+                            : '今天已清空',
                         accent: const Color(0xFFFFC941),
                         coverStyle: _DashboardCoverStyle.todayTask,
                         compact: compact,
@@ -4768,6 +5132,7 @@ class _WideLearningShowcaseArea extends StatelessWidget {
                       child: _WideShowcaseCard(
                         title: '点评中心',
                         ribbonLabel: '点评中心',
+                        statusLabel: '3 条新点评',
                         accent: const Color(0xFFFF8F4D),
                         coverStyle: _DashboardCoverStyle.review,
                         badgeLabel: '3',
@@ -4788,6 +5153,7 @@ class _WideLearningShowcaseArea extends StatelessWidget {
                 child: _WideShowcaseCard(
                   title: '任务中心',
                   ribbonLabel: '任务中心',
+                  statusLabel: '可补做 1 项',
                   accent: const Color(0xFF78E55A),
                   coverStyle: _DashboardCoverStyle.taskCenter,
                   compact: compact,
@@ -4814,6 +5180,7 @@ class _WideShowcaseCard extends StatelessWidget {
     required this.coverStyle,
     required this.onTap,
     this.badgeLabel,
+    this.statusLabel,
     this.compact = false,
   });
 
@@ -4823,6 +5190,7 @@ class _WideShowcaseCard extends StatelessWidget {
   final _DashboardCoverStyle coverStyle;
   final VoidCallback onTap;
   final String? badgeLabel;
+  final String? statusLabel;
   final bool compact;
 
   @override
@@ -4830,6 +5198,8 @@ class _WideShowcaseCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isShort = constraints.maxHeight < 120;
+        final showStatusLabel =
+            statusLabel != null && !compact && constraints.maxWidth >= 260;
         return InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(30),
@@ -4959,21 +5329,53 @@ class _WideShowcaseCard extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style:
-                              (compact
-                                      ? Theme.of(context).textTheme.titleLarge
-                                      : Theme.of(
-                                          context,
-                                        ).textTheme.headlineMedium)
-                                  ?.copyWith(
-                                    color: const Color(0xFF1E293B),
-                                    fontWeight: FontWeight.w900,
-                                  ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style:
+                                    (compact
+                                            ? Theme.of(
+                                                context,
+                                              ).textTheme.titleLarge
+                                            : Theme.of(
+                                                context,
+                                              ).textTheme.headlineMedium)
+                                        ?.copyWith(
+                                          color: const Color(0xFF1E293B),
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                              ),
+                            ),
+                            if (showStatusLabel) ...[
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: accent.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  statusLabel!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.labelLarge
+                                      ?.copyWith(
+                                        color: const Color(0xFF1E4F93),
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],
@@ -5093,15 +5495,22 @@ class _WideContentStage extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const Spacer(),
-                          Text(
-                            '课程、任务、点评与阅读都在这里',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: const Color(0xFF547089),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
+                          if (constraints.maxWidth >= 620) ...[
+                            const Spacer(),
+                            Flexible(
+                              child: Text(
+                                '课程、任务、点评与阅读都在这里',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.right,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: const Color(0xFF547089),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

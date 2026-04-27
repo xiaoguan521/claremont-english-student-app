@@ -87,10 +87,16 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
 
   String get _audioDraftCacheKey => 'pending_audio_draft_${widget.activityId}';
 
+  static const List<DeviceOrientation> _taskDetailOrientations = [
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(_restoreTaskDetailChrome());
     _bindAudioPlayer();
     _configureAudioPlayer();
     _configureTts();
@@ -164,11 +170,19 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_restoreTaskDetailChrome());
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
       _backgroundSwitchCount += 1;
       unawaited(_persistParentContactSnapshot());
     }
+  }
+
+  Future<void> _restoreTaskDetailChrome() async {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    await SystemChrome.setPreferredOrientations(_taskDetailOrientations);
   }
 
   void _bindAudioPlayer() {
@@ -758,6 +772,16 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
         ),
       ),
     );
+    if (!mounted) {
+      return;
+    }
+    await _restoreTaskDetailChrome();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_restoreTaskDetailChrome());
+    });
   }
 
   Future<void> _togglePendingAudioPlayback() async {

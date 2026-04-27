@@ -130,6 +130,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('今日课表'), findsOneWidget);
+    expect(find.text('今日任务'), findsWidgets);
+    expect(find.text('点评'), findsWidgets);
+    expect(find.text('家长通'), findsWidgets);
+    expect(find.text('我的'), findsWidgets);
     expect(find.text('任务中心'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

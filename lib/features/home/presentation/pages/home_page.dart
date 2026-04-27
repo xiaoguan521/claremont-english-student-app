@@ -3807,6 +3807,9 @@ class _LearningFocusPanel extends StatelessWidget {
     final displayName = _studentDisplayName(currentUserEmail);
     final stars = _dailyStarCoins(summary, dailyGrowth, parentSummary);
     final completedTasks = dailyGrowth.completedTasks;
+    final tightFocus = isHorizontal || compactOnly;
+    final heroPadding = compactOnly ? 10.0 : (isHorizontal ? 14.0 : 16.0);
+    final heroIconSize = compactOnly ? 40.0 : (isHorizontal ? 46.0 : 52.0);
     final progressText = completedTasks > 0
         ? '已完成 $completedTasks 句'
         : '${summary.pendingTasks} 项待完成';
@@ -3818,7 +3821,7 @@ class _LearningFocusPanel extends StatelessWidget {
         onTap: () => context.go('/activities/$highlightedActivityId'),
         borderRadius: BorderRadius.circular(26),
         child: Container(
-          padding: EdgeInsets.all(isHorizontal ? 14 : 16),
+          padding: EdgeInsets.all(heroPadding),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
@@ -3837,8 +3840,8 @@ class _LearningFocusPanel extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: isHorizontal ? 46 : 52,
-                height: isHorizontal ? 46 : 52,
+                width: heroIconSize,
+                height: heroIconSize,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.78),
                   borderRadius: BorderRadius.circular(18),
@@ -3859,10 +3862,14 @@ class _LearningFocusPanel extends StatelessWidget {
                       '继续今天作业',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: const Color(0xFF55320A),
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style:
+                          (compactOnly
+                                  ? Theme.of(context).textTheme.titleMedium
+                                  : Theme.of(context).textTheme.titleLarge)
+                              ?.copyWith(
+                                color: const Color(0xFF55320A),
+                                fontWeight: FontWeight.w900,
+                              ),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -3912,8 +3919,34 @@ class _LearningFocusPanel extends StatelessWidget {
       ),
     ];
 
+    final utilityActions = [
+      (
+        label: '消息',
+        icon: Icons.mark_chat_read_rounded,
+        color: const Color(0xFF68A7FF),
+        onTap: () => _showMessagesDialog(context, summary),
+      ),
+      (
+        label: '动态',
+        icon: Icons.auto_awesome_rounded,
+        color: const Color(0xFFFF7E68),
+        onTap: () => _showMomentsDialog(
+          context,
+          summary: summary,
+          dailyGrowth: dailyGrowth,
+          parentSummary: parentSummary,
+        ),
+      ),
+      (
+        label: '设置',
+        icon: Icons.settings_rounded,
+        color: const Color(0xFF54C58F),
+        onTap: () => _showSettingsDialog(context, currentUserEmail),
+      ),
+    ];
+
     return Container(
-      padding: EdgeInsets.all(isHorizontal ? 12 : 14),
+      padding: EdgeInsets.all(tightFocus ? 10 : 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -3970,25 +4003,36 @@ class _LearningFocusPanel extends StatelessWidget {
               ],
             )
           : compactOnly
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _StudentMiniIdentity(
-                  displayName: displayName,
-                  rewardText: rewardText,
-                  onTap: onProfileTap,
-                ),
-                const SizedBox(height: 10),
-                Expanded(child: heroAction),
-                const SizedBox(height: 10),
-                Row(
+          ? LayoutBuilder(
+              builder: (context, constraints) {
+                final showUtilityStrip = constraints.maxHeight >= 340;
+                final tightPanel = constraints.maxHeight < 285;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(child: quickActions[1]),
-                    const SizedBox(width: 8),
-                    Expanded(child: quickActions[2]),
+                    _StudentMiniIdentity(
+                      displayName: displayName,
+                      rewardText: rewardText,
+                      onTap: onProfileTap,
+                    ),
+                    SizedBox(height: tightPanel ? 8 : 10),
+                    Expanded(flex: tightPanel ? 5 : 6, child: heroAction),
+                    SizedBox(height: tightPanel ? 8 : 10),
+                    Expanded(
+                      flex: tightPanel ? 4 : 5,
+                      child: _CompactActionMatrix(actions: quickActions),
+                    ),
+                    if (showUtilityStrip) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 38,
+                        child: _CompactUtilityStrip(items: utilityActions),
+                      ),
+                    ],
                   ],
-                ),
-              ],
+                );
+              },
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -4123,6 +4167,112 @@ class _LearningQuickAction extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: const Color(0xFF1E293B),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactActionMatrix extends StatelessWidget {
+  const _CompactActionMatrix({required this.actions});
+
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(child: actions[0]),
+              const SizedBox(width: 7),
+              Expanded(child: actions[1]),
+            ],
+          ),
+        ),
+        const SizedBox(height: 7),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(child: actions[2]),
+              const SizedBox(width: 7),
+              Expanded(child: actions[3]),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CompactUtilityStrip extends StatelessWidget {
+  const _CompactUtilityStrip({required this.items});
+
+  final List<({Color color, IconData icon, String label, VoidCallback onTap})>
+  items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var index = 0; index < items.length; index++) ...[
+          if (index > 0) const SizedBox(width: 7),
+          Expanded(
+            child: _CompactUtilityChip(
+              label: items[index].label,
+              icon: items[index].icon,
+              color: items[index].color,
+              onTap: items[index].onTap,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _CompactUtilityChip extends StatelessWidget {
+  const _CompactUtilityChip({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.78),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 16),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: const Color(0xFF334155),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -4943,78 +5093,97 @@ class _WideSummaryStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        AppUiTokens.spaceMd,
-        14,
-        AppUiTokens.spaceMd,
-        AppUiTokens.spaceMd,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.white.withValues(alpha: 0.24),
-            const Color(0xFFEFF9FF).withValues(alpha: 0.7),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(AppUiTokens.radiusXl),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.58),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.64),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.dashboard_customize_rounded,
-                        color: Color(0xFF3369D7),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '今日进度',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: const Color(0xFF1E293B),
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '看看今天学到哪里了',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF547089),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tight = constraints.maxWidth < 480 || constraints.maxHeight < 320;
+        final showHint = constraints.maxWidth >= 420;
+        final panelPadding = tight ? 12.0 : AppUiTokens.spaceMd;
+        final headerBottomGap = tight ? 10.0 : 14.0;
+
+        return Container(
+          padding: EdgeInsets.fromLTRB(
+            panelPadding,
+            tight ? 12 : 14,
+            panelPadding,
+            panelPadding,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white.withValues(alpha: 0.24),
+                const Color(0xFFEFF9FF).withValues(alpha: 0.7),
               ],
             ),
+            borderRadius: BorderRadius.circular(AppUiTokens.radiusXl),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.58),
+              width: 1.5,
+            ),
           ),
-          Expanded(child: child),
-        ],
-      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(4, 0, 4, headerBottomGap),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: tight ? 12 : 14,
+                        vertical: tight ? 7 : 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.64),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.dashboard_customize_rounded,
+                            color: Color(0xFF3369D7),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '今日进度',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: const Color(0xFF1E293B),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: tight ? 15 : null,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (showHint) ...[
+                      const Spacer(),
+                      Flexible(
+                        child: Text(
+                          '看看今天学到哪里了',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: const Color(0xFF547089),
+                                fontWeight: FontWeight.w700,
+                                fontSize: tight ? 12 : null,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(child: child),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -6120,12 +6289,13 @@ class _SummaryGrid extends StatelessWidget {
     final completedTasks = dailyGrowth.completedTasks;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final spacing = isCompact ? 10.0 : 12.0;
+        final tight = constraints.maxWidth < 520 || constraints.maxHeight < 330;
+        final spacing = tight
+            ? 8.0
+            : isCompact
+            ? 10.0
+            : 12.0;
         final useCompactSummaryStrip = constraints.maxHeight < 190;
-        final cardsPerRow = constraints.maxWidth >= 340 ? 2 : 1;
-        final itemWidth = cardsPerRow == 1
-            ? constraints.maxWidth
-            : (constraints.maxWidth - spacing) / cardsPerRow;
 
         final cards = [
           _SummaryCard(
@@ -6198,12 +6368,28 @@ class _SummaryGrid extends StatelessWidget {
           );
         }
 
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: cards
-              .map((card) => SizedBox(width: itemWidth, child: card))
-              .toList(),
+        return Column(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(child: cards[0]),
+                  SizedBox(width: spacing),
+                  Expanded(child: cards[1]),
+                ],
+              ),
+            ),
+            SizedBox(height: spacing),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(child: cards[2]),
+                  SizedBox(width: spacing),
+                  Expanded(child: cards[3]),
+                ],
+              ),
+            ),
+          ],
         );
       },
     );
@@ -6234,13 +6420,28 @@ class _SummaryCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isTinyHeight = constraints.maxHeight < 70;
+        final tightCard =
+            constraints.maxWidth < 210 || constraints.maxHeight < 125;
         final isNarrow =
-            constraints.maxWidth < 220 || constraints.maxHeight < 90;
+            tightCard ||
+            constraints.maxWidth < 220 ||
+            constraints.maxHeight < 90;
+        final padding = tightCard
+            ? 12.0
+            : isCompact
+            ? 14.0
+            : 18.0;
+        final iconSize = tightCard
+            ? 40.0
+            : isCompact
+            ? 46.0
+            : 54.0;
+        final decorSize = tightCard ? 56.0 : 76.0;
         return InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(28),
           child: Container(
-            padding: EdgeInsets.all(isCompact ? 16 : 18),
+            padding: EdgeInsets.all(padding),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -6269,8 +6470,8 @@ class _SummaryCard extends StatelessWidget {
                   top: -10,
                   right: -4,
                   child: Container(
-                    width: 76,
-                    height: 76,
+                    width: decorSize,
+                    height: decorSize,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.18),
                       shape: BoxShape.circle,
@@ -6297,19 +6498,21 @@ class _SummaryCard extends StatelessWidget {
                       Row(
                         children: [
                           Container(
-                            width: 40,
-                            height: 40,
+                            width: tightCard ? 34 : 40,
+                            height: tightCard ? 34 : 40,
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.24),
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(
+                                tightCard ? 12 : 14,
+                              ),
                             ),
                             child: Icon(
                               icon,
                               color: const Color(0xFF195AB6),
-                              size: 20,
+                              size: tightCard ? 18 : 20,
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          SizedBox(width: tightCard ? 8 : 10),
                           Expanded(
                             child: Text(
                               title,
@@ -6319,31 +6522,37 @@ class _SummaryCard extends StatelessWidget {
                                   ?.copyWith(
                                     color: const Color(0xFF114178),
                                     fontWeight: FontWeight.w900,
+                                    fontSize: tightCard ? 15 : null,
                                   ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF124D7A),
-                          fontWeight: FontWeight.w700,
-                          height: 1.25,
+                      if (!tightCard) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: const Color(0xFF124D7A),
+                                fontWeight: FontWeight.w700,
+                                height: 1.25,
+                              ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
+                      ],
+                      const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: tightCard ? 9 : 10,
+                          vertical: tightCard ? 6 : 8,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.82),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(
+                            tightCard ? 14 : 16,
+                          ),
                         ),
                         child: Text(
                           value,
@@ -6351,6 +6560,7 @@ class _SummaryCard extends StatelessWidget {
                               ?.copyWith(
                                 color: const Color(0xFF114178),
                                 fontWeight: FontWeight.w900,
+                                fontSize: tightCard ? 14 : null,
                               ),
                         ),
                       ),
@@ -6360,8 +6570,8 @@ class _SummaryCard extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        width: isCompact ? 48 : 54,
-                        height: isCompact ? 48 : 54,
+                        width: iconSize,
+                        height: iconSize,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.24),
                           borderRadius: BorderRadius.circular(18),
@@ -6369,10 +6579,20 @@ class _SummaryCard extends StatelessWidget {
                         child: Icon(
                           icon,
                           color: const Color(0xFF195AB6),
-                          size: isCompact ? 24 : 28,
+                          size: tightCard
+                              ? 21
+                              : isCompact
+                              ? 24
+                              : 28,
                         ),
                       ),
-                      SizedBox(width: isCompact ? 12 : 14),
+                      SizedBox(
+                        width: tightCard
+                            ? 10
+                            : isCompact
+                            ? 12
+                            : 14,
+                      ),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -6386,32 +6606,37 @@ class _SummaryCard extends StatelessWidget {
                                   ?.copyWith(
                                     color: const Color(0xFF114178),
                                     fontWeight: FontWeight.w900,
+                                    fontSize: tightCard ? 18 : null,
                                   ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: const Color(0xFF124D7A),
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.25,
-                                  ),
-                            ),
+                            if (!tightCard) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: const Color(0xFF124D7A),
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.25,
+                                    ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: tightCard ? 6 : 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: tightCard ? 9 : 12,
+                          vertical: tightCard ? 7 : 10,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.82),
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(
+                            tightCard ? 15 : 18,
+                          ),
                         ),
                         child: Text(
                           value,
@@ -6419,6 +6644,7 @@ class _SummaryCard extends StatelessWidget {
                               ?.copyWith(
                                 color: const Color(0xFF114178),
                                 fontWeight: FontWeight.w900,
+                                fontSize: tightCard ? 15 : null,
                               ),
                         ),
                       ),

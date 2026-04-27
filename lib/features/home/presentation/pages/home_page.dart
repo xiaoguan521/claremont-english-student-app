@@ -78,10 +78,14 @@ class HomePage extends ConsumerWidget {
         shellActions = [
           K12StatusBadge(
             icon: Icons.rate_review_rounded,
-            label: '老师点评',
+            label: '点评中心',
             color: const Color(0xFFFFB36B),
             foregroundColor: const Color(0xFF8A3F00),
-            onTap: () => _showFeedbackDialog(context, summary),
+            onTap: () => _showReviewCenterDialog(
+              context,
+              activityTitle: highlightedActivity.title,
+              className: highlightedActivity.className,
+            ),
           ),
           if (featureFlags.showGrowthRewards)
             K12StatusBadge(
@@ -219,19 +223,6 @@ void _showSchoolInfoDialog(BuildContext context, SchoolContext schoolContext) {
         isCompact: true,
         showHeading: false,
       ),
-    ),
-  );
-}
-
-void _showFeedbackDialog(BuildContext context, PortalSummary summary) {
-  showDialog<void>(
-    context: context,
-    builder: (context) => AdaptiveDialogScaffold(
-      title: '老师点评',
-      maxDialogWidth: 620,
-      maxDialogHeight: 420,
-      bodyBuilder: (context, _, __) =>
-          _FeedbackPanel(summary: summary, isCompact: true, showHeading: false),
     ),
   );
 }
@@ -1536,6 +1527,9 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
                           schoolContext: widget.schoolContext,
                           currentUserEmail: widget.currentUserEmail,
                           highlightedActivityId: widget.highlightedActivityId,
+                          highlightedActivityTitle:
+                              widget.highlightedActivityTitle,
+                          highlightedClassName: widget.highlightedClassName,
                           summary: widget.summary,
                           dailyGrowth: widget.dailyGrowth,
                           parentSummary: widget.parentSummary,
@@ -1576,6 +1570,9 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
                           schoolContext: widget.schoolContext,
                           currentUserEmail: widget.currentUserEmail,
                           highlightedActivityId: widget.highlightedActivityId,
+                          highlightedActivityTitle:
+                              widget.highlightedActivityTitle,
+                          highlightedClassName: widget.highlightedClassName,
                           summary: widget.summary,
                           dailyGrowth: widget.dailyGrowth,
                           parentSummary: widget.parentSummary,
@@ -3082,7 +3079,7 @@ class _ReviewCenterTable extends StatelessWidget {
                 ),
                 const SizedBox(width: 20),
                 SizedBox(
-                  width: 112,
+                  width: 132,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -3145,7 +3142,7 @@ class _ReviewCenterTable extends StatelessWidget {
                       child: Text('点评时间', style: tableLabelStyle),
                     ),
                     const SizedBox(width: 20),
-                    const SizedBox(width: 112, child: Text('操作')),
+                    const SizedBox(width: 132, child: Text('操作')),
                   ],
                 ),
               ),
@@ -3655,6 +3652,8 @@ class _StudentSidePanel extends StatelessWidget {
     required this.schoolContext,
     required this.currentUserEmail,
     required this.highlightedActivityId,
+    required this.highlightedActivityTitle,
+    required this.highlightedClassName,
     required this.summary,
     required this.dailyGrowth,
     required this.parentSummary,
@@ -3664,6 +3663,8 @@ class _StudentSidePanel extends StatelessWidget {
   final SchoolContext schoolContext;
   final String? currentUserEmail;
   final String highlightedActivityId;
+  final String highlightedActivityTitle;
+  final String highlightedClassName;
   final PortalSummary summary;
   final DailyGrowthSummary dailyGrowth;
   final ParentContactSummary? parentSummary;
@@ -3681,6 +3682,8 @@ class _StudentSidePanel extends StatelessWidget {
           return _LearningFocusPanel(
             currentUserEmail: currentUserEmail,
             highlightedActivityId: highlightedActivityId,
+            highlightedActivityTitle: highlightedActivityTitle,
+            highlightedClassName: highlightedClassName,
             summary: summary,
             dailyGrowth: dailyGrowth,
             parentSummary: parentSummary,
@@ -3701,6 +3704,8 @@ class _StudentSidePanel extends StatelessWidget {
           return _LearningFocusPanel(
             currentUserEmail: currentUserEmail,
             highlightedActivityId: highlightedActivityId,
+            highlightedActivityTitle: highlightedActivityTitle,
+            highlightedClassName: highlightedClassName,
             summary: summary,
             dailyGrowth: dailyGrowth,
             parentSummary: parentSummary,
@@ -3724,6 +3729,8 @@ class _StudentSidePanel extends StatelessWidget {
               child: _LearningFocusPanel(
                 currentUserEmail: currentUserEmail,
                 highlightedActivityId: highlightedActivityId,
+                highlightedActivityTitle: highlightedActivityTitle,
+                highlightedClassName: highlightedClassName,
                 summary: summary,
                 dailyGrowth: dailyGrowth,
                 parentSummary: parentSummary,
@@ -3783,6 +3790,8 @@ class _LearningFocusPanel extends StatelessWidget {
   const _LearningFocusPanel({
     required this.currentUserEmail,
     required this.highlightedActivityId,
+    required this.highlightedActivityTitle,
+    required this.highlightedClassName,
     required this.summary,
     required this.dailyGrowth,
     required this.parentSummary,
@@ -3794,6 +3803,8 @@ class _LearningFocusPanel extends StatelessWidget {
 
   final String? currentUserEmail;
   final String highlightedActivityId;
+  final String highlightedActivityTitle;
+  final String highlightedClassName;
   final PortalSummary summary;
   final DailyGrowthSummary dailyGrowth;
   final ParentContactSummary? parentSummary;
@@ -3902,7 +3913,11 @@ class _LearningFocusPanel extends StatelessWidget {
         label: '点评',
         icon: Icons.rate_review_rounded,
         color: const Color(0xFFFF8F4D),
-        onTap: () => _showFeedbackDialog(context, summary),
+        onTap: () => _showReviewCenterDialog(
+          context,
+          activityTitle: highlightedActivityTitle,
+          className: highlightedClassName,
+        ),
       ),
       _LearningQuickAction(
         label: '家长通',
@@ -5281,39 +5296,16 @@ class _WideLearningShowcaseArea extends StatelessWidget {
             children: [
               Expanded(
                 flex: 58,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _WideShowcaseCard(
-                        title: '今日任务',
-                        ribbonLabel: '今日任务',
-                        statusLabel: summary.pendingTasks > 0
-                            ? '${summary.pendingTasks} 项待完成'
-                            : '今天已清空',
-                        accent: const Color(0xFFFFC941),
-                        coverStyle: _DashboardCoverStyle.todayTask,
-                        compact: compact,
-                        onTap: () => _showTodayTasksDialog(context, summary),
-                      ),
-                    ),
-                    SizedBox(width: compact ? 12 : 18),
-                    Expanded(
-                      child: _WideShowcaseCard(
-                        title: '点评中心',
-                        ribbonLabel: '点评中心',
-                        statusLabel: '3 条新点评',
-                        accent: const Color(0xFFFF8F4D),
-                        coverStyle: _DashboardCoverStyle.review,
-                        badgeLabel: '3',
-                        compact: compact,
-                        onTap: () => _showReviewCenterDialog(
-                          context,
-                          activityTitle: highlightedActivityTitle,
-                          className: highlightedClassName,
-                        ),
-                      ),
-                    ),
-                  ],
+                child: _WideShowcaseCard(
+                  title: '今日任务',
+                  ribbonLabel: '今日任务',
+                  statusLabel: summary.pendingTasks > 0
+                      ? '${summary.pendingTasks} 项待完成'
+                      : '今天已清空',
+                  accent: const Color(0xFFFFC941),
+                  coverStyle: _DashboardCoverStyle.todayTask,
+                  compact: compact,
+                  onTap: () => _showTodayTasksDialog(context, summary),
                 ),
               ),
               SizedBox(height: compact ? 12 : 18),
@@ -5348,7 +5340,6 @@ class _WideShowcaseCard extends StatelessWidget {
     required this.accent,
     required this.coverStyle,
     required this.onTap,
-    this.badgeLabel,
     this.statusLabel,
     this.compact = false,
   });
@@ -5358,7 +5349,6 @@ class _WideShowcaseCard extends StatelessWidget {
   final Color accent;
   final _DashboardCoverStyle coverStyle;
   final VoidCallback onTap;
-  final String? badgeLabel;
   final String? statusLabel;
   final bool compact;
 
@@ -5423,32 +5413,6 @@ class _WideShowcaseCard extends StatelessWidget {
                                   compact: compact,
                                 ),
                               ),
-                              if (badgeLabel != null)
-                                Positioned(
-                                  top: compact ? 12 : 16,
-                                  right: compact ? 12 : 16,
-                                  child: Container(
-                                    width: compact ? 28 : 34,
-                                    height: compact ? 28 : 34,
-                                    decoration: BoxDecoration(
-                                      color: const Color(
-                                        0xFFFF5348,
-                                      ).withValues(alpha: 0.92),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      badgeLabel!,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                    ),
-                                  ),
-                                ),
                               Positioned(
                                 left: compact ? 14 : 18,
                                 right: compact ? 14 : 18,
@@ -5668,7 +5632,7 @@ class _WideContentStage extends StatelessWidget {
                             const Spacer(),
                             Flexible(
                               child: Text(
-                                '课程、任务、点评与阅读都在这里',
+                                '课程、任务与阅读都在这里',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.right,
@@ -6655,112 +6619,6 @@ class _SummaryCard extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _FeedbackPanel extends StatelessWidget {
-  const _FeedbackPanel({
-    required this.summary,
-    this.isCompact = false,
-    this.showHeading = true,
-  });
-
-  final PortalSummary summary;
-  final bool isCompact;
-  final bool showHeading;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isCompact ? 20 : 24),
-      decoration: k12PlasticPanelDecoration(
-        accent: const Color(0xFFFFC941),
-        radius: 30,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (showHeading) ...[
-            Text(
-              '老师反馈',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: const Color(0xFF1E293B),
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 14),
-          ],
-          _FeedbackLine(
-            icon: Icons.mark_chat_unread_rounded,
-            title: '先完成今天的作业',
-            subtitle: '还有 ${summary.pendingTasks} 项小任务等你完成。',
-          ),
-          const SizedBox(height: 12),
-          _FeedbackLine(
-            icon: Icons.workspace_premium_rounded,
-            title: '完成后回来查看反馈',
-            subtitle: '本周已经完成 ${summary.completedActivities} 项作业。',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FeedbackLine extends StatelessWidget {
-  const _FeedbackLine({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF2E4),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Icon(icon, color: const Color(0xFFFF8F4D)),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF1E293B),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF64748B),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

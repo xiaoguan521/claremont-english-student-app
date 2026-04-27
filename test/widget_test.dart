@@ -95,7 +95,7 @@ void main() {
 
     expect(find.text('今日英语'), findsOneWidget);
     expect(find.text('阅读'), findsOneWidget);
-    expect(find.text('老师点评'), findsOneWidget);
+    expect(find.text('点评中心'), findsOneWidget);
 
     await tester.drag(find.byType(PageView), const Offset(-900, 0));
     await tester.pumpAndSettle();
@@ -103,9 +103,9 @@ void main() {
     expect(find.text('点评中心'), findsOneWidget);
     expect(find.text('今日学习地图'), findsOneWidget);
 
-    await tester.tap(find.text('老师点评'));
+    await tester.tap(find.text('点评中心'));
     await tester.pumpAndSettle();
-    expect(find.text('先完成今天的作业'), findsOneWidget);
+    expect(find.text('Sing the song'), findsOneWidget);
 
     await tester.tapAt(const Offset(8, 8));
     await tester.pumpAndSettle();
@@ -123,7 +123,7 @@ void main() {
     await pumpStudentHome(tester, viewport: const Size(932, 430));
 
     expect(find.text('英语学习'), findsOneWidget);
-    expect(find.text('老师点评'), findsOneWidget);
+    expect(find.text('点评中心'), findsOneWidget);
     expect(find.text('今日主线'), findsOneWidget);
 
     await tester.drag(find.byType(PageView), const Offset(-700, 0));
@@ -169,7 +169,7 @@ void main() {
       await pumpStudentHome(tester, viewport: viewport);
 
       expect(find.byType(PageView), findsOneWidget);
-      expect(find.text('老师点评'), findsOneWidget);
+      expect(find.text('点评中心'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await tester.drag(find.byType(PageView), const Offset(-760, 0));

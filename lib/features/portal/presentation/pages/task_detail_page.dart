@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
@@ -22,21 +23,26 @@ import '../../../../core/ui/app_ui_tokens.dart';
 import '../../../../core/widgets/adaptive_dialog_scaffold.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
 import '../../data/app_event_log_repository.dart';
+import '../../data/local_cache_repository.dart';
 import '../../data/portal_models.dart';
 import '../../data/portal_repository.dart';
 import '../../data/practice_protocol_models.dart';
 import '../../data/queued_submission_storage.dart';
 import '../../data/sync_queue_repository.dart';
-import '../../data/local_cache_repository.dart';
 import '../providers/portal_providers.dart';
 import '../providers/parent_contact_providers.dart';
 import '../providers/practice_session_providers.dart';
 import '../providers/student_feature_flags_provider.dart';
 import '../providers/sync_queue_providers.dart';
-import '../widgets/audio_record_button.dart';
 import '../widgets/feedback_bottom_sheet.dart';
+import '../widgets/practice_feedback_widgets.dart';
 import '../widgets/practice_renderer.dart';
+import '../widgets/practice_sentence_switch_strip.dart';
+import '../widgets/practice_submission_dock.dart';
+import '../widgets/practice_stage_header.dart';
+import '../widgets/practice_task_info_chip.dart';
 import '../widgets/tablet_shell.dart';
+import '../widgets/task_review_panel.dart';
 import 'reading_page.dart';
 
 class TaskDetailPage extends ConsumerStatefulWidget {
@@ -973,7 +979,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
     }
 
     if (activity.submissionFlowStatus == SubmissionFlowStatus.completed) {
-      _showMessage('老师点评就在下方，往下滑就能查看完整反馈。');
+      _showMessage('点评结果就在下方，往下滑就能查看完整反馈。');
       return;
     }
 
@@ -1116,7 +1122,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
             : '提交成功',
         message: totalTaskCount > 0 && completedTaskCount >= totalTaskCount
             ? '这份作业已经全部完成，老师和 AI 会在稍后把反馈送回来。'
-            : reviewResult.message ?? '已经提交给老师了，AI 初评和老师点评会在稍后同步回来。',
+            : reviewResult.message ?? '已经提交给老师了，AI 初评和点评结果会在稍后同步回来。',
         badgeLabel: '连对 $nextCombo 题 · +$rewardStars 星币',
         badgeIcon: totalTaskCount > 0 && completedTaskCount >= totalTaskCount
             ? Icons.emoji_events_rounded
@@ -1707,9 +1713,10 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
       ],
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final isLandscapeLayout =
+              constraints.maxWidth > constraints.maxHeight;
           final isLandscapePhone =
-              constraints.maxWidth > constraints.maxHeight &&
-              constraints.maxWidth < 1100;
+              isLandscapeLayout && constraints.maxWidth < 1100;
           final visualScale = isLandscapePhone
               ? _taskDetailLandscapeVisualScale(
                   constraints.maxWidth,
@@ -1746,6 +1753,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                   _completeHotspotSelection(activity, task),
               compact: isLandscapePhone,
               visualScale: visualScale,
+              expandedBottomSheet: isLandscapeLayout,
+              fitToAvailableHeight: isLandscapeLayout,
               bottomSheet: _TextbookFloatingPanel(
                 task: focusTask,
                 submissionFlowStatus: activity.submissionFlowStatus,
@@ -1773,6 +1782,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                 isSelectedAudioLoading: selectedAudioKey == _loadingAudioKey,
                 isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
                 isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
+                practiceTaskState: focusedPracticeTaskState,
+                showPracticeRenderer: isLandscapeLayout,
                 onOpenReading: activity.materialPdfPath == null
                     ? null
                     : () => _openReadingPage(activity, task: focusTask),
@@ -1795,87 +1806,77 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                 onPlayStoredAudio: storedAudioKey == null
                     ? null
                     : () => _toggleStoredAudioPlayback(activity),
+                onWordBankChanged: (tokens) =>
+                    _updateWordBankSelection(activity, focusTask, tokens),
+                onListenChooseChanged: (value) =>
+                    _updateListenChooseSelection(activity, focusTask, value),
                 onPrimaryAction: () => _handlePrimaryAction(activity),
               ),
             ),
           );
 
-          final reviewPanel = _LandscapeReviewColumn(
-            autoAdvanceHint: _autoAdvanceHint,
-            tasks: activity.tasks,
-            focusedTaskId: focusedTaskId,
-            completedTaskIds: completedTaskIds,
-            onSelectTask: _setFocusedTask,
-            focusTask: focusTask,
-            activity: activity,
-            schoolContext: schoolContext,
-            focusedTaskAnchorKey: _focusedTaskAnchorKey,
-            selectedAudio: _selectedAudio,
-            isSubmitting: _isSubmitting,
-            isRecording: _isRecording,
-            speakingTaskId: _speakingTaskId,
-            playingAudioKey: _playingAudioKey,
-            loadingAudioKey: _loadingAudioKey,
-            storedAudioKey: storedAudioKey,
-            sampleSpeechKeyForTask: _sampleSpeechKey(focusTask.id),
-            practiceTaskState: focusedPracticeTaskState,
-            onOpenReading: activity.materialPdfPath == null
-                ? null
-                : _scrollTextbookIntoView,
-            onSpeakSample: focusTask.hasReferenceAudio
-                ? () => _toggleReferenceAudioPlayback(focusTask)
-                : _sampleTextFor(focusTask) == null
-                ? null
-                : () => _speakSample(focusTask),
-            onOpenVideo: focusTask.hasTeachingVideo
-                ? () => _openTeachingVideo(focusTask)
-                : null,
-            onPickAudio: _isRecording ? null : _pickAudioFile,
-            onRecordAudio: _toggleRecording,
-            onClearSelectedAudio: _selectedAudio == null
-                ? null
-                : _clearSelectedAudio,
-            onPlaySelectedAudio: _selectedAudio == null
-                ? null
-                : _togglePendingAudioPlayback,
-            onPlayStoredAudio: storedAudioKey == null
-                ? null
-                : () => _toggleStoredAudioPlayback(activity),
-            onPlayEncouragement: focusTask.review == null
-                ? null
-                : () => _playEncouragement(focusTask),
-            onWordBankChanged: (tokens) =>
-                _updateWordBankSelection(activity, focusTask, tokens),
-            onListenChooseChanged: (value) =>
-                _updateListenChooseSelection(activity, focusTask, value),
-            onPrimaryAction: () => _handlePrimaryAction(activity),
-            visualScale: visualScale,
-            showCompletionCard: allTasksCompleted,
-            completionActivityId: activity.id,
-            comboCount: _comboCount,
-            earnedStars: _earnedStars,
-            showGrowthRewards: featureFlags.showGrowthRewards,
-          );
-
-          if (isLandscapePhone) {
-            final reviewWidth = constraints.maxWidth < 920 ? 292.0 : 332.0;
+          if (isLandscapeLayout) {
             return MediaQuery(
               data: MediaQuery.of(
                 context,
               ).copyWith(textScaler: TextScaler.linear(textScale)),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 6,
-                    child: SingleChildScrollView(child: stageCard),
-                  ),
-                  SizedBox(width: 16 * visualScale),
-                  SizedBox(
-                    width: reviewWidth * visualScale,
-                    child: reviewPanel,
-                  ),
-                ],
+              child: LayoutBuilder(
+                builder: (context, landscapeConstraints) {
+                  final showSentenceStrip =
+                      activity.tasks.length > 1 &&
+                      landscapeConstraints.maxHeight >=
+                          (isLandscapePhone ? 520 : 620);
+                  final showCompletionCard =
+                      allTasksCompleted &&
+                      landscapeConstraints.maxHeight >=
+                          (isLandscapePhone ? 620 : 720);
+                  return Column(
+                    children: [
+                      Expanded(child: stageCard),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        child: _autoAdvanceHint == null
+                            ? const SizedBox(
+                                height: 0,
+                                key: ValueKey('empty-hint'),
+                              )
+                            : Padding(
+                                key: ValueKey(_autoAdvanceHint),
+                                padding: EdgeInsets.only(top: 10 * visualScale),
+                                child: PracticeAutoAdvanceBanner(
+                                  message: _autoAdvanceHint!,
+                                ),
+                              ),
+                      ),
+                      if (showSentenceStrip) ...[
+                        SizedBox(height: 10 * visualScale),
+                        SizedBox(
+                          height: 108 * visualScale,
+                          child: PracticeSentenceSwitchStrip(
+                            tasks: activity.tasks,
+                            focusedTaskId: focusedTaskId,
+                            completedTaskIds: completedTaskIds,
+                            onSelectTask: _setFocusedTask,
+                          ),
+                        ),
+                      ],
+                      if (showCompletionCard) ...[
+                        SizedBox(height: 10 * visualScale),
+                        SizedBox(
+                          height: 156 * visualScale,
+                          child: PracticeCompletionShareCard(
+                            comboCount: _comboCount,
+                            earnedStars: _earnedStars,
+                            showGrowthRewards: featureFlags.showGrowthRewards,
+                            onContactParent: () => context.go(
+                              '/activities/${activity.id}/parent-contact',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
             );
           }
@@ -1890,12 +1891,14 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                     : Padding(
                         key: ValueKey(_autoAdvanceHint),
                         padding: const EdgeInsets.only(top: 14),
-                        child: _AutoAdvanceBanner(message: _autoAdvanceHint!),
+                        child: PracticeAutoAdvanceBanner(
+                          message: _autoAdvanceHint!,
+                        ),
                       ),
               ),
               if (activity.tasks.length > 1) ...[
                 const SizedBox(height: 14),
-                _SentenceSwitchStrip(
+                PracticeSentenceSwitchStrip(
                   tasks: activity.tasks,
                   focusedTaskId: focusedTaskId,
                   completedTaskIds: completedTaskIds,
@@ -1993,11 +1996,12 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
               ),
               if (allTasksCompleted) ...[
                 const SizedBox(height: 16),
-                _CompletionShareCard(
-                  activityId: activity.id,
+                PracticeCompletionShareCard(
                   comboCount: _comboCount,
                   earnedStars: _earnedStars,
                   showGrowthRewards: featureFlags.showGrowthRewards,
+                  onContactParent: () =>
+                      context.go('/activities/${activity.id}/parent-contact'),
                 ),
               ],
             ],
@@ -2026,330 +2030,6 @@ class _SectionHeading extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _LandscapeReviewColumn extends StatelessWidget {
-  const _LandscapeReviewColumn({
-    required this.autoAdvanceHint,
-    required this.tasks,
-    required this.focusedTaskId,
-    required this.completedTaskIds,
-    required this.onSelectTask,
-    required this.focusTask,
-    required this.activity,
-    required this.schoolContext,
-    required this.focusedTaskAnchorKey,
-    required this.selectedAudio,
-    required this.isSubmitting,
-    required this.isRecording,
-    required this.speakingTaskId,
-    required this.playingAudioKey,
-    required this.loadingAudioKey,
-    required this.storedAudioKey,
-    required this.sampleSpeechKeyForTask,
-    required this.practiceTaskState,
-    this.onOpenReading,
-    this.onSpeakSample,
-    this.onOpenVideo,
-    this.onPickAudio,
-    this.onRecordAudio,
-    this.onClearSelectedAudio,
-    this.onPlaySelectedAudio,
-    this.onPlayStoredAudio,
-    this.onPlayEncouragement,
-    this.onWordBankChanged,
-    this.onListenChooseChanged,
-    required this.onPrimaryAction,
-    this.visualScale = 1,
-    this.showCompletionCard = false,
-    required this.completionActivityId,
-    required this.comboCount,
-    required this.earnedStars,
-    required this.showGrowthRewards,
-  });
-
-  final String? autoAdvanceHint;
-  final List<PortalTask> tasks;
-  final String focusedTaskId;
-  final Set<String> completedTaskIds;
-  final ValueChanged<String> onSelectTask;
-  final PortalTask focusTask;
-  final PortalActivity activity;
-  final SchoolContext schoolContext;
-  final GlobalKey focusedTaskAnchorKey;
-  final _PendingAudioFile? selectedAudio;
-  final bool isSubmitting;
-  final bool isRecording;
-  final String? speakingTaskId;
-  final String? playingAudioKey;
-  final String? loadingAudioKey;
-  final String? storedAudioKey;
-  final String sampleSpeechKeyForTask;
-  final PracticeTaskState practiceTaskState;
-  final VoidCallback? onOpenReading;
-  final VoidCallback? onSpeakSample;
-  final VoidCallback? onOpenVideo;
-  final VoidCallback? onPickAudio;
-  final VoidCallback? onRecordAudio;
-  final VoidCallback? onClearSelectedAudio;
-  final VoidCallback? onPlaySelectedAudio;
-  final VoidCallback? onPlayStoredAudio;
-  final VoidCallback? onPlayEncouragement;
-  final ValueChanged<List<String>>? onWordBankChanged;
-  final ValueChanged<String>? onListenChooseChanged;
-  final VoidCallback onPrimaryAction;
-  final double visualScale;
-  final bool showCompletionCard;
-  final String completionActivityId;
-  final int comboCount;
-  final int earnedStars;
-  final bool showGrowthRewards;
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedAudioKey = selectedAudio == null
-        ? null
-        : _pendingAudioKey(selectedAudio!);
-    return Column(
-      children: [
-        if (autoAdvanceHint != null)
-          Padding(
-            padding: EdgeInsets.only(bottom: 12 * visualScale),
-            child: _AutoAdvanceBanner(message: autoAdvanceHint!),
-          ),
-        Container(
-          padding: EdgeInsets.all(18 * visualScale),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.86),
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionHeading(title: '句子列表'),
-              if (tasks.length > 1) ...[
-                SizedBox(height: 12 * visualScale),
-                _SentenceSwitchStrip(
-                  tasks: tasks,
-                  focusedTaskId: focusedTaskId,
-                  completedTaskIds: completedTaskIds,
-                  onSelectTask: onSelectTask,
-                ),
-              ],
-            ],
-          ),
-        ),
-        SizedBox(height: 14 * visualScale),
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                Container(
-                  key: focusedTaskAnchorKey,
-                  child: _TaskCard(
-                    index:
-                        activity.tasks.indexWhere(
-                          (task) => task.id == focusTask.id,
-                        ) +
-                        1,
-                    task: focusTask,
-                    submissionFlowStatus: activity.submissionFlowStatus,
-                    submissionStatusHint: activity.submissionStatusHint,
-                    selectedAudioLabel: selectedAudio?.name,
-                    existingAudioLabel: activity.submissionAudioName,
-                    isSubmitting: isSubmitting,
-                    isRecording: isRecording,
-                    isSpeaking: speakingTaskId == sampleSpeechKeyForTask,
-                    isSamplePlaying: focusTask.hasReferenceAudio
-                        ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
-                              playingAudioKey
-                        : speakingTaskId == sampleSpeechKeyForTask,
-                    isSampleLoading: focusTask.hasReferenceAudio
-                        ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
-                              loadingAudioKey
-                        : false,
-                    isEncouragementPlaying:
-                        (focusTask.review?.encouragement.trim().isNotEmpty ==
-                                true &&
-                            _generatedSampleAudioKey(
-                                  _encouragementSpeechKey(focusTask.id),
-                                  schoolContext.schoolId ?? 'local',
-                                  focusTask.review!.encouragement,
-                                ) ==
-                                playingAudioKey) ||
-                        speakingTaskId == _encouragementSpeechKey(focusTask.id),
-                    isEncouragementLoading:
-                        focusTask.review?.encouragement.trim().isNotEmpty ==
-                            true &&
-                        _generatedSampleAudioKey(
-                              _encouragementSpeechKey(focusTask.id),
-                              schoolContext.schoolId ?? 'local',
-                              focusTask.review!.encouragement,
-                            ) ==
-                            loadingAudioKey,
-                    isSelectedAudioPlaying: selectedAudioKey == playingAudioKey,
-                    isSelectedAudioLoading: selectedAudioKey == loadingAudioKey,
-                    isStoredAudioPlaying: storedAudioKey == playingAudioKey,
-                    isStoredAudioLoading: storedAudioKey == loadingAudioKey,
-                    practiceTaskState: practiceTaskState,
-                    onOpenReading: onOpenReading,
-                    onSpeakSample: onSpeakSample,
-                    onOpenVideo: onOpenVideo,
-                    onPickAudio: onPickAudio,
-                    onRecordAudio: onRecordAudio,
-                    onClearSelectedAudio: onClearSelectedAudio,
-                    onPlaySelectedAudio: onPlaySelectedAudio,
-                    onPlayStoredAudio: onPlayStoredAudio,
-                    onPlayEncouragement: onPlayEncouragement,
-                    onWordBankChanged: onWordBankChanged,
-                    onListenChooseChanged: onListenChooseChanged,
-                    onPrimaryAction: onPrimaryAction,
-                    isFocusTask: true,
-                    showSubmissionSection: false,
-                  ),
-                ),
-                if (showCompletionCard) ...[
-                  SizedBox(height: 14 * visualScale),
-                  _CompletionShareCard(
-                    activityId: completionActivityId,
-                    comboCount: comboCount,
-                    earnedStars: earnedStars,
-                    showGrowthRewards: showGrowthRewards,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AutoAdvanceBanner extends StatelessWidget {
-  const _AutoAdvanceBanner({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEAFBF1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFD6F2E2)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: const Color(0xFF2FA77D),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Icon(
-              Icons.check_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: const Color(0xFF0F8B6D),
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CompletionShareCard extends StatelessWidget {
-  const _CompletionShareCard({
-    required this.activityId,
-    required this.comboCount,
-    required this.earnedStars,
-    required this.showGrowthRewards,
-  });
-
-  final String activityId;
-  final int comboCount;
-  final int earnedStars;
-  final bool showGrowthRewards;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFE9FFF0), Color(0xFFDFF7FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFB7E8C8), width: 1.4),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '这一份已经完成啦',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: const Color(0xFF166534),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            showGrowthRewards && (comboCount > 0 || earnedStars > 0)
-                ? '这次拿到了 $earnedStars 星币，还打出了 $comboCount 次连对，去给家长看看今天的学习成果吧。'
-                : '可以把今天的学习成果展示给家长看看了。',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF475569),
-              fontWeight: FontWeight.w700,
-              height: 1.4,
-            ),
-          ),
-          if (showGrowthRewards) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                if (earnedStars > 0)
-                  _TaskInfoChip(
-                    icon: Icons.stars_rounded,
-                    label: '$earnedStars 星币',
-                  ),
-                if (comboCount > 0)
-                  _TaskInfoChip(
-                    icon: Icons.local_fire_department_rounded,
-                    label: '$comboCount 连对',
-                  ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 14),
-          FilledButton.icon(
-            onPressed: () =>
-                context.go('/activities/$activityId/parent-contact'),
-            icon: const Icon(Icons.family_restroom_rounded),
-            label: const Text('去联系家长'),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -2416,6 +2096,8 @@ class _TextbookStageCard extends StatefulWidget {
     required this.bottomSheet,
     this.compact = false,
     this.visualScale = 1,
+    this.expandedBottomSheet = false,
+    this.fitToAvailableHeight = false,
   });
 
   final PortalActivity activity;
@@ -2433,6 +2115,8 @@ class _TextbookStageCard extends StatefulWidget {
   final Widget bottomSheet;
   final bool compact;
   final double visualScale;
+  final bool expandedBottomSheet;
+  final bool fitToAvailableHeight;
 
   @override
   State<_TextbookStageCard> createState() => _TextbookStageCardState();
@@ -2530,6 +2214,48 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
   @override
   Widget build(BuildContext context) {
     final pageLabel = _pageRangeLabel(widget.task);
+    final stageBottomInset =
+        (widget.expandedBottomSheet
+            ? (widget.compact ? 230.0 : 310.0)
+            : (widget.compact ? 154.0 : 184.0)) *
+        widget.visualScale;
+
+    return Container(
+      padding: EdgeInsets.all((widget.compact ? 16 : 20) * widget.visualScale),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF2FBF5), Color(0xFFFFF7E8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PracticeStageHeader(
+            title: widget.activity.title,
+            taskIndex: widget.taskIndex,
+            totalTasks: widget.totalTasks,
+            completedCount: widget.completedTaskIds.length,
+            pageLabel: pageLabel,
+            materialTitle: widget.activity.materialTitle,
+            comboCount: widget.comboCount,
+            earnedStars: widget.earnedStars,
+            compact: widget.compact,
+            visualScale: widget.visualScale,
+          ),
+          SizedBox(height: (widget.compact ? 12 : 16) * widget.visualScale),
+          if (widget.fitToAvailableHeight)
+            Expanded(child: _buildStageViewport(context, stageBottomInset))
+          else
+            _buildStageViewport(context, stageBottomInset),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStageViewport(BuildContext context, double stageBottomInset) {
     final focusedPageImagePath = widget.task.region?.pageImagePath;
     final pageTasks = focusedPageImagePath == null
         ? <PortalTask>[]
@@ -2548,235 +2274,159 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
             ),
     );
 
-    final stageBottomInset =
-        (widget.compact ? 154.0 : 184.0) * widget.visualScale;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fallbackAspectRatio = widget.compact ? 0.82 : 0.72;
+        final minVisibleHeight =
+            (widget.compact ? 260.0 : 360.0) * widget.visualScale;
+        final maxVisibleHeight =
+            (widget.compact ? 760.0 : 1180.0) * widget.visualScale;
+        final hasBoundedHeight =
+            constraints.hasBoundedHeight && constraints.maxHeight.isFinite;
 
-    return Container(
-      padding: EdgeInsets.all((widget.compact ? 16 : 20) * widget.visualScale),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF2FBF5), Color(0xFFFFF7E8)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 12 * widget.visualScale,
-            runSpacing: 12 * widget.visualScale,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                widget.activity.title,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: const Color(0xFF1E293B),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              _OverviewChip(
-                icon: Icons.flag_rounded,
-                label: '当前第 ${widget.taskIndex} / ${widget.totalTasks} 句',
-              ),
-              _OverviewChip(
-                icon: Icons.check_circle_rounded,
-                label:
-                    '已完成 ${widget.completedTaskIds.length} / ${widget.totalTasks}',
-              ),
-              if (widget.comboCount > 0)
-                _OverviewChip(
-                  icon: Icons.local_fire_department_rounded,
-                  label: '连对 ${widget.comboCount}',
-                ),
-              if (widget.earnedStars > 0)
-                _OverviewChip(
-                  icon: Icons.star_rounded,
-                  label: '本次 +${widget.earnedStars}',
-                ),
-              _OverviewChip(icon: Icons.menu_book_rounded, label: pageLabel),
-              if ((widget.activity.materialTitle ?? '').trim().isNotEmpty)
-                _OverviewChip(
-                  icon: Icons.auto_stories_rounded,
-                  label: widget.activity.materialTitle!,
-                ),
-            ],
-          ),
-          SizedBox(height: (widget.compact ? 10 : 12) * widget.visualScale),
-          const Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _StageLegendChip(
-                label: '当前',
-                background: Color(0xFFFFEDD5),
-                foreground: Color(0xFFEA580C),
-                icon: Icons.radio_button_checked_rounded,
-              ),
-              _StageLegendChip(
-                label: '已完成',
-                background: Color(0xFFEAFBF1),
-                foreground: Color(0xFF16A34A),
-                icon: Icons.check_circle_rounded,
-              ),
-              _StageLegendChip(
-                label: '待完成',
-                background: Color(0xFFFFFFFF),
-                foreground: Color(0xFF64748B),
-                icon: Icons.panorama_fish_eye_rounded,
-              ),
-            ],
-          ),
-          SizedBox(height: (widget.compact ? 12 : 16) * widget.visualScale),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final fallbackAspectRatio = widget.compact ? 0.82 : 0.72;
-              final minVisibleHeight =
-                  (widget.compact ? 260.0 : 360.0) * widget.visualScale;
-              final maxVisibleHeight =
-                  (widget.compact ? 760.0 : 1180.0) * widget.visualScale;
+        return FutureBuilder<_EmbeddedTextbookLayoutData>(
+          future: _layoutFuture,
+          builder: (context, snapshot) {
+            final viewportAspectRatio =
+                snapshot.data?.viewportAspectRatio ?? fallbackAspectRatio;
+            final naturalVisibleHeight =
+                constraints.maxWidth / viewportAspectRatio;
+            final maxVisibleByHeight = hasBoundedHeight
+                ? math.max(
+                    120.0 * widget.visualScale,
+                    constraints.maxHeight - stageBottomInset,
+                  )
+                : maxVisibleHeight;
+            final visibleLowerBound = math.min(
+              minVisibleHeight,
+              maxVisibleByHeight,
+            );
+            final visibleUpperBound = math.max(
+              visibleLowerBound,
+              math.min(maxVisibleHeight, maxVisibleByHeight),
+            );
+            final visibleHeight = naturalVisibleHeight.clamp(
+              visibleLowerBound,
+              visibleUpperBound,
+            );
+            final contentHeight = hasBoundedHeight
+                ? constraints.maxHeight
+                : visibleHeight + stageBottomInset;
 
-              return FutureBuilder<_EmbeddedTextbookLayoutData>(
-                future: _layoutFuture,
-                builder: (context, snapshot) {
-                  final viewportAspectRatio =
-                      snapshot.data?.viewportAspectRatio ?? fallbackAspectRatio;
-                  final visibleHeight =
-                      (constraints.maxWidth / viewportAspectRatio).clamp(
-                        minVisibleHeight,
-                        maxVisibleHeight,
-                      );
-                  final contentHeight = visibleHeight + stageBottomInset;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              height: contentHeight,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(26),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(0, 0, 0, stageBottomInset),
+                        child: focusedPageImagePath != null
+                            ? _TextbookImageStage(
+                                pageImagePath: focusedPageImagePath,
+                                stageImageData: snapshot.data?.stageImageData,
+                                tasks: pageTasks,
+                                focusedTaskId: widget.focusedTaskId,
+                                completedTaskIds: widget.completedTaskIds,
+                                onSelectTask: widget.onSelectTask,
+                                onCompleteHotspotTask:
+                                    widget.onCompleteHotspotTask,
+                              )
+                            : FutureBuilder<Uint8List?>(
+                                future: _pdfFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState !=
+                                      ConnectionState.done) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
 
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    height: contentHeight,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(26),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(26),
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                0,
-                                0,
-                                0,
-                                stageBottomInset,
-                              ),
-                              child: focusedPageImagePath != null
-                                  ? _TextbookImageStage(
-                                      pageImagePath: focusedPageImagePath,
-                                      stageImageData:
-                                          snapshot.data?.stageImageData,
-                                      tasks: pageTasks,
-                                      focusedTaskId: widget.focusedTaskId,
-                                      completedTaskIds: widget.completedTaskIds,
-                                      onSelectTask: widget.onSelectTask,
-                                      onCompleteHotspotTask:
-                                          widget.onCompleteHotspotTask,
-                                    )
-                                  : FutureBuilder<Uint8List?>(
-                                      future: _pdfFuture,
-                                      builder: (context, snapshot) {
-                                        if (snapshot.connectionState !=
-                                            ConnectionState.done) {
-                                          return const Center(
-                                            child: CircularProgressIndicator(),
-                                          );
-                                        }
+                                  if (snapshot.hasError) {
+                                    return _PdfStateMessage(
+                                      title: '教材暂时打不开',
+                                      message:
+                                          snapshot.error?.toString() ??
+                                          '请稍后重试。',
+                                    );
+                                  }
 
-                                        if (snapshot.hasError) {
-                                          return _PdfStateMessage(
-                                            title: '教材暂时打不开',
-                                            message:
-                                                snapshot.error?.toString() ??
-                                                '请稍后重试。',
-                                          );
-                                        }
+                                  if (!snapshot.hasData ||
+                                      snapshot.data == null) {
+                                    return const _PdfStateMessage(
+                                      title: '这句课本内容还在准备中',
+                                      message: '老师还没有把这一页教材传上来，先切到别的句子继续练习吧。',
+                                    );
+                                  }
 
-                                        if (!snapshot.hasData ||
-                                            snapshot.data == null) {
-                                          return const _PdfStateMessage(
-                                            title: '这句课本内容还在准备中',
-                                            message:
-                                                '老师还没有把这一页教材传上来，先切到别的句子继续练习吧。',
-                                          );
-                                        }
-
-                                        return Stack(
-                                          children: [
-                                            SfPdfViewer.memory(
-                                              snapshot.data!,
-                                              controller: _pdfController,
-                                              canShowPaginationDialog: false,
-                                              canShowScrollHead: false,
-                                              onDocumentLoaded: (_) {
-                                                _documentReady = true;
-                                                _jumpToTaskPage();
-                                              },
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    ),
-                            ),
-                          ),
-                          if ((widget.activity.materialPdfPath ?? '')
-                              .trim()
-                              .isNotEmpty)
-                            Positioned(
-                              top: 16 * widget.visualScale,
-                              right: 16 * widget.visualScale,
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: widget.onOpenFullScreen,
-                                  borderRadius: BorderRadius.circular(999),
-                                  child: Container(
-                                    width: 44 * widget.visualScale,
-                                    height: 44 * widget.visualScale,
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.34,
+                                  return Stack(
+                                    children: [
+                                      SfPdfViewer.memory(
+                                        snapshot.data!,
+                                        controller: _pdfController,
+                                        canShowPaginationDialog: false,
+                                        canShowScrollHead: false,
+                                        onDocumentLoaded: (_) {
+                                          _documentReady = true;
+                                          _jumpToTaskPage();
+                                        },
                                       ),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.18,
-                                        ),
-                                      ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.open_in_full_rounded,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                  ),
-                                ),
+                                    ],
+                                  );
+                                },
                               ),
-                            ),
-                          Positioned(
-                            left: 16 * widget.visualScale,
-                            right: 16 * widget.visualScale,
-                            bottom: 16 * widget.visualScale,
-                            child: widget.bottomSheet,
-                          ),
-                        ],
                       ),
                     ),
-                  );
-                },
-              );
-            },
-          ),
-        ],
-      ),
+                    if ((widget.activity.materialPdfPath ?? '')
+                        .trim()
+                        .isNotEmpty)
+                      Positioned(
+                        top: 16 * widget.visualScale,
+                        right: 16 * widget.visualScale,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: widget.onOpenFullScreen,
+                            borderRadius: BorderRadius.circular(999),
+                            child: Container(
+                              width: 44 * widget.visualScale,
+                              height: 44 * widget.visualScale,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.34),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.18),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.open_in_full_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      left: 16 * widget.visualScale,
+                      right: 16 * widget.visualScale,
+                      bottom: 16 * widget.visualScale,
+                      child: widget.bottomSheet,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -3129,198 +2779,6 @@ Future<Uint8List> _loadStageImageBytes(String path) {
       .download(reference.path);
 }
 
-class _StageLegendChip extends StatelessWidget {
-  const _StageLegendChip({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.icon,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: foreground.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: foreground),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SentenceSwitchStrip extends StatelessWidget {
-  const _SentenceSwitchStrip({
-    required this.tasks,
-    required this.focusedTaskId,
-    required this.completedTaskIds,
-    required this.onSelectTask,
-  });
-
-  final List<PortalTask> tasks;
-  final String focusedTaskId;
-  final Set<String> completedTaskIds;
-  final ValueChanged<String> onSelectTask;
-
-  @override
-  Widget build(BuildContext context) {
-    final completedCount = completedTaskIds.length;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '句子切换',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: const Color(0xFF2FA77D),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEAFBF1),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                '已完成 $completedCount/${tasks.length}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF15803D),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        _TaskCompletionProgressBar(
-          completedCount: completedCount,
-          totalCount: tasks.length,
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 48,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: tasks.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final task = tasks[index];
-              final isFocused = task.id == focusedTaskId;
-              final isCompleted = completedTaskIds.contains(task.id);
-              return ChoiceChip(
-                label: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('句子 ${index + 1}'),
-                    if (isCompleted) ...[
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.check_circle_rounded,
-                        size: 16,
-                        color: isFocused
-                            ? const Color(0xFFEA580C)
-                            : const Color(0xFF16A34A),
-                      ),
-                    ],
-                  ],
-                ),
-                selected: isFocused,
-                onSelected: (_) => onSelectTask(task.id),
-                selectedColor: const Color(0xFFFFEDD5),
-                labelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: isFocused
-                      ? const Color(0xFFEA580C)
-                      : const Color(0xFF475569),
-                  fontWeight: FontWeight.w800,
-                ),
-                side: BorderSide(
-                  color: isFocused
-                      ? const Color(0xFFEA580C)
-                      : const Color(0xFFDDE6E6),
-                ),
-                backgroundColor: Colors.white.withValues(alpha: 0.92),
-                showCheckmark: false,
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TaskCompletionProgressBar extends StatelessWidget {
-  const _TaskCompletionProgressBar({
-    required this.completedCount,
-    required this.totalCount,
-  });
-
-  final int completedCount;
-  final int totalCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = totalCount == 0
-        ? 0.0
-        : (completedCount / totalCount).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: 0, end: progress),
-          duration: const Duration(milliseconds: 360),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, child) {
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: value,
-                minHeight: 10,
-                backgroundColor: const Color(0xFFE2E8F0),
-                valueColor: const AlwaysStoppedAnimation(Color(0xFF2FA77D)),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 6),
-        Text(
-          completedCount >= totalCount
-              ? '这一组句子全部完成了'
-              : '再完成 ${totalCount - completedCount} 句就能点亮这一组',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: const Color(0xFF64748B),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _TextbookFloatingPanel extends StatelessWidget {
   const _TextbookFloatingPanel({
     required this.task,
@@ -3339,6 +2797,8 @@ class _TextbookFloatingPanel extends StatelessWidget {
     required this.isSelectedAudioLoading,
     required this.isStoredAudioPlaying,
     required this.isStoredAudioLoading,
+    required this.practiceTaskState,
+    this.showPracticeRenderer = false,
     this.onOpenReading,
     this.onSpeakSample,
     this.onOpenVideo,
@@ -3347,6 +2807,8 @@ class _TextbookFloatingPanel extends StatelessWidget {
     this.onClearSelectedAudio,
     this.onPlaySelectedAudio,
     this.onPlayStoredAudio,
+    this.onWordBankChanged,
+    this.onListenChooseChanged,
     required this.onPrimaryAction,
   });
 
@@ -3366,6 +2828,8 @@ class _TextbookFloatingPanel extends StatelessWidget {
   final bool isSelectedAudioLoading;
   final bool isStoredAudioPlaying;
   final bool isStoredAudioLoading;
+  final PracticeTaskState practiceTaskState;
+  final bool showPracticeRenderer;
   final VoidCallback? onOpenReading;
   final VoidCallback? onSpeakSample;
   final VoidCallback? onOpenVideo;
@@ -3374,12 +2838,18 @@ class _TextbookFloatingPanel extends StatelessWidget {
   final VoidCallback? onClearSelectedAudio;
   final VoidCallback? onPlaySelectedAudio;
   final VoidCallback? onPlayStoredAudio;
+  final ValueChanged<List<String>>? onWordBankChanged;
+  final ValueChanged<String>? onListenChooseChanged;
   final VoidCallback onPrimaryAction;
 
   @override
   Widget build(BuildContext context) {
     final sampleText = _sampleTextFor(task);
     final pageLabel = _pageRangeLabel(task);
+    final practiceProtocol = task.toPracticeProtocol();
+    final shouldShowPracticeRenderer =
+        showPracticeRenderer &&
+        practiceProtocol.type != PracticeTaskType.unsupported;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -3413,7 +2883,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
                           ),
                         ),
                         if (task.hasPageRange)
-                          _TaskInfoChip(
+                          PracticeTaskInfoChip(
                             icon: Icons.menu_book_rounded,
                             label: pageLabel,
                             onTap: onOpenReading,
@@ -3466,7 +2936,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
                       ),
                     ),
                     if (task.hasPageRange)
-                      _TaskInfoChip(
+                      PracticeTaskInfoChip(
                         icon: Icons.menu_book_rounded,
                         label: pageLabel,
                         onTap: onOpenReading,
@@ -3479,7 +2949,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _TaskInfoChip(
+              PracticeTaskInfoChip(
                 icon: isSamplePlaying
                     ? Icons.pause_circle_filled_rounded
                     : task.hasReferenceAudio
@@ -3494,14 +2964,14 @@ class _TextbookFloatingPanel extends StatelessWidget {
                 iconOnly: true,
               ),
               if (task.hasTeachingVideo)
-                _TaskInfoChip(
+                PracticeTaskInfoChip(
                   icon: Icons.smart_display_rounded,
                   label: '视频',
                   onTap: onOpenVideo,
                   iconOnly: true,
                 ),
               if (selectedAudioLabel != null)
-                _TaskInfoChip(
+                PracticeTaskInfoChip(
                   icon: isSelectedAudioPlaying
                       ? Icons.stop_circle_rounded
                       : Icons.play_circle_outline_rounded,
@@ -3515,7 +2985,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
                 ),
               if (existingAudioLabel != null &&
                   submissionFlowStatus != SubmissionFlowStatus.notStarted)
-                _TaskInfoChip(
+                PracticeTaskInfoChip(
                   icon: isStoredAudioPlaying
                       ? Icons.stop_circle_rounded
                       : Icons.play_circle_outline_rounded,
@@ -3528,7 +2998,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
                   iconOnly: true,
                 ),
               if (selectedAudioLabel != null && onClearSelectedAudio != null)
-                _TaskInfoChip(
+                PracticeTaskInfoChip(
                   icon: Icons.delete_outline_rounded,
                   label: '删除',
                   onTap: onClearSelectedAudio,
@@ -3543,8 +3013,17 @@ class _TextbookFloatingPanel extends StatelessWidget {
               header,
               const SizedBox(height: 12),
               actionChips,
+              if (shouldShowPracticeRenderer) ...[
+                const SizedBox(height: 12),
+                PracticeRenderer(
+                  task: practiceProtocol,
+                  state: practiceTaskState,
+                  onWordBankChanged: onWordBankChanged,
+                  onListenChooseChanged: onListenChooseChanged,
+                ),
+              ],
               const SizedBox(height: 14),
-              _InlineSubmissionSection(
+              PracticeSubmissionDock(
                 submissionFlowStatus: submissionFlowStatus,
                 submissionStatusHint: submissionStatusHint,
                 isUnsupportedProtocol: isUnsupportedProtocol,
@@ -3565,125 +3044,6 @@ class _TextbookFloatingPanel extends StatelessWidget {
                 onPrimaryAction: onPrimaryAction,
                 compact: true,
               ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _AudioInfoCard extends StatelessWidget {
-  const _AudioInfoCard({
-    required this.title,
-    required this.fileName,
-    this.onAction,
-    this.onDelete,
-    this.isPlaying = false,
-    this.isLoading = false,
-  });
-
-  final String title;
-  final String fileName;
-  final VoidCallback? onAction;
-  final VoidCallback? onDelete;
-  final bool isPlaying;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isPhone = constraints.maxWidth < 480;
-          final details = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF64748B),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                fileName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: const Color(0xFF1E293B),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          );
-          final action = onAction == null
-              ? null
-              : _RoundOutlineIconButton(
-                  onPressed: onAction,
-                  tooltip: isLoading ? '加载中' : (isPlaying ? '停止播放' : '播放录音'),
-                  icon: isLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(
-                          isPlaying
-                              ? Icons.stop_circle_rounded
-                              : Icons.play_circle_outline_rounded,
-                          color: const Color(0xFF0F766E),
-                        ),
-                );
-          final deleteAction = onDelete == null
-              ? null
-              : _RoundOutlineIconButton(
-                  onPressed: onDelete,
-                  tooltip: '删除录音',
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: Color(0xFFDC2626),
-                  ),
-                );
-
-          if (isPhone) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.audio_file_rounded, color: Color(0xFF2FA77D)),
-                const SizedBox(height: 10),
-                details,
-                if (action != null || deleteAction != null) ...[
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      if (action != null) action,
-                      if (deleteAction != null) deleteAction,
-                    ],
-                  ),
-                ],
-              ],
-            );
-          }
-
-          return Row(
-            children: [
-              const Icon(Icons.audio_file_rounded, color: Color(0xFF2FA77D)),
-              const SizedBox(width: 10),
-              Expanded(child: details),
-              if (deleteAction != null) ...[
-                const SizedBox(width: 14),
-                deleteAction,
-              ],
-              if (action != null) ...[const SizedBox(width: 14), action],
             ],
           );
         },
@@ -3927,330 +3287,6 @@ class _TeachingVideoDialogState extends State<_TeachingVideoDialog> {
   }
 }
 
-class _TaskReviewPanel extends StatelessWidget {
-  const _TaskReviewPanel({
-    required this.review,
-    required this.isEncouragementPlaying,
-    required this.isEncouragementLoading,
-    this.onPlayEncouragement,
-  });
-
-  final PortalTaskReview review;
-  final bool isEncouragementPlaying;
-  final bool isEncouragementLoading;
-  final VoidCallback? onPlayEncouragement;
-
-  @override
-  Widget build(BuildContext context) {
-    final scoreLabel = review.score.toStringAsFixed(0);
-    final canPlayEncouragement =
-        onPlayEncouragement != null && review.encouragement.trim().isNotEmpty;
-    final reviewBadgeLabel = isEncouragementLoading
-        ? '生成中'
-        : isEncouragementPlaying
-        ? '停止'
-        : 'AI';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6FBF8),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFD9F1E3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _ReviewBadge(
-                icon: isEncouragementLoading
-                    ? Icons.hourglass_top_rounded
-                    : isEncouragementPlaying
-                    ? Icons.stop_circle_rounded
-                    : Icons.auto_awesome_rounded,
-                label: reviewBadgeLabel,
-                color: const Color(0xFF0F8B6D),
-                background: const Color(0xFFDFF8EC),
-                onTap: canPlayEncouragement ? onPlayEncouragement : null,
-              ),
-              if (review.isTeacherReviewedReference)
-                const _ReviewBadge(
-                  icon: Icons.person_rounded,
-                  label: '老师已看',
-                  color: Color(0xFF0369A1),
-                  background: Color(0xFFE0F2FE),
-                ),
-              _ReviewBadge(
-                icon: Icons.star_rounded,
-                label: '$scoreLabel 分',
-                color: const Color(0xFFF97316),
-                background: const Color(0xFFFFEBD9),
-              ),
-              if (review.pronunciationScore != null)
-                _ReviewMetricChip(
-                  label: '发音 ${review.pronunciationScore!.toStringAsFixed(0)}',
-                ),
-              if (review.fluencyScore != null)
-                _ReviewMetricChip(
-                  label: '流利 ${review.fluencyScore!.toStringAsFixed(0)}',
-                ),
-              if (review.completenessScore != null)
-                _ReviewMetricChip(
-                  label: '完整 ${review.completenessScore!.toStringAsFixed(0)}',
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            review.summaryFeedback,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF1E293B),
-              fontWeight: FontWeight.w800,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isPhone = constraints.maxWidth < 720;
-              final strengthsCard = _ReviewListCard(
-                title: '读得好',
-                icon: Icons.thumb_up_alt_rounded,
-                background: const Color(0xFFEAFBF1),
-                foreground: const Color(0xFF0F8B6D),
-                items: review.strengths.isEmpty
-                    ? const ['愿意开口读。']
-                    : review.strengths,
-              );
-              final improvementCard = _ReviewListCard(
-                title: '再练练',
-                icon: Icons.flag_rounded,
-                background: const Color(0xFFFFF4E8),
-                foreground: const Color(0xFFB45309),
-                items: review.improvementPoints.isEmpty
-                    ? const ['再跟示范读一遍。']
-                    : review.improvementPoints,
-              );
-
-              if (isPhone) {
-                return Column(
-                  children: [
-                    strengthsCard,
-                    const SizedBox(height: 12),
-                    improvementCard,
-                  ],
-                );
-              }
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: strengthsCard),
-                  const SizedBox(width: 12),
-                  Expanded(child: improvementCard),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReviewBadge extends StatelessWidget {
-  const _ReviewBadge({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.background,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-  final Color background;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final badge = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(14),
-        border: onTap == null
-            ? null
-            : Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (onTap == null) {
-      return badge;
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: badge,
-      ),
-    );
-  }
-}
-
-class _ReviewMetricChip extends StatelessWidget {
-  const _ReviewMetricChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFFFF),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFDCE7E3)),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: const Color(0xFF475569),
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _ReviewListCard extends StatelessWidget {
-  const _ReviewListCard({
-    required this.title,
-    required this.icon,
-    required this.background,
-    required this.foreground,
-    required this.items,
-  });
-
-  final String title;
-  final IconData icon;
-  final Color background;
-  final Color foreground;
-  final List<String> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: foreground),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: foreground,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ...items.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '• ',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: foreground,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      item,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF334155),
-                        fontWeight: FontWeight.w700,
-                        height: 1.45,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OverviewChip extends StatelessWidget {
-  const _OverviewChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: const Color(0xFF2FA77D)),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF475569),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _TaskCard extends StatelessWidget {
   const _TaskCard({
     required this.index,
@@ -4433,7 +3469,7 @@ class _TaskCard extends StatelessWidget {
               ),
               if (task.review != null) ...[
                 const SizedBox(height: 16),
-                _TaskReviewPanel(
+                TaskReviewPanel(
                   review: task.review!,
                   onPlayEncouragement: onPlayEncouragement,
                   isEncouragementPlaying: isEncouragementPlaying,
@@ -4463,14 +3499,14 @@ class _TaskCard extends StatelessWidget {
                     ),
                   ),
                   if (task.hasPageRange)
-                    _TaskInfoChip(
+                    PracticeTaskInfoChip(
                       icon: Icons.menu_book_rounded,
                       label: _pageRangeLabel(task),
                       onTap: onOpenReading,
                       iconOnly: true,
                     ),
                   if (sampleText != null)
-                    _TaskInfoChip(
+                    PracticeTaskInfoChip(
                       icon: isSamplePlaying
                           ? Icons.pause_circle_filled_rounded
                           : task.hasReferenceAudio
@@ -4483,7 +3519,7 @@ class _TaskCard extends StatelessWidget {
                       iconOnly: true,
                     ),
                   if (task.hasTeachingVideo)
-                    _TaskInfoChip(
+                    PracticeTaskInfoChip(
                       icon: Icons.smart_display_rounded,
                       label: '动画',
                       onTap: onOpenVideo,
@@ -4493,7 +3529,7 @@ class _TaskCard extends StatelessWidget {
               ),
               if (showSubmissionSection) ...[
                 const SizedBox(height: 16),
-                _InlineSubmissionSection(
+                PracticeSubmissionDock(
                   submissionFlowStatus: submissionFlowStatus,
                   submissionStatusHint: submissionStatusHint,
                   isUnsupportedProtocol:
@@ -4636,587 +3672,6 @@ class _TaskCard extends StatelessWidget {
   }
 }
 
-class _InlineSubmissionSection extends StatelessWidget {
-  const _InlineSubmissionSection({
-    required this.submissionFlowStatus,
-    required this.submissionStatusHint,
-    required this.isUnsupportedProtocol,
-    required this.requiresPracticeCompletion,
-    required this.isPracticeCompleted,
-    required this.selectedAudioLabel,
-    required this.existingAudioLabel,
-    required this.isSubmitting,
-    required this.isRecording,
-    required this.isSelectedAudioPlaying,
-    required this.isSelectedAudioLoading,
-    required this.isStoredAudioPlaying,
-    required this.isStoredAudioLoading,
-    this.onRecordAudio,
-    this.onClearSelectedAudio,
-    this.onPlaySelectedAudio,
-    this.onPlayStoredAudio,
-    required this.onPrimaryAction,
-    this.compact = false,
-  });
-
-  final SubmissionFlowStatus submissionFlowStatus;
-  final String? submissionStatusHint;
-  final bool isUnsupportedProtocol;
-  final bool requiresPracticeCompletion;
-  final bool isPracticeCompleted;
-  final String? selectedAudioLabel;
-  final String? existingAudioLabel;
-  final bool isSubmitting;
-  final bool isRecording;
-  final bool isSelectedAudioPlaying;
-  final bool isSelectedAudioLoading;
-  final bool isStoredAudioPlaying;
-  final bool isStoredAudioLoading;
-  final VoidCallback? onRecordAudio;
-  final VoidCallback? onClearSelectedAudio;
-  final VoidCallback? onPlaySelectedAudio;
-  final VoidCallback? onPlayStoredAudio;
-  final VoidCallback onPrimaryAction;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusLabel = switch (submissionFlowStatus) {
-      SubmissionFlowStatus.notStarted => isRecording ? '录音中' : '未提交',
-      SubmissionFlowStatus.queued => '已提交',
-      SubmissionFlowStatus.processing => '评分中',
-      SubmissionFlowStatus.failed => isRecording ? '录音中' : '重试',
-      SubmissionFlowStatus.completed => '已点评',
-    };
-    final statusColor = switch (submissionFlowStatus) {
-      SubmissionFlowStatus.notStarted => const Color(0xFF2563EB),
-      SubmissionFlowStatus.queued => const Color(0xFFF97316),
-      SubmissionFlowStatus.processing => const Color(0xFFFF8F4D),
-      SubmissionFlowStatus.failed => const Color(0xFFDC2626),
-      SubmissionFlowStatus.completed => const Color(0xFF16A34A),
-    };
-    final requiresPracticeFirst =
-        requiresPracticeCompletion && !isPracticeCompleted && !isRecording;
-    final canSubmit =
-        submissionFlowStatus == SubmissionFlowStatus.notStarted ||
-        submissionFlowStatus == SubmissionFlowStatus.failed ||
-        submissionFlowStatus == SubmissionFlowStatus.completed;
-    final hasSelectedAudio = (selectedAudioLabel ?? '').trim().isNotEmpty;
-    final trimmedStatusHint = submissionStatusHint?.trim();
-    final (
-      helperMessage,
-      helperBackground,
-      helperForeground,
-      helperIcon,
-    ) = switch (submissionFlowStatus) {
-      _ when isUnsupportedProtocol => (
-        '这道题型正在更新中，先点跳过继续下一句，系统会保留兜底能力。',
-        const Color(0xFFFFF7E8),
-        const Color(0xFFB45309),
-        Icons.auto_fix_high_rounded,
-      ),
-      _ when requiresPracticeFirst => (
-        '先完成上面的拼句练习，再开始录音或提交这一句。',
-        const Color(0xFFFFF7E8),
-        const Color(0xFFB45309),
-        Icons.extension_rounded,
-      ),
-      _ when isRecording => (
-        '读完后点结束录音，系统会自动帮你保存这一句。',
-        const Color(0xFFFFE4E6),
-        const Color(0xFFDC2626),
-        Icons.graphic_eq_rounded,
-      ),
-      _ when hasSelectedAudio && !isSubmitting => (
-        submissionFlowStatus == SubmissionFlowStatus.failed
-            ? '上一回没有立刻传上去，这段录音还在，点一下就能重新提交。'
-            : submissionFlowStatus == SubmissionFlowStatus.completed
-            ? '这段录音已经准备好了，想挑战更高分的话可以再次提交。'
-            : '录音已经准备好了，先试听一下，再点提交这一句。',
-        const Color(0xFFEAFBF1),
-        const Color(0xFF15803D),
-        Icons.check_circle_rounded,
-      ),
-      SubmissionFlowStatus.queued when trimmedStatusHint != null => (
-        trimmedStatusHint,
-        const Color(0xFFFFF2E4),
-        const Color(0xFFEA580C),
-        Icons.schedule_rounded,
-      ),
-      SubmissionFlowStatus.processing when trimmedStatusHint != null => (
-        trimmedStatusHint,
-        const Color(0xFFFFF2E4),
-        const Color(0xFFFF8F4D),
-        Icons.auto_awesome_rounded,
-      ),
-      SubmissionFlowStatus.completed when trimmedStatusHint != null => (
-        trimmedStatusHint,
-        const Color(0xFFEAFBF1),
-        const Color(0xFF16A34A),
-        Icons.emoji_events_rounded,
-      ),
-      _ => (null, null, null, null),
-    };
-    final primaryLabel = isUnsupportedProtocol
-        ? (compact ? '跳过' : '先跳过这一句')
-        : requiresPracticeFirst
-        ? (compact ? '先拼句' : '先完成拼句')
-        : isRecording
-        ? (compact ? '停止' : '结束录音')
-        : hasSelectedAudio
-        ? (isSubmitting
-              ? (submissionFlowStatus == SubmissionFlowStatus.failed
-                    ? '重交中'
-                    : submissionFlowStatus == SubmissionFlowStatus.completed
-                    ? '再交中'
-                    : '提交中')
-              : (submissionFlowStatus == SubmissionFlowStatus.failed
-                    ? (compact ? '重交' : '重新提交')
-                    : submissionFlowStatus == SubmissionFlowStatus.completed
-                    ? (compact ? '再交' : '再次提交')
-                    : (compact ? '提交' : '提交这一句')))
-        : (compact ? '录音' : '开始录音');
-    final submitLabel = submissionFlowStatus == SubmissionFlowStatus.failed
-        ? (compact ? '重交' : '重新提交')
-        : submissionFlowStatus == SubmissionFlowStatus.completed
-        ? (compact ? '再交' : '再次提交')
-        : (compact ? '提交' : '提交这一句');
-    final primaryIcon = isUnsupportedProtocol
-        ? Icons.skip_next_rounded
-        : requiresPracticeFirst
-        ? Icons.extension_rounded
-        : isSubmitting
-        ? null
-        : isRecording
-        ? Icons.stop_circle_rounded
-        : hasSelectedAudio
-        ? (submissionFlowStatus == SubmissionFlowStatus.failed
-              ? Icons.refresh_rounded
-              : submissionFlowStatus == SubmissionFlowStatus.completed
-              ? Icons.restart_alt_rounded
-              : Icons.cloud_upload_rounded)
-        : Icons.mic_rounded;
-    final primaryAction = isUnsupportedProtocol
-        ? onPrimaryAction
-        : requiresPracticeFirst
-        ? null
-        : isSubmitting
-        ? null
-        : isRecording
-        ? onRecordAudio
-        : hasSelectedAudio
-        ? (canSubmit ? onPrimaryAction : null)
-        : onRecordAudio;
-    final recordButtonState = isSubmitting
-        ? AudioRecordButtonState.processing
-        : isRecording
-        ? AudioRecordButtonState.recording
-        : AudioRecordButtonState.idle;
-    final showSplitActions =
-        hasSelectedAudio &&
-        !isRecording &&
-        !isUnsupportedProtocol &&
-        !requiresPracticeFirst;
-
-    Widget primaryButton({required bool compactMode}) {
-      return FilledButton.icon(
-        onPressed: primaryAction,
-        style: FilledButton.styleFrom(
-          minimumSize: Size.fromHeight(compactMode ? 50 : 52),
-          backgroundColor: const Color(0xFFFF8F4D),
-          foregroundColor: Colors.white,
-        ),
-        icon: isSubmitting
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : Icon(primaryIcon),
-        label: Text(primaryLabel),
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(compact ? 14 : 16),
-      decoration: BoxDecoration(
-        color: compact ? const Color(0xFFF7FAF8) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(compact ? 18 : 20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(
-                  statusLabel,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              if (helperMessage != null &&
-                  helperBackground != null &&
-                  helperForeground != null &&
-                  helperIcon != null) ...[
-                const SizedBox(height: 10),
-                _InlineHintBanner(
-                  message: helperMessage,
-                  backgroundColor: helperBackground,
-                  foregroundColor: helperForeground,
-                  icon: helperIcon,
-                ),
-              ],
-            ],
-          ),
-          if (selectedAudioLabel != null) ...[
-            const SizedBox(height: 12),
-            _AudioInfoCard(
-              title: '准备好了',
-              fileName: selectedAudioLabel!,
-              onAction: null,
-              onDelete: null,
-            ),
-          ],
-          if (existingAudioLabel != null &&
-              submissionFlowStatus != SubmissionFlowStatus.notStarted) ...[
-            const SizedBox(height: 12),
-            _AudioInfoCard(
-              title: '已提交',
-              fileName: existingAudioLabel!,
-              onAction: onPlayStoredAudio,
-              isPlaying: isStoredAudioPlaying,
-              isLoading: isStoredAudioLoading,
-            ),
-          ],
-          const SizedBox(height: 14),
-          if (showSplitActions)
-            _RecordedAudioActionRow(
-              compact: compact,
-              isSubmitting: isSubmitting,
-              isPlaying: isSelectedAudioPlaying,
-              isLoading: isSelectedAudioLoading,
-              submitLabel: submitLabel,
-              onPlay: onPlaySelectedAudio,
-              onRecordAgain: onRecordAudio,
-              onDelete: onClearSelectedAudio,
-              onSubmit: canSubmit ? onPrimaryAction : null,
-            )
-          else
-            AudioRecordButton(
-              state: recordButtonState,
-              onPressed: isUnsupportedProtocol || requiresPracticeFirst
-                  ? null
-                  : onRecordAudio,
-              compact: compact,
-            ),
-          if (!showSplitActions &&
-              (isUnsupportedProtocol || requiresPracticeFirst)) ...[
-            const SizedBox(height: 10),
-            primaryButton(compactMode: compact),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _RecordedAudioActionRow extends StatelessWidget {
-  const _RecordedAudioActionRow({
-    required this.compact,
-    required this.isSubmitting,
-    required this.isPlaying,
-    required this.isLoading,
-    required this.submitLabel,
-    required this.onSubmit,
-    this.onPlay,
-    this.onRecordAgain,
-    this.onDelete,
-  });
-
-  final bool compact;
-  final bool isSubmitting;
-  final bool isPlaying;
-  final bool isLoading;
-  final String submitLabel;
-  final VoidCallback? onSubmit;
-  final VoidCallback? onPlay;
-  final VoidCallback? onRecordAgain;
-  final VoidCallback? onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final playLabel = isLoading ? '加载' : (isPlaying ? '停止' : '试听');
-    final secondaryHeight = compact ? 48.0 : 52.0;
-    final children = <Widget>[
-      if (onPlay != null)
-        _RecordedAudioPillButton(
-          label: playLabel,
-          icon: isLoading
-              ? null
-              : isPlaying
-              ? Icons.stop_circle_rounded
-              : Icons.play_circle_fill_rounded,
-          onPressed: isSubmitting ? null : onPlay,
-          isLoading: isLoading,
-          height: secondaryHeight,
-        ),
-      _RecordedAudioPillButton(
-        label: compact ? '重录' : '重录一次',
-        icon: Icons.restart_alt_rounded,
-        onPressed: isSubmitting ? null : onRecordAgain,
-        height: secondaryHeight,
-      ),
-      if (onDelete != null && !compact)
-        _RecordedAudioPillButton(
-          label: '删除',
-          icon: Icons.delete_outline_rounded,
-          onPressed: isSubmitting ? null : onDelete,
-          height: secondaryHeight,
-          danger: true,
-        ),
-    ];
-
-    return Row(
-      children: [
-        for (var index = 0; index < children.length; index++) ...[
-          if (index > 0) const SizedBox(width: 8),
-          Flexible(child: children[index]),
-        ],
-        const SizedBox(width: 10),
-        Expanded(
-          flex: compact ? 2 : 3,
-          child: FilledButton.icon(
-            onPressed: isSubmitting ? null : onSubmit,
-            style: FilledButton.styleFrom(
-              minimumSize: Size.fromHeight(secondaryHeight),
-              backgroundColor: const Color(0xFFFF8F4D),
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: const Color(0xFFFFC4A3),
-              disabledForegroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            icon: isSubmitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.cloud_upload_rounded),
-            label: Text(
-              isSubmitting ? '提交中' : submitLabel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RecordedAudioPillButton extends StatelessWidget {
-  const _RecordedAudioPillButton({
-    required this.label,
-    required this.height,
-    this.icon,
-    this.onPressed,
-    this.isLoading = false,
-    this.danger = false,
-  });
-
-  final String label;
-  final double height;
-  final IconData? icon;
-  final VoidCallback? onPressed;
-  final bool isLoading;
-  final bool danger;
-
-  @override
-  Widget build(BuildContext context) {
-    final foregroundColor = danger
-        ? const Color(0xFFDC2626)
-        : const Color(0xFF2563EB);
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        minimumSize: Size.fromHeight(height),
-        foregroundColor: foregroundColor,
-        backgroundColor: Colors.white,
-        side: BorderSide(color: foregroundColor.withValues(alpha: 0.22)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-      ),
-      icon: isLoading
-          ? SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: foregroundColor,
-              ),
-            )
-          : Icon(icon, size: 18),
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-    );
-  }
-}
-
-class _InlineHintBanner extends StatelessWidget {
-  const _InlineHintBanner({
-    required this.message,
-    required this.backgroundColor,
-    required this.foregroundColor,
-    required this.icon,
-  });
-
-  final String message;
-  final Color backgroundColor;
-  final Color foregroundColor;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: foregroundColor, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: foregroundColor,
-                fontWeight: FontWeight.w800,
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TaskInfoChip extends StatelessWidget {
-  const _TaskInfoChip({
-    required this.icon,
-    required this.label,
-    this.onTap,
-    this.iconOnly = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-  final bool iconOnly;
-
-  @override
-  Widget build(BuildContext context) {
-    final chipColor = onTap == null
-        ? const Color(0xFFF8FAFC)
-        : const Color(0xFFEAFBF1);
-    final borderColor = onTap == null ? null : const Color(0xFFD6F2E2);
-
-    if (iconOnly) {
-      final chip = Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: chipColor,
-          borderRadius: BorderRadius.circular(14),
-          border: borderColor == null ? null : Border.all(color: borderColor),
-        ),
-        child: Icon(icon, size: 18, color: const Color(0xFF2FA77D)),
-      );
-
-      final wrapped = Tooltip(message: label, child: chip);
-      if (onTap == null) {
-        return wrapped;
-      }
-
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: wrapped,
-        ),
-      );
-    }
-
-    final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: chipColor,
-        borderRadius: BorderRadius.circular(14),
-        border: borderColor == null ? null : Border.all(color: borderColor),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: const Color(0xFF2FA77D)),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF475569),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (onTap != null) ...[
-            const SizedBox(width: 6),
-            const Icon(
-              Icons.open_in_new_rounded,
-              size: 14,
-              color: Color(0xFF2FA77D),
-            ),
-          ],
-        ],
-      ),
-    );
-
-    if (onTap == null) {
-      return chip;
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: chip,
-      ),
-    );
-  }
-}
-
 class _HeaderAction extends StatelessWidget {
   const _HeaderAction({
     required this.icon,
@@ -5271,37 +3726,6 @@ class _HeaderAction extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _RoundOutlineIconButton extends StatelessWidget {
-  const _RoundOutlineIconButton({
-    required this.tooltip,
-    required this.icon,
-    this.onPressed,
-  });
-
-  final String tooltip;
-  final Widget icon;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          padding: EdgeInsets.zero,
-          minimumSize: const Size(42, 42),
-          maximumSize: const Size(42, 42),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        child: icon,
       ),
     );
   }

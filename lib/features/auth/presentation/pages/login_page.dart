@@ -125,7 +125,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             borderRadius: BorderRadius.circular(32),
                           ),
                           child: Padding(
-                            padding: EdgeInsets.all(isPhone ? 16 : 24),
+                            padding: EdgeInsets.all(isPhone ? 14 : 22),
                             child: isPhone
                                 ? Column(
                                     children: [
@@ -255,7 +255,7 @@ class _SchoolHero extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isPhone ? 22 : 32),
+      padding: EdgeInsets.all(isPhone ? 16 : 24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -268,58 +268,53 @@ class _SchoolHero extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: BrandAvatar(
-              logoUrl: schoolContext.logoUrl,
-              size: isPhone ? 60 : 68,
-              borderRadius: 22,
-              backgroundColor: Colors.transparent,
-              fallbackIcon: Icons.auto_stories_rounded,
-              fallbackIconColor: Colors.white,
-              fallbackIconSize: isPhone ? 30 : 34,
-            ),
+          Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: BrandAvatar(
+                  logoUrl: schoolContext.logoUrl,
+                  size: isPhone ? 54 : 64,
+                  borderRadius: 22,
+                  backgroundColor: Colors.transparent,
+                  fallbackIcon: Icons.auto_stories_rounded,
+                  fallbackIconColor: Colors.white,
+                  fallbackIconSize: isPhone ? 28 : 32,
+                ),
+              ),
+              if (schoolContext.displayName.isNotEmpty) ...[
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    schoolContext.displayName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        (isPhone
+                                ? Theme.of(context).textTheme.headlineSmall
+                                : Theme.of(context).textTheme.displaySmall)
+                            ?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
+                  ),
+                ),
+              ],
+            ],
           ),
-          SizedBox(height: schoolContext.displayName.isEmpty ? 16 : 20),
-          if (schoolContext.displayName.isNotEmpty)
+          if (!isPhone) ...[
+            const SizedBox(height: 18),
             Text(
-              schoolContext.displayName,
-              style:
-                  (isPhone
-                          ? Theme.of(context).textTheme.headlineMedium
-                          : Theme.of(context).textTheme.displaySmall)
-                      ?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
+              '学生登录',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.white.withValues(alpha: 0.96),
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          SizedBox(height: schoolContext.displayName.isEmpty ? 0 : 12),
-          Text(
-            schoolContext.welcomeTitle,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.96),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            schoolContext.welcomeMessage,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.92),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 22),
-          Text(
-            '请使用学校老师或管理员发放的账号登录。',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Colors.white.withValues(alpha: 0.92),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -363,21 +358,6 @@ class _LoginForm extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '欢迎回来',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '登录后就能继续今天的英语打卡任务。',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 28),
           _LoginModeSwitcher(selectedMode: loginMode, onChanged: onModeChanged),
           const SizedBox(height: 16),
           AnimatedSwitcher(
@@ -402,7 +382,7 @@ class _LoginForm extends StatelessWidget {
               ),
             },
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 22),
           if (loginMode != _LoginMode.wechat)
             SizedBox(
               width: double.infinity,
@@ -417,24 +397,6 @@ class _LoginForm extends StatelessWidget {
                     : Text(loginMode == _LoginMode.phone ? '验证并登录' : '登录'),
               ),
             ),
-          const SizedBox(height: 16),
-          Text(
-            '账号由机构管理员统一创建；手机号和微信授权用于家长快速协助登录。',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '若一个账号绑定多个孩子，登录后会先选择“我是谁”，再进入对应主页。',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: const Color(0xFF94A3B8),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ],
       ),
     );
@@ -548,7 +510,6 @@ class _AccountLoginFields extends StatelessWidget {
           controller: emailController,
           decoration: const InputDecoration(
             labelText: '用户名 / 邮箱',
-            helperText: '会自动记住上次登录账号',
             prefixIcon: Icon(Icons.account_circle_outlined),
           ),
           validator: (value) {
@@ -566,7 +527,6 @@ class _AccountLoginFields extends StatelessWidget {
           textInputAction: TextInputAction.done,
           decoration: const InputDecoration(
             labelText: '登录密码',
-            helperText: '支持字母、数字或符号密码',
             prefixIcon: Icon(Icons.lock_outline),
           ),
           validator: (value) {
@@ -607,7 +567,6 @@ class _PhoneLoginFields extends StatelessWidget {
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: InputDecoration(
             labelText: '家长手机号',
-            helperText: '会自动记住上次使用的手机号',
             prefixIcon: const Icon(Icons.phone_iphone_rounded),
             suffixIcon: TextButton(
               onPressed: isLoading ? null : onRequestCode,
@@ -628,7 +587,6 @@ class _PhoneLoginFields extends StatelessWidget {
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: const InputDecoration(
             labelText: '验证码',
-            helperText: '使用系统数字键盘输入短信验证码',
             prefixIcon: Icon(Icons.pin_rounded),
           ),
           validator: (value) {
@@ -675,22 +633,13 @@ class _WechatLoginPane extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            '请家长微信扫码授权',
+            '家长微信授权',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: const Color(0xFF14532D),
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            '授权后如果绑定了多个孩子，会先出现大头像选择“我是谁”。',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF3F6B4D),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           OutlinedButton.icon(
             onPressed: onWechatLogin,
             icon: const Icon(Icons.wechat_rounded),

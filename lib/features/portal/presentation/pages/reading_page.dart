@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -28,7 +30,13 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   int _currentPageNumber = 1;
   bool _documentReady = false;
   bool _prefersPortrait = false;
+  bool _isClosingReader = false;
   Orientation? _lastOrientation;
+
+  static const List<DeviceOrientation> _readerLandscapeOrientations = [
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ];
 
   @override
   void initState() {
@@ -66,14 +74,17 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
   }
 
   Future<void> _applyDocumentOrientation(bool prefersPortrait) async {
+    if (_isClosingReader || !mounted) {
+      return;
+    }
     await SystemChrome.setPreferredOrientations(
       prefersPortrait
           ? const [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]
-          : const [
-              DeviceOrientation.landscapeLeft,
-              DeviceOrientation.landscapeRight,
-            ],
+          : _readerLandscapeOrientations,
     );
+    if (_isClosingReader || !mounted) {
+      await _restoreLandscapeChrome();
+    }
   }
 
   Future<void> _applySystemUiMode() {
@@ -130,14 +141,16 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _isClosingReader = true;
     WidgetsBinding.instance.removeObserver(this);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    unawaited(_restoreLandscapeChrome());
     _pdfController.dispose();
     super.dispose();
+  }
+
+  Future<void> _restoreLandscapeChrome() async {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    await SystemChrome.setPreferredOrientations(_readerLandscapeOrientations);
   }
 
   @override
@@ -225,8 +238,13 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
                           final prefersPortrait =
                               pageSize.height >= pageSize.width;
 
+                          if (!mounted || _isClosingReader) {
+                            await _restoreLandscapeChrome();
+                            return;
+                          }
                           await _applyDocumentOrientation(prefersPortrait);
-                          if (!mounted) {
+                          if (!mounted || _isClosingReader) {
+                            await _restoreLandscapeChrome();
                             return;
                           }
                           setState(() {

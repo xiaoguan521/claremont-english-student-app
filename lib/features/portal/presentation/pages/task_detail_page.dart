@@ -248,6 +248,28 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
     await SystemChrome.setPreferredOrientations(_taskDetailOrientations);
   }
 
+  void _restoreTaskDetailChromeAfterReader() {
+    unawaited(_restoreTaskDetailChrome());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_restoreTaskDetailChrome());
+    });
+    Future<void>.delayed(const Duration(milliseconds: 180), () {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_restoreTaskDetailChrome());
+    });
+    Future<void>.delayed(const Duration(milliseconds: 420), () {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_restoreTaskDetailChrome());
+    });
+  }
+
   void _bindAudioPlayer() {
     _playerSubscriptions.add(
       _audioPlayer.onPlayerComplete.listen((_) {
@@ -871,13 +893,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
     if (!mounted) {
       return;
     }
-    await _restoreTaskDetailChrome();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      unawaited(_restoreTaskDetailChrome());
-    });
+    _restoreTaskDetailChromeAfterReader();
   }
 
   Future<void> _togglePendingAudioPlayback() async {

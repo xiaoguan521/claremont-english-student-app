@@ -1,12 +1,13 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../student/presentation/widgets/student_ui_components.dart';
 import '../widgets/tablet_shell.dart';
 
-class ReviewDetailPage extends StatelessWidget {
+class ReviewDetailPage extends StatefulWidget {
   const ReviewDetailPage({
     super.key,
     required this.reviewId,
@@ -21,7 +22,111 @@ class ReviewDetailPage extends StatelessWidget {
   final String teacher;
 
   @override
+  State<ReviewDetailPage> createState() => _ReviewDetailPageState();
+}
+
+class _ReviewDetailPageState extends State<ReviewDetailPage> {
+  final FlutterTts _tts = FlutterTts();
+  _ReviewAudioCue? _playingCue;
+
+  @override
+  void initState() {
+    super.initState();
+    _tts.setCompletionHandler(_clearPlayingCue);
+    _tts.setCancelHandler(_clearPlayingCue);
+    _tts.setErrorHandler((_) => _clearPlayingCue());
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
+
+  void _clearPlayingCue() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _playingCue = null;
+    });
+  }
+
+  Future<void> _playCue(_ReviewAudioCue cue) async {
+    if (_playingCue == cue) {
+      await _tts.stop();
+      _clearPlayingCue();
+      return;
+    }
+
+    final spec = _audioSpec(cue);
+    setState(() {
+      _playingCue = cue;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(spec.message),
+        duration: const Duration(milliseconds: 900),
+      ),
+    );
+    await _tts.stop();
+    await _tts.setLanguage('en-US');
+    await _tts.setSpeechRate(spec.rate);
+    await _tts.setPitch(spec.pitch);
+    await _tts.awaitSpeakCompletion(true);
+    await _tts.speak(spec.text);
+  }
+
+  _ReviewAudioSpec _audioSpec(_ReviewAudioCue cue) {
+    return switch (cue) {
+      _ReviewAudioCue.studentSentence => const _ReviewAudioSpec(
+        text: 'I have got six dirty ears.',
+        message: '正在播放学生录音回放',
+        pitch: 0.9,
+        rate: 0.42,
+      ),
+      _ReviewAudioCue.referenceSentence => const _ReviewAudioSpec(
+        text: 'I have got six dirty ears.',
+        message: '正在播放原音示范',
+        pitch: 1.05,
+        rate: 0.38,
+      ),
+      _ReviewAudioCue.referenceWord => const _ReviewAudioSpec(
+        text: 'dirty',
+        message: '正在播放 dirty 的原音示范',
+        pitch: 1.05,
+        rate: 0.32,
+      ),
+      _ReviewAudioCue.studentWord => const _ReviewAudioSpec(
+        text: 'dirty',
+        message: '正在回放你的 dirty 发音',
+        pitch: 0.82,
+        rate: 0.3,
+      ),
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final heroCard = _ReviewHeroCard(
+      title: widget.title,
+      belongTo: widget.belongTo,
+      teacher: widget.teacher,
+      onBack: () {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/home');
+        }
+      },
+    );
+    final sentenceCard = _PronunciationSentenceCard(
+      reviewId: widget.reviewId,
+      playingCue: _playingCue,
+      onPlayCue: _playCue,
+    );
+    const teacherCard = _TeacherMessageCard();
+
     return TabletShell(
       activeSection: TabletSection.teaching,
       title: '查看点评',
@@ -30,35 +135,17 @@ class ReviewDetailPage extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isCompact = constraints.maxWidth < 760;
-          final content = [
-            _ReviewHeroCard(
-              title: title,
-              belongTo: belongTo,
-              teacher: teacher,
-              onBack: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go('/home');
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            _PronunciationSentenceCard(reviewId: reviewId),
-            const SizedBox(height: 16),
-            const _TeacherMessageCard(),
-          ];
 
           if (isCompact) {
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  SizedBox(height: 300, child: content[0]),
+                  SizedBox(height: 300, child: heroCard),
                   const SizedBox(height: 16),
-                  SizedBox(height: 520, child: content[2]),
+                  SizedBox(height: 520, child: sentenceCard),
                   const SizedBox(height: 16),
-                  SizedBox(height: 300, child: content[4]),
+                  const SizedBox(height: 300, child: teacherCard),
                 ],
               ),
             );
@@ -72,14 +159,14 @@ class ReviewDetailPage extends StatelessWidget {
                   flex: 42,
                   child: Column(
                     children: [
-                      Expanded(child: content[0]),
+                      Expanded(child: heroCard),
                       const SizedBox(height: 16),
-                      Expanded(child: content[2]),
+                      const Expanded(child: teacherCard),
                     ],
                   ),
                 ),
                 const SizedBox(width: 18),
-                Expanded(flex: 58, child: content[1]),
+                Expanded(flex: 58, child: sentenceCard),
               ],
             ),
           );
@@ -87,6 +174,27 @@ class ReviewDetailPage extends StatelessWidget {
       ),
     );
   }
+}
+
+enum _ReviewAudioCue {
+  studentSentence,
+  referenceSentence,
+  referenceWord,
+  studentWord,
+}
+
+class _ReviewAudioSpec {
+  const _ReviewAudioSpec({
+    required this.text,
+    required this.message,
+    required this.pitch,
+    required this.rate,
+  });
+
+  final String text;
+  final String message;
+  final double pitch;
+  final double rate;
 }
 
 class _ReviewHeroCard extends StatelessWidget {
@@ -179,9 +287,15 @@ class _ReviewHeroCard extends StatelessWidget {
 }
 
 class _PronunciationSentenceCard extends StatelessWidget {
-  const _PronunciationSentenceCard({required this.reviewId});
+  const _PronunciationSentenceCard({
+    required this.reviewId,
+    required this.playingCue,
+    required this.onPlayCue,
+  });
 
   final String reviewId;
+  final _ReviewAudioCue? playingCue;
+  final ValueChanged<_ReviewAudioCue> onPlayCue;
 
   @override
   Widget build(BuildContext context) {
@@ -231,7 +345,13 @@ class _PronunciationSentenceCard extends StatelessWidget {
                   .toList(),
             ),
             const SizedBox(height: 20),
-            _PlaybackDock(reviewId: reviewId),
+            _PlaybackDock(
+              reviewId: reviewId,
+              playingCue: playingCue,
+              onPlayStudent: () => onPlayCue(_ReviewAudioCue.studentSentence),
+              onPlayReference: () =>
+                  onPlayCue(_ReviewAudioCue.referenceSentence),
+            ),
             const SizedBox(height: 20),
             Expanded(
               child: LayoutBuilder(
@@ -311,7 +431,7 @@ class _PronunciationSentenceCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () {},
+                    onPressed: () => onPlayCue(_ReviewAudioCue.referenceWord),
                     icon: const Icon(Icons.volume_up_rounded),
                     label: const Text('听原音示范'),
                   ),
@@ -319,7 +439,7 @@ class _PronunciationSentenceCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: () => onPlayCue(_ReviewAudioCue.studentWord),
                     icon: const Icon(Icons.mic_rounded),
                     label: const Text('听我的发音'),
                   ),
@@ -334,9 +454,17 @@ class _PronunciationSentenceCard extends StatelessWidget {
 }
 
 class _PlaybackDock extends StatelessWidget {
-  const _PlaybackDock({required this.reviewId});
+  const _PlaybackDock({
+    required this.reviewId,
+    required this.playingCue,
+    required this.onPlayStudent,
+    required this.onPlayReference,
+  });
 
   final String reviewId;
+  final _ReviewAudioCue? playingCue;
+  final VoidCallback onPlayStudent;
+  final VoidCallback onPlayReference;
 
   @override
   Widget build(BuildContext context) {
@@ -349,19 +477,25 @@ class _PlaybackDock extends StatelessWidget {
       child: Row(
         children: [
           IconButton.filled(
-            onPressed: () {},
+            onPressed: onPlayStudent,
             style: IconButton.styleFrom(
               backgroundColor: const Color(0xFF2E7BEF),
               foregroundColor: Colors.white,
             ),
-            icon: const Icon(Icons.play_arrow_rounded),
+            icon: Icon(
+              playingCue == _ReviewAudioCue.studentSentence
+                  ? Icons.stop_rounded
+                  : Icons.play_arrow_rounded,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: LinearProgressIndicator(
-                value: reviewId.hashCode.isEven ? 0.42 : 0.58,
+                value: playingCue == null
+                    ? (reviewId.hashCode.isEven ? 0.42 : 0.58)
+                    : null,
                 minHeight: 9,
                 backgroundColor: Colors.white,
                 color: const Color(0xFF2E7BEF),
@@ -370,9 +504,15 @@ class _PlaybackDock extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.compare_arrows_rounded),
-            label: const Text('原音对比'),
+            onPressed: onPlayReference,
+            icon: Icon(
+              playingCue == _ReviewAudioCue.referenceSentence
+                  ? Icons.stop_rounded
+                  : Icons.compare_arrows_rounded,
+            ),
+            label: Text(
+              playingCue == _ReviewAudioCue.referenceSentence ? '停止原音' : '原音对比',
+            ),
           ),
         ],
       ),

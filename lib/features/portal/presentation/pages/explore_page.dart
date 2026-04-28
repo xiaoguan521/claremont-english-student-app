@@ -60,6 +60,14 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
           final isPhone = constraints.maxWidth < 720;
           final isLandscapePhone =
               isPhone && constraints.maxWidth > constraints.maxHeight;
+          if (!featureFlags.showFunZonePromos) {
+            return K12PlayfulDashboardFrame(
+              padding: EdgeInsets.all(isPhone ? 14 : 20),
+              child: _ExploreFallbackState(
+                onStartMainline: () => context.go('/home'),
+              ),
+            );
+          }
           final mapItems = [
             _ExploreMapItem(
               title: '补星计划',
@@ -309,6 +317,69 @@ class _ExploreHero extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExploreFallbackState extends StatelessWidget {
+  const _ExploreFallbackState({required this.onStartMainline});
+
+  final VoidCallback onStartMainline;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: StudentGlassPanel(
+          padding: const EdgeInsets.all(22),
+          radius: 34,
+          opacity: 0.22,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEAF5FF),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF2E7BEF),
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '拓展乐园稍后开放',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: const Color(0xFF17335F),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '为了保持今天的学习节奏，先去完成主线作业。自然拼读、分级阅读和小游戏会在开放后回到这里。',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: const Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: onStartMainline,
+                icon: const Icon(Icons.play_circle_fill_rounded),
+                label: const Text('先去完成主线作业'),
+              ),
+            ],
+          ),
         ),
       ),
     );

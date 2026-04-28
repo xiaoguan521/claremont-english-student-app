@@ -94,25 +94,23 @@ void main() {
     await pumpStudentHome(tester);
 
     expect(find.text('今日英语'), findsOneWidget);
-    expect(find.text('阅读'), findsOneWidget);
-    expect(find.text('点评中心'), findsOneWidget);
+    expect(find.text('今日主线'), findsOneWidget);
+    expect(find.text('听说写玩'), findsOneWidget);
+    expect(find.text('听'), findsOneWidget);
+    expect(find.text('说'), findsOneWidget);
+    expect(find.text('写'), findsOneWidget);
+    expect(find.text('玩'), findsOneWidget);
 
     await tester.drag(find.byType(PageView), const Offset(-900, 0));
     await tester.pumpAndSettle();
-    expect(find.text('今日任务'), findsWidgets);
-    expect(find.text('点评中心'), findsOneWidget);
-    expect(find.text('今日学习地图'), findsOneWidget);
-
-    await tester.tap(find.text('点评中心'));
-    await tester.pumpAndSettle();
-    expect(find.text('Sing the song'), findsOneWidget);
-
-    await tester.tapAt(const Offset(8, 8));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('英语学习'));
-    await tester.pumpAndSettle();
-    expect(find.text('我的学校'), findsWidgets);
+    expect(find.text('学习地图'), findsOneWidget);
+    expect(find.text('补星计划'), findsOneWidget);
+    expect(find.text('自然拼读'), findsOneWidget);
+    expect(find.text('国家地理PM'), findsOneWidget);
+    expect(find.text('魔法商店'), findsOneWidget);
+    expect(find.text('消息'), findsOneWidget);
+    expect(find.text('设置'), findsOneWidget);
+    expect(find.text('关于'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -122,19 +120,15 @@ void main() {
     addTearDown(tester.view.reset);
     await pumpStudentHome(tester, viewport: const Size(932, 430));
 
-    expect(find.text('英语学习'), findsOneWidget);
-    expect(find.text('点评中心'), findsOneWidget);
-    expect(find.text('今日主线'), findsOneWidget);
+    expect(find.byType(PageView), findsOneWidget);
+    expect(find.textContaining('先完成今天作业'), findsWidgets);
+    expect(tester.takeException(), isNull);
 
-    await tester.drag(find.byType(PageView), const Offset(-700, 0));
+    await tester.fling(find.byType(PageView), const Offset(-900, 0), 1200);
     await tester.pumpAndSettle();
 
-    expect(find.text('今日课表'), findsOneWidget);
-    expect(find.text('今日任务'), findsWidgets);
-    expect(find.text('点评'), findsWidgets);
-    expect(find.text('家长通'), findsWidgets);
-    expect(find.text('我的'), findsWidgets);
-    expect(find.text('任务中心'), findsOneWidget);
+    expect(find.text('补星计划'), findsOneWidget);
+    expect(find.text('自然拼读'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -144,12 +138,12 @@ void main() {
     addTearDown(tester.view.reset);
     await pumpStudentHome(tester, viewport: const Size(1080, 640));
 
-    await tester.drag(find.byType(PageView), const Offset(-820, 0));
+    await tester.fling(find.byType(PageView), const Offset(-1100, 0), 1200);
     await tester.pumpAndSettle();
 
-    expect(find.text('今日任务'), findsWidgets);
-    expect(find.text('点评中心'), findsOneWidget);
-    expect(find.text('任务中心'), findsWidgets);
+    expect(find.text('补星计划'), findsOneWidget);
+    expect(find.text('自然拼读'), findsOneWidget);
+    expect(find.text('国家地理PM'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -169,14 +163,12 @@ void main() {
       await pumpStudentHome(tester, viewport: viewport);
 
       expect(find.byType(PageView), findsOneWidget);
-      expect(find.text('点评中心'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
-      await tester.drag(find.byType(PageView), const Offset(-760, 0));
+      await tester.fling(find.byType(PageView), const Offset(-1000, 0), 1200);
       await tester.pumpAndSettle();
 
-      expect(find.text('今日任务'), findsWidgets);
-      expect(find.text('任务中心'), findsWidgets);
+      expect(find.text('补星计划'), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
   });
@@ -195,7 +187,7 @@ void main() {
     );
 
     expect(find.textContaining('星币'), findsNothing);
-    expect(find.text('任务'), findsOneWidget);
+    expect(find.text('听说写玩'), findsOneWidget);
   });
 
   testWidgets(

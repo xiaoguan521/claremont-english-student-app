@@ -1827,7 +1827,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                       isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
                       practiceTaskState: focusedPracticeTaskState,
                       showPracticeRenderer:
-                          isLandscapeLayout && featureFlags.practiceStageV2,
+                          isLandscapeLayout &&
+                          !isLandscapePhone &&
+                          featureFlags.practiceStageV2,
                       onOpenReading: activity.materialPdfPath == null
                           ? null
                           : () => _openReadingPage(activity, task: focusTask),
@@ -1904,7 +1906,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                         if (showSentenceStrip) ...[
                           SizedBox(height: 10 * visualScale),
                           SizedBox(
-                            height: 108 * visualScale,
+                            height: 132 * visualScale,
                             child: PracticeSentenceSwitchStrip(
                               tasks: activity.tasks,
                               focusedTaskId: focusedTaskId,
@@ -2104,39 +2106,67 @@ class _PdfStateMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.menu_book_rounded,
-              size: 44,
-              color: Color(0xFF94A3B8),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF1E293B),
-                fontWeight: FontWeight.w900,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxHeight.isFinite && constraints.maxHeight < 150;
+        final padding = compact ? 8.0 : 28.0;
+        final iconSize = compact ? 28.0 : 44.0;
+        final contentWidth = math.max<double>(
+          120.0,
+          math.min<double>(
+            constraints.maxWidth - (padding * 2),
+            compact ? 360 : 520,
+          ),
+        );
+
+        return Center(
+          child: Padding(
+            padding: EdgeInsets.all(padding),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(
+                width: contentWidth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.menu_book_rounded,
+                      size: iconSize,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                    SizedBox(height: compact ? 6 : 12),
+                    Text(
+                      title,
+                      maxLines: compact ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF1E293B),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if (!compact) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        message,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF64748B),
+                          fontWeight: FontWeight.w700,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF64748B),
-                fontWeight: FontWeight.w700,
-                height: 1.45,
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -2912,7 +2942,13 @@ class _TextbookFloatingPanel extends StatelessWidget {
     final shouldShowPracticeRenderer =
         showPracticeRenderer &&
         practiceProtocol.type != PracticeTaskType.unsupported;
+    final isLowHeightLandscape =
+        MediaQuery.sizeOf(context).width > MediaQuery.sizeOf(context).height &&
+        MediaQuery.sizeOf(context).height < 560;
     return Container(
+      constraints: isLowHeightLandscape
+          ? const BoxConstraints(maxHeight: 210)
+          : null,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.98),
@@ -2927,7 +2963,9 @@ class _TextbookFloatingPanel extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isPhone = constraints.maxWidth < 760;
+          final isPhone =
+              constraints.maxWidth < 760 ||
+              MediaQuery.sizeOf(context).height < 560;
           final header = isPhone
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3099,7 +3137,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
             compact: isPhone,
           );
 
-          return switch (practiceProtocol.type) {
+          final panelContent = switch (practiceProtocol.type) {
             PracticeTaskType.listenAndChoose => ListeningPlayerStage(
               header: header,
               actionChips: actionChips,
@@ -3126,6 +3164,13 @@ class _TextbookFloatingPanel extends StatelessWidget {
               submissionDock: submissionDock,
             ),
           };
+          if (!isLowHeightLandscape) {
+            return panelContent;
+          }
+          return SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            child: panelContent,
+          );
         },
       ),
     );

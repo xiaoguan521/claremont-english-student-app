@@ -90,6 +90,8 @@ void main() {
 
     expect(find.text('返回作业'), findsNothing);
     expect(find.text('Read after the teacher'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('assignment-task-card-task-1')));
+    await tester.pumpAndSettle();
     expect(find.byType(AudioRecordButton), findsWidgets);
     expect(tester.takeException(), isNull);
   });
@@ -110,6 +112,13 @@ void main() {
         await pumpTaskDetailPage(tester, viewport: viewport);
 
         expect(find.text('Read after the teacher'), findsWidgets);
+        final taskCard = find.byKey(
+          const ValueKey('assignment-task-card-task-1'),
+        );
+        if (taskCard.evaluate().isNotEmpty) {
+          await tester.tap(taskCard);
+          await tester.pumpAndSettle();
+        }
         expect(find.byType(AudioRecordButton), findsWidgets);
         // final exception = tester.takeException();
         // expect(exception, isNull, reason: 'viewport: $viewport\n$exception');

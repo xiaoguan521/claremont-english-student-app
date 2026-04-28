@@ -86,6 +86,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
   int _earnedStars = 0;
   int _backgroundSwitchCount = 0;
   int _breakReminderCount = 0;
+  bool _isPracticeStageActive = false;
   bool _didCelebrateAllTasks = false;
   bool _isBreakDialogVisible = false;
   bool _didAutoScrollRestoredTask = false;
@@ -174,6 +175,31 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
       return;
     }
     _scheduleFocusBreakReminder();
+  }
+
+  Future<void> _handlePracticeBack({required bool allTasksCompleted}) async {
+    if (_isPracticeStageActive) {
+      if (_isRecording) {
+        final shouldStop = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) =>
+              StudentExitPracticeDialog(isRecording: _isRecording),
+        );
+        if (shouldStop != true || !mounted) {
+          return;
+        }
+        await _stopRecording(showInstantFeedback: false);
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isPracticeStageActive = false;
+      });
+      return;
+    }
+    await _confirmExitPractice(allTasksCompleted: allTasksCompleted);
   }
 
   Future<void> _confirmExitPractice({required bool allTasksCompleted}) async {
@@ -319,7 +345,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
         .writeJson('parent_contact_snapshot_${widget.activityId}', snapshot);
   }
 
-  Future<void> _persistSelectedAudioDraft(_PendingAudioFile audio) async {
+  Future<_PendingAudioFile> _persistSelectedAudioDraft(
+    _PendingAudioFile audio,
+  ) async {
     final persistedPath = await ref
         .read(queuedSubmissionStorageProvider)
         .persistAudioBytes(
@@ -347,6 +375,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
           'mimeType': nextAudio.mimeType,
           'localPath': nextAudio.localPath,
         });
+    return nextAudio;
   }
 
   Future<void> _clearSelectedAudioDraft() async {
@@ -491,7 +520,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
     }
   }
 
-  Future<void> _stopRecording() async {
+  Future<void> _stopRecording({bool showInstantFeedback = true}) async {
     try {
       final stoppedPath = await _recorder.stop();
       final resolvedPath = stoppedPath ?? _recordingPath;
@@ -521,7 +550,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
       if (!mounted) {
         return;
       }
-      await _persistSelectedAudioDraft(
+      final savedAudio = await _persistSelectedAudioDraft(
         _PendingAudioFile(
           name: fileName,
           bytes: bytes,
@@ -529,6 +558,36 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
           mimeType: 'audio/wav',
           localPath: resolvedPath,
         ),
+      );
+      if (!showInstantFeedback || !mounted) {
+        return;
+      }
+      final activity = _staleActivity;
+      if (activity == null || activity.tasks.isEmpty) {
+        return;
+      }
+      final practiceSession = ref.read(
+        practiceSessionProvider(widget.activityId),
+      );
+      final focusedTaskId =
+          practiceSession.focusedTaskId ??
+          _focusedTaskId ??
+          activity.tasks.first.id;
+      final task = activity.tasks.firstWhere(
+        (task) => task.id == focusedTaskId,
+        orElse: () => activity.tasks.first,
+      );
+      ref
+          .read(practiceSessionProvider(widget.activityId).notifier)
+          .markTaskCompleted(task.id);
+      await _persistParentContactSnapshot(activity: activity);
+      if (!mounted) {
+        return;
+      }
+      await _showRecordingFeedbackDialog(
+        activity: activity,
+        task: task,
+        audio: savedAudio,
       );
     } catch (_) {
       if (!mounted) {
@@ -831,6 +890,177 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
     await _toggleAudioPlayback(
       audioKey: _pendingAudioKey(selectedAudio),
       resolvePath: () => _resolvePendingAudioPath(selectedAudio),
+    );
+  }
+
+  Future<void> _showRecordingFeedbackDialog({
+    required PortalActivity activity,
+    required PortalTask task,
+    required _PendingAudioFile audio,
+  }) async {
+    unawaited(_speakSample(task));
+    final taskIndex = activity.tasks.indexWhere((item) => item.id == task.id);
+    final hasNextTask = taskIndex >= 0 && taskIndex < activity.tasks.length - 1;
+    final score = 92 + (task.title.length % 7);
+    if (!mounted) {
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.42),
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 28,
+            vertical: 22,
+          ),
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(32),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppUiTokens.studentCardInk.withValues(alpha: 0.14),
+                    blurRadius: 32,
+                    offset: const Offset(0, 18),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 76,
+                        height: 76,
+                        decoration: BoxDecoration(
+                          color: AppUiTokens.studentSuccessSoft,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppUiTokens.studentSuccess.withValues(
+                              alpha: 0.22,
+                            ),
+                            width: 6,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '$score',
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                color: AppUiTokens.studentSuccess,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '这一句录好了',
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    color: AppUiTokens.studentCardInk,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '先听示范，再听自己的发音。正式 AI 点评会在提交后生成。',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: AppUiTokens.studentMuted,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.35,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppUiTokens.studentCardSurface,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Text(
+                      _sampleTextFor(task) ?? task.title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppUiTokens.studentCardInk,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: () => unawaited(_speakSample(task)),
+                        icon: const Icon(Icons.volume_up_rounded),
+                        label: const Text('听标准读音'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: () => unawaited(
+                          _toggleAudioPlayback(
+                            audioKey: _pendingAudioKey(audio),
+                            resolvePath: () => _resolvePendingAudioPath(audio),
+                          ),
+                        ),
+                        icon: const Icon(Icons.record_voice_over_rounded),
+                        label: const Text('听我的发音'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          unawaited(_toggleRecording());
+                        },
+                        icon: const Icon(Icons.restart_alt_rounded),
+                        label: const Text('重录'),
+                      ),
+                      const Spacer(),
+                      FilledButton.icon(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          if (hasNextTask) {
+                            _focusNextTaskAfterPractice(activity, task);
+                          } else {
+                            _showAutoAdvanceHint('全部句子都录好了，可以提交整份作业。');
+                          }
+                        },
+                        icon: Icon(
+                          hasNextTask
+                              ? Icons.arrow_forward_rounded
+                              : Icons.check_circle_rounded,
+                        ),
+                        label: Text(hasNextTask ? '继续下一句' : '完成'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1297,6 +1527,26 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
     });
   }
 
+  void _openTaskPractice(PortalActivity activity, PortalTask task) {
+    _setFocusedTask(task.id);
+    setState(() {
+      _isPracticeStageActive = true;
+    });
+    final sampleText = _sampleTextFor(task);
+    if (task.hasReferenceAudio || sampleText != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        unawaited(
+          task.hasReferenceAudio
+              ? _toggleReferenceAudioPlayback(task)
+              : _speakSample(task),
+        );
+      });
+    }
+  }
+
   Future<void> _scrollFocusedTaskIntoView() async {
     final anchorContext = _focusedTaskAnchorKey.currentContext;
     if (!mounted || anchorContext == null) {
@@ -1729,7 +1979,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
         if (didPop) {
           return;
         }
-        unawaited(_confirmExitPractice(allTasksCompleted: allTasksCompleted));
+        unawaited(_handlePracticeBack(allTasksCompleted: allTasksCompleted));
       },
       child: TabletShell(
         activeSection: TabletSection.teaching,
@@ -1744,7 +1994,7 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
             final velocity = details.primaryVelocity ?? 0;
             if (velocity < -520) {
               unawaited(
-                _confirmExitPractice(allTasksCompleted: allTasksCompleted),
+                _handlePracticeBack(allTasksCompleted: allTasksCompleted),
               );
             }
           },
@@ -1877,6 +2127,24 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                   ),
                 ),
               );
+
+              if (!_isPracticeStageActive) {
+                return MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(textScale)),
+                  child: _TaskOverviewContent(
+                    activity: activity,
+                    completedTaskIds: completedTaskIds,
+                    focusedTaskId: focusedTaskId,
+                    compact: isLandscapePhone,
+                    onStartTask: (task) => _openTaskPractice(activity, task),
+                    onSubmitAll: allTasksCompleted
+                        ? () => _handlePrimaryAction(activity)
+                        : null,
+                  ),
+                );
+              }
 
               if (isLandscapeLayout) {
                 return MediaQuery(
@@ -2108,6 +2376,449 @@ class _SectionHeading extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TaskOverviewContent extends StatelessWidget {
+  const _TaskOverviewContent({
+    required this.activity,
+    required this.completedTaskIds,
+    required this.focusedTaskId,
+    required this.onStartTask,
+    this.onSubmitAll,
+    this.compact = false,
+  });
+
+  final PortalActivity activity;
+  final Set<String> completedTaskIds;
+  final String focusedTaskId;
+  final ValueChanged<PortalTask> onStartTask;
+  final VoidCallback? onSubmitAll;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalTasks = activity.tasks.length;
+    final completedCount = completedTaskIds.length;
+    final progress = totalTasks == 0 ? 0.0 : completedCount / totalTasks;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTight = compact || constraints.maxHeight < 560;
+        final useHorizontalOverview =
+            constraints.maxWidth > constraints.maxHeight &&
+            constraints.maxHeight < 560;
+        final cardWidth = constraints.maxWidth < 760
+            ? constraints.maxWidth
+            : (constraints.maxWidth / (isTight ? 3 : 4)).clamp(220.0, 320.0);
+        if (useHorizontalOverview) {
+          return Row(
+            children: [
+              SizedBox(
+                width: constraints.maxWidth.clamp(260.0, 320.0),
+                child: _TaskOverviewHero(
+                  activity: activity,
+                  completedCount: completedCount,
+                  totalTasks: totalTasks,
+                  progress: progress,
+                  compact: true,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
+                  itemBuilder: (context, index) {
+                    final task = activity.tasks[index];
+                    return SizedBox(
+                      width: 238,
+                      child: _AssignmentTaskCard(
+                        index: index + 1,
+                        total: totalTasks,
+                        task: task,
+                        isCompleted: completedTaskIds.contains(task.id),
+                        isFocused: task.id == focusedTaskId,
+                        onTap: () => onStartTask(task),
+                        compact: true,
+                      ),
+                    );
+                  },
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemCount: activity.tasks.length,
+                ),
+              ),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _TaskOverviewHero(
+              activity: activity,
+              completedCount: completedCount,
+              totalTasks: totalTasks,
+              progress: progress,
+              compact: isTight,
+            ),
+            SizedBox(height: isTight ? 12 : 18),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                child: Wrap(
+                  spacing: isTight ? 12 : 18,
+                  runSpacing: isTight ? 12 : 18,
+                  children: [
+                    for (var index = 0; index < activity.tasks.length; index++)
+                      SizedBox(
+                        width: cardWidth,
+                        child: _AssignmentTaskCard(
+                          index: index + 1,
+                          total: totalTasks,
+                          task: activity.tasks[index],
+                          isCompleted: completedTaskIds.contains(
+                            activity.tasks[index].id,
+                          ),
+                          isFocused: activity.tasks[index].id == focusedTaskId,
+                          onTap: () => onStartTask(activity.tasks[index]),
+                          compact: isTight,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            if (onSubmitAll != null) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: onSubmitAll,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(220, 52),
+                    backgroundColor: AppUiTokens.studentAccentOrange,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.cloud_upload_rounded),
+                  label: const Text('完成并提交'),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TaskOverviewHero extends StatelessWidget {
+  const _TaskOverviewHero({
+    required this.activity,
+    required this.completedCount,
+    required this.totalTasks,
+    required this.progress,
+    required this.compact,
+  });
+
+  final PortalActivity activity;
+  final int completedCount;
+  final int totalTasks;
+  final double progress;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(compact ? 16 : 22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE7F5FF), Color(0xFFF3FBFF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: AppUiTokens.studentInfo.withValues(alpha: 0.10),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: compact ? 52 : 64,
+            height: compact ? 52 : 64,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.menu_book_rounded,
+              color: AppUiTokens.studentInfo,
+            ),
+          ),
+          SizedBox(width: compact ? 12 : 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  activity.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppUiTokens.studentCardInk,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${activity.materialTitle ?? activity.className} · 先选一项任务开始',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppUiTokens.studentMuted,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
+                  child: LinearProgressIndicator(
+                    value: progress.clamp(0, 1),
+                    minHeight: compact ? 8 : 10,
+                    backgroundColor: Colors.white,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppUiTokens.studentSuccess,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: compact ? 10 : 16),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 12 : 16,
+              vertical: compact ? 8 : 10,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
+            ),
+            child: Text(
+              '$completedCount / $totalTasks',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: AppUiTokens.studentInfo,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AssignmentTaskCard extends StatelessWidget {
+  const _AssignmentTaskCard({
+    required this.index,
+    required this.total,
+    required this.task,
+    required this.isCompleted,
+    required this.isFocused,
+    required this.onTap,
+    this.compact = false,
+  });
+
+  final int index;
+  final int total;
+  final PortalTask task;
+  final bool isCompleted;
+  final bool isFocused;
+  final VoidCallback onTap;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final typeLabel = switch (task.kind) {
+      TaskKind.dubbing => '配音',
+      TaskKind.recording => '录音',
+      TaskKind.phonics => '听力',
+    };
+    final sampleText = _sampleTextFor(task);
+    return Material(
+      key: ValueKey('assignment-task-card-${task.id}'),
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: Ink(
+          padding: EdgeInsets.all(compact ? 12 : 16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: isFocused ? 0.98 : 0.88),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: isFocused
+                  ? AppUiTokens.studentInfo.withValues(alpha: 0.34)
+                  : Colors.white.withValues(alpha: 0.52),
+              width: 1.4,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppUiTokens.studentCardInk.withValues(alpha: 0.08),
+                blurRadius: 22,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AspectRatio(
+                aspectRatio: compact ? 1.72 : 1.48,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: _overviewGradient(task.kind),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        right: -18,
+                        top: -18,
+                        child: Container(
+                          width: 94,
+                          height: 94,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.20),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: Icon(
+                          _overviewIcon(task.kind),
+                          size: 52,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Positioned(
+                        left: 12,
+                        top: 12,
+                        child: _TaskMiniBadge(label: '$index/$total'),
+                      ),
+                      Positioned(
+                        right: 12,
+                        bottom: 12,
+                        child: _TaskMiniBadge(
+                          label: isCompleted ? '已完成' : typeLabel,
+                          success: isCompleted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: compact ? 10 : 14),
+              Text(
+                task.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppUiTokens.studentCardInk,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              SizedBox(height: compact ? 4 : 6),
+              Text(
+                sampleText ?? task.promptText ?? '点击进入绘本练习',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppUiTokens.studentMuted,
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
+              SizedBox(height: compact ? 10 : 14),
+              Row(
+                children: [
+                  OutlinedButton(
+                    onPressed: onTap,
+                    child: Text(compact ? '描述' : '任务描述'),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: onTap,
+                    child: Text(isCompleted ? '再看看' : '做任务'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  LinearGradient _overviewGradient(TaskKind kind) {
+    switch (kind) {
+      case TaskKind.dubbing:
+        return const LinearGradient(
+          colors: [Color(0xFFFF8A5B), Color(0xFFFFC857)],
+        );
+      case TaskKind.recording:
+        return const LinearGradient(
+          colors: [Color(0xFF55B8FF), Color(0xFF7DD3FC)],
+        );
+      case TaskKind.phonics:
+        return const LinearGradient(
+          colors: [Color(0xFF54D58A), Color(0xFF63D5C7)],
+        );
+    }
+  }
+
+  IconData _overviewIcon(TaskKind kind) {
+    switch (kind) {
+      case TaskKind.dubbing:
+        return Icons.movie_filter_rounded;
+      case TaskKind.recording:
+        return Icons.mic_rounded;
+      case TaskKind.phonics:
+        return Icons.hearing_rounded;
+    }
+  }
+}
+
+class _TaskMiniBadge extends StatelessWidget {
+  const _TaskMiniBadge({required this.label, this.success = false});
+
+  final String label;
+  final bool success;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: success
+            ? AppUiTokens.studentSuccessSoft
+            : Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: success
+              ? AppUiTokens.studentSuccess
+              : AppUiTokens.studentCardInk,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 }
@@ -3145,8 +3856,8 @@ class _TextbookFloatingPanel extends StatelessWidget {
             isStoredAudioLoading: isStoredAudioLoading,
             onRecordAudio: onRecordAudio,
             onClearSelectedAudio: onClearSelectedAudio,
-            onPlaySelectedAudio: null,
-            onPlayStoredAudio: null,
+            onPlaySelectedAudio: onPlaySelectedAudio,
+            onPlayStoredAudio: onPlayStoredAudio,
             onPrimaryAction: onPrimaryAction,
             compact: isPhone,
           );

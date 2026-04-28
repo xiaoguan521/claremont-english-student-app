@@ -92,18 +92,24 @@ class HomePage extends ConsumerWidget {
           practiceSession,
         );
         onBrandTap = () => _showSchoolInfoDialog(context, schoolContext);
-        shellActions = featureFlags.showGrowthRewards
-            ? [
-                K12StatusBadge(
-                  icon: dailyCombo > 0
-                      ? Icons.local_fire_department_rounded
-                      : Icons.workspace_premium_rounded,
-                  label: dailyCombo > 0 ? '$dailyCombo 连对' : '$dailyStars 星币',
-                  color: const Color(0xFF9AF07A),
-                  foregroundColor: const Color(0xFF155B2D),
-                ),
-              ]
-            : null;
+        shellActions = [
+          K12StatusBadge(
+            icon: Icons.rate_review_rounded,
+            label: '点评中心',
+            color: const Color(0xFFFFB36B),
+            foregroundColor: const Color(0xFF7A3A05),
+            onTap: () => context.go('/reviews'),
+          ),
+          if (featureFlags.showGrowthRewards)
+            K12StatusBadge(
+              icon: dailyCombo > 0
+                  ? Icons.local_fire_department_rounded
+                  : Icons.workspace_premium_rounded,
+              label: dailyCombo > 0 ? '$dailyCombo 连对' : '$dailyStars 星币',
+              color: const Color(0xFF9AF07A),
+              foregroundColor: const Color(0xFF155B2D),
+            ),
+        ];
         child = LayoutBuilder(
           builder: (context, constraints) {
             return _WideHomeLayout(
@@ -395,13 +401,6 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
         (layoutWidth < 1120 || layoutHeight < 640) && !preferWideRow;
     final useCompactWideDensity = layoutWidth < 980 || layoutHeight < 560;
     final useLowHeightWide = layoutHeight < 700;
-    final sidePanelWidth = useStackedWide ? layoutWidth : 300.0;
-    final sidePanelWideWidth = responsiveWidthCap(
-      layoutWidth,
-      fraction: useCompactWideDensity ? 0.22 : 0.24,
-      min: useCompactWideDensity ? 220.0 : 260.0,
-      max: 320.0,
-    );
     final pages = [
       _WidePageFrame(
         child: useStackedWide
@@ -501,82 +500,14 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
               ),
       ),
       _WidePageFrame(
-        child: useStackedWide
-            ? Column(
-                children: [
-                  SizedBox(
-                    height: useLowHeightWide
-                        ? 176
-                        : useCompactWideDensity
-                        ? 220
-                        : 248,
-                    width: sidePanelWidth,
-                    child: _EntranceMotion(
-                      delay: const Duration(milliseconds: 80),
-                      child: _WideSideStage(
-                        child: _StudentUtilityDock(
-                          studentDisplayName: widget.studentDisplayName,
-                          summary: widget.summary,
-                          dailyGrowth: widget.dailyGrowth,
-                          parentSummary: widget.parentSummary,
-                          featureFlags: widget.featureFlags,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: useLowHeightWide ? 8 : 12),
-                  Expanded(
-                    child: _EntranceMotion(
-                      delay: const Duration(milliseconds: 120),
-                      child: StudentBoundarylessSectionStage(
-                        icon: Icons.auto_stories_rounded,
-                        title: '学习地图',
-                        hint: '补星、拼读、阅读和星币兑换都在这里',
-                        child: _WideLearningShowcaseArea(
-                          summary: widget.summary,
-                          featureFlags: widget.featureFlags,
-                          compact: useCompactWideDensity,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            : Row(
-                children: [
-                  SizedBox(
-                    width: sidePanelWideWidth,
-                    child: _EntranceMotion(
-                      delay: const Duration(milliseconds: 80),
-                      child: _WideSideStage(
-                        child: _StudentUtilityDock(
-                          studentDisplayName: widget.studentDisplayName,
-                          summary: widget.summary,
-                          dailyGrowth: widget.dailyGrowth,
-                          parentSummary: widget.parentSummary,
-                          featureFlags: widget.featureFlags,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _EntranceMotion(
-                      delay: const Duration(milliseconds: 120),
-                      child: StudentBoundarylessSectionStage(
-                        icon: Icons.auto_stories_rounded,
-                        title: '学习地图',
-                        hint: '补星、拼读、阅读和星币兑换都在这里',
-                        child: _WideLearningShowcaseArea(
-                          summary: widget.summary,
-                          featureFlags: widget.featureFlags,
-                          compact: useCompactWideDensity,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+        child: _BoundarylessLearningPage(
+          studentDisplayName: widget.studentDisplayName,
+          summary: widget.summary,
+          dailyGrowth: widget.dailyGrowth,
+          parentSummary: widget.parentSummary,
+          featureFlags: widget.featureFlags,
+          compact: useCompactWideDensity || useLowHeightWide,
+        ),
       ),
     ];
 
@@ -596,22 +527,7 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
             ),
           ),
           const SizedBox(height: 14),
-          _WidePageIndicator(
-            currentIndex: _pageIndex,
-            onPrevious: _pageIndex > 0
-                ? () => _pageController.previousPage(
-                    duration: const Duration(milliseconds: 280),
-                    curve: Curves.easeOutCubic,
-                  )
-                : null,
-            onNext: _pageIndex < pages.length - 1
-                ? () => _pageController.nextPage(
-                    duration: const Duration(milliseconds: 280),
-                    curve: Curves.easeOutCubic,
-                  )
-                : null,
-            pageCount: pages.length,
-          ),
+          _WidePageIndicator(currentIndex: _pageIndex, pageCount: pages.length),
         ],
       ),
     );
@@ -1493,14 +1409,10 @@ class _WidePageFrame extends StatelessWidget {
 class _WidePageIndicator extends StatelessWidget {
   const _WidePageIndicator({
     required this.currentIndex,
-    required this.onPrevious,
-    required this.onNext,
     required this.pageCount,
   });
 
   final int currentIndex;
-  final VoidCallback? onPrevious;
-  final VoidCallback? onNext;
   final int pageCount;
 
   @override
@@ -1532,17 +1444,6 @@ class _WidePageIndicator extends StatelessWidget {
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            IconButton.filled(
-              onPressed: onPrevious,
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.white.withValues(alpha: 0.18),
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.white.withValues(alpha: 0.08),
-                disabledForegroundColor: Colors.white.withValues(alpha: 0.35),
-              ),
-              icon: const Icon(Icons.chevron_left_rounded),
-            ),
-            const SizedBox(width: 12),
             ...dots.expand((dot) => [dot, const SizedBox(width: 8)]).toList()
               ..removeLast(),
             if (showHint) ...[
@@ -1553,23 +1454,12 @@ class _WidePageIndicator extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Colors.white,
+                    color: Colors.white.withValues(alpha: 0.86),
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
             ],
-            const SizedBox(width: 12),
-            IconButton.filled(
-              onPressed: onNext,
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.white.withValues(alpha: 0.18),
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.white.withValues(alpha: 0.08),
-                disabledForegroundColor: Colors.white.withValues(alpha: 0.35),
-              ),
-              icon: const Icon(Icons.chevron_right_rounded),
-            ),
           ],
         );
       },
@@ -1629,6 +1519,77 @@ class _StudentUtilityDock extends StatelessWidget {
   }
 }
 
+class _BoundarylessLearningPage extends StatelessWidget {
+  const _BoundarylessLearningPage({
+    required this.studentDisplayName,
+    required this.summary,
+    required this.dailyGrowth,
+    required this.parentSummary,
+    required this.featureFlags,
+    required this.compact,
+  });
+
+  final String studentDisplayName;
+  final PortalSummary summary;
+  final DailyGrowthSummary dailyGrowth;
+  final ParentContactSummary? parentSummary;
+  final StudentFeatureFlags featureFlags;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked =
+            constraints.maxWidth < 980 || constraints.maxHeight < 560;
+        final dock = _StudentUtilityDock(
+          studentDisplayName: studentDisplayName,
+          summary: summary,
+          dailyGrowth: dailyGrowth,
+          parentSummary: parentSummary,
+          featureFlags: featureFlags,
+        );
+        final learningMap = StudentBoundarylessSectionStage(
+          icon: Icons.auto_stories_rounded,
+          title: '学习地图',
+          hint: '补星、拼读、阅读和星币兑换都在这里',
+          child: _WideLearningShowcaseArea(
+            summary: summary,
+            featureFlags: featureFlags,
+            compact: compact || stacked,
+          ),
+        );
+
+        if (stacked) {
+          final dockHeight = constraints.maxHeight < 430 ? 96.0 : 118.0;
+          return Column(
+            children: [
+              SizedBox(height: dockHeight, child: dock),
+              SizedBox(height: constraints.maxHeight < 430 ? 6 : 10),
+              Expanded(child: learningMap),
+            ],
+          );
+        }
+
+        final dockWidth = responsiveWidthCap(
+          constraints.maxWidth,
+          fraction: 0.18,
+          min: 188,
+          max: 238,
+        );
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(width: dockWidth, child: dock),
+            const SizedBox(width: 8),
+            Expanded(child: learningMap),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _WideHeroStage extends StatelessWidget {
   const _WideHeroStage({required this.child});
 
@@ -1643,15 +1604,6 @@ class _WideHeroStage extends StatelessWidget {
       child: child,
     );
   }
-}
-
-class _WideSideStage extends StatelessWidget {
-  const _WideSideStage({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => child;
 }
 
 class _FeatureDisabledPanel extends StatelessWidget {

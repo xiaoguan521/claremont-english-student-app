@@ -50,6 +50,19 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
   }
 }
 
+class EyeComfortModeNotifier extends StateNotifier<bool> {
+  EyeComfortModeNotifier(this.prefs)
+    : super(prefs.getBool(_eyeComfortModeKey) ?? false);
+
+  final SharedPreferences prefs;
+  static const _eyeComfortModeKey = 'eye_comfort_mode';
+
+  Future<void> setEnabled(bool enabled) async {
+    await prefs.setBool(_eyeComfortModeKey, enabled);
+    state = enabled;
+  }
+}
+
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError();
 });
@@ -60,3 +73,9 @@ final themeNotifierProvider = StateNotifierProvider<ThemeNotifier, ThemeState>((
   final prefs = ref.watch(sharedPreferencesProvider);
   return ThemeNotifier(prefs, ref);
 });
+
+final eyeComfortModeProvider =
+    StateNotifierProvider<EyeComfortModeNotifier, bool>((ref) {
+      final prefs = ref.watch(sharedPreferencesProvider);
+      return EyeComfortModeNotifier(prefs);
+    });

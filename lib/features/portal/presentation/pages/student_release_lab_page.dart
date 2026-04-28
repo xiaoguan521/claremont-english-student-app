@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../school/presentation/providers/school_context_provider.dart';
+import '../../../student/presentation/widgets/student_page_gestures.dart';
 import '../../data/app_event_log_repository.dart';
 import '../providers/student_feature_flags_provider.dart';
 import '../widgets/tablet_shell.dart';
@@ -17,152 +18,159 @@ class StudentReleaseLabPage extends ConsumerWidget {
         ref.watch(schoolContextProvider).valueOrNull ??
         SchoolContext.fallback();
 
-    return TabletShell(
-      activeSection: TabletSection.teaching,
-      brandName: schoolContext.displayName,
-      brandLogoUrl: schoolContext.logoUrl,
-      brandSubtitle: '学校学习入口',
-      title: '学生端发布实验室',
-      subtitle: '用于联调、灰度和本地诊断，不面向学生日常使用',
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
-        children: [
-          _SectionCard(
-            title: '灰度开关',
-            subtitle: '这里的修改会持久化到本机，重启应用后仍然生效。',
-            child: Column(
-              children: [
-                _FlagTile(
-                  title: '新首页仪表盘',
-                  subtitle: '控制今日主线、听说写玩、学习地图这一套新首页体验。',
-                  value: flags.newHomeDashboard,
-                  onChanged: (value) => _updateFlags(
-                    ref,
-                    flags.copyWith(newHomeDashboard: value),
+    return StudentPageGestures(
+      onSwipeBack: () => Navigator.of(context).maybePop(),
+      child: TabletShell(
+        activeSection: TabletSection.teaching,
+        brandName: schoolContext.displayName,
+        brandLogoUrl: schoolContext.logoUrl,
+        brandSubtitle: '学校学习入口',
+        title: '学生端发布实验室',
+        subtitle: '用于联调、灰度和本地诊断，不面向学生日常使用',
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 32),
+          children: [
+            _SectionCard(
+              title: '灰度开关',
+              subtitle: '这里的修改会持久化到本机，重启应用后仍然生效。',
+              child: Column(
+                children: [
+                  _FlagTile(
+                    title: '新首页仪表盘',
+                    subtitle: '控制今日主线、听说写玩、学习地图这一套新首页体验。',
+                    value: flags.newHomeDashboard,
+                    onChanged: (value) => _updateFlags(
+                      ref,
+                      flags.copyWith(newHomeDashboard: value),
+                    ),
                   ),
-                ),
-                _FlagTile(
-                  title: '今日主线 Hero 转场',
-                  subtitle: '控制首页大卡进入作业舞台的沉浸式过渡能力。',
-                  value: flags.mainlineHeroTransition,
-                  onChanged: (value) => _updateFlags(
-                    ref,
-                    flags.copyWith(mainlineHeroTransition: value),
+                  _FlagTile(
+                    title: '今日主线 Hero 转场',
+                    subtitle: '控制首页大卡进入作业舞台的沉浸式过渡能力。',
+                    value: flags.mainlineHeroTransition,
+                    onChanged: (value) => _updateFlags(
+                      ref,
+                      flags.copyWith(mainlineHeroTransition: value),
+                    ),
                   ),
-                ),
-                _FlagTile(
-                  title: '听说写玩能力健身房',
-                  subtitle: '控制首页右侧听、说、写、玩四类兴趣探索入口。',
-                  value: flags.abilityGym,
-                  onChanged: (value) =>
-                      _updateFlags(ref, flags.copyWith(abilityGym: value)),
-                ),
-                _FlagTile(
-                  title: '学习地图 V2',
-                  subtitle: '控制补星计划、自然拼读、国家地理 PM、魔法商店入口。',
-                  value: flags.learningMapV2,
-                  onChanged: (value) =>
-                      _updateFlags(ref, flags.copyWith(learningMapV2: value)),
-                ),
-                _FlagTile(
-                  title: '作业沉浸舞台 V2',
-                  subtitle: '控制听力、顺序跟读、热区点读、分页录音四种舞台组件。',
-                  value: flags.practiceStageV2,
-                  onChanged: (value) =>
-                      _updateFlags(ref, flags.copyWith(practiceStageV2: value)),
-                ),
-                _FlagTile(
-                  title: '点评中心 V2',
-                  subtitle: '控制点评列表卡片化、回放控制舱和 AI 诊断报告。',
-                  value: flags.reviewCenterV2,
-                  onChanged: (value) =>
-                      _updateFlags(ref, flags.copyWith(reviewCenterV2: value)),
-                ),
-                _FlagTile(
-                  title: '家长信任空间',
-                  subtitle: '控制联系家长页、学习证明和健康可信感内容。',
-                  value: flags.parentTrustSpace,
-                  onChanged: (value) => _updateFlags(
-                    ref,
-                    flags.copyWith(parentTrustSpace: value),
+                  _FlagTile(
+                    title: '听说写玩能力健身房',
+                    subtitle: '控制首页右侧听、说、写、玩四类兴趣探索入口。',
+                    value: flags.abilityGym,
+                    onChanged: (value) =>
+                        _updateFlags(ref, flags.copyWith(abilityGym: value)),
                   ),
-                ),
-                _FlagTile(
-                  title: '成长奖励展示',
-                  subtitle: '控制首页和作业完成态里的星币、连对等强化包装。',
-                  value: flags.showGrowthRewards,
-                  onChanged: (value) => _updateFlags(
-                    ref,
-                    flags.copyWith(showGrowthRewards: value),
+                  _FlagTile(
+                    title: '学习地图 V2',
+                    subtitle: '控制补星计划、自然拼读、国家地理 PM、魔法商店入口。',
+                    value: flags.learningMapV2,
+                    onChanged: (value) =>
+                        _updateFlags(ref, flags.copyWith(learningMapV2: value)),
                   ),
-                ),
-                _FlagTile(
-                  title: '健康摘要增强',
-                  subtitle: '控制联系家长页里的强化健康可信感区块。',
-                  value: flags.showEnhancedHealthInsights,
-                  onChanged: (value) => _updateFlags(
-                    ref,
-                    flags.copyWith(showEnhancedHealthInsights: value),
+                  _FlagTile(
+                    title: '作业沉浸舞台 V2',
+                    subtitle: '控制听力、顺序跟读、热区点读、分页录音四种舞台组件。',
+                    value: flags.practiceStageV2,
+                    onChanged: (value) => _updateFlags(
+                      ref,
+                      flags.copyWith(practiceStageV2: value),
+                    ),
                   ),
-                ),
-                _FlagTile(
-                  title: '趣味区包装',
-                  subtitle: '控制首页趣味入口和更多页的推广包装。',
-                  value: flags.showFunZonePromos,
-                  onChanged: (value) => _updateFlags(
-                    ref,
-                    flags.copyWith(showFunZonePromos: value),
+                  _FlagTile(
+                    title: '点评中心 V2',
+                    subtitle: '控制点评列表卡片化、回放控制舱和 AI 诊断报告。',
+                    value: flags.reviewCenterV2,
+                    onChanged: (value) => _updateFlags(
+                      ref,
+                      flags.copyWith(reviewCenterV2: value),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: () => ref
-                        .read(studentFeatureFlagsControllerProvider.notifier)
-                        .resetToDefaults(
-                          ref.read(studentFeatureFlagDefaultsProvider),
-                        ),
-                    icon: const Icon(Icons.restart_alt_rounded),
-                    label: const Text('恢复默认配置'),
+                  _FlagTile(
+                    title: '家长信任空间',
+                    subtitle: '控制联系家长页、学习证明和健康可信感内容。',
+                    value: flags.parentTrustSpace,
+                    onChanged: (value) => _updateFlags(
+                      ref,
+                      flags.copyWith(parentTrustSpace: value),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            title: '最近事件日志',
-            subtitle: '用于排查同步、恢复、提交和异常收口是否按预期工作。',
-            action: TextButton.icon(
-              onPressed: () async {
-                await ref.read(appEventLogRepositoryProvider).clear();
-                ref.invalidate(appEventLogEntriesProvider);
-              },
-              icon: const Icon(Icons.delete_sweep_rounded),
-              label: const Text('清空日志'),
-            ),
-            child: logEntriesAsync.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator()),
+                  _FlagTile(
+                    title: '成长奖励展示',
+                    subtitle: '控制首页和作业完成态里的星币、连对等强化包装。',
+                    value: flags.showGrowthRewards,
+                    onChanged: (value) => _updateFlags(
+                      ref,
+                      flags.copyWith(showGrowthRewards: value),
+                    ),
+                  ),
+                  _FlagTile(
+                    title: '健康摘要增强',
+                    subtitle: '控制联系家长页里的强化健康可信感区块。',
+                    value: flags.showEnhancedHealthInsights,
+                    onChanged: (value) => _updateFlags(
+                      ref,
+                      flags.copyWith(showEnhancedHealthInsights: value),
+                    ),
+                  ),
+                  _FlagTile(
+                    title: '趣味区包装',
+                    subtitle: '控制首页趣味入口和更多页的推广包装。',
+                    value: flags.showFunZonePromos,
+                    onChanged: (value) => _updateFlags(
+                      ref,
+                      flags.copyWith(showFunZonePromos: value),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () => ref
+                          .read(studentFeatureFlagsControllerProvider.notifier)
+                          .resetToDefaults(
+                            ref.read(studentFeatureFlagDefaultsProvider),
+                          ),
+                      icon: const Icon(Icons.restart_alt_rounded),
+                      label: const Text('恢复默认配置'),
+                    ),
+                  ),
+                ],
               ),
-              error: (_, _) => const Text('日志暂时读取失败。'),
-              data: (entries) {
-                if (entries.isEmpty) {
-                  return const Text('当前还没有记录到本地事件日志。');
-                }
-                final visibleEntries = entries.reversed.toList();
-                return Column(
-                  children: [
-                    for (final entry in visibleEntries)
-                      _LogEntryTile(entry: entry),
-                  ],
-                );
-              },
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: '最近事件日志',
+              subtitle: '用于排查同步、恢复、提交和异常收口是否按预期工作。',
+              action: TextButton.icon(
+                onPressed: () async {
+                  await ref.read(appEventLogRepositoryProvider).clear();
+                  ref.invalidate(appEventLogEntriesProvider);
+                },
+                icon: const Icon(Icons.delete_sweep_rounded),
+                label: const Text('清空日志'),
+              ),
+              child: logEntriesAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (_, _) => const Text('日志暂时读取失败。'),
+                data: (entries) {
+                  if (entries.isEmpty) {
+                    return const Text('当前还没有记录到本地事件日志。');
+                  }
+                  final visibleEntries = entries.reversed.toList();
+                  return Column(
+                    children: [
+                      for (final entry in visibleEntries)
+                        _LogEntryTile(entry: entry),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

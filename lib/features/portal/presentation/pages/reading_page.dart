@@ -105,6 +105,13 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
     await _applySystemUiMode();
   }
 
+  void _handleSwipeBack(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -520) {
+      Navigator.of(context).pop();
+    }
+  }
+
   void _zoomIn() {
     final nextZoom = (_pdfController.zoomLevel + 0.35).clamp(1.0, 4.5);
     _pdfController.zoomLevel = nextZoom;
@@ -141,219 +148,219 @@ class _ReadingPageState extends State<ReadingPage> with WidgetsBindingObserver {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
-      body: FutureBuilder<Uint8List?>(
-        future: _pdfFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: _handleSwipeBack,
+        child: FutureBuilder<Uint8List?>(
+          future: _pdfFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (snapshot.hasError) {
-            return _PdfStateMessage(
-              title: '教材暂时打不开',
-              message: snapshot.error?.toString() ?? '请稍后重试。',
-            );
-          }
+            if (snapshot.hasError) {
+              return _PdfStateMessage(
+                title: '教材暂时打不开',
+                message: snapshot.error?.toString() ?? '请稍后重试。',
+              );
+            }
 
-          if (!snapshot.hasData || snapshot.data == null) {
-            return const _PdfStateMessage(
-              title: '这份教材还在准备中',
-              message: '老师还没有上传这一页的教材，先去完成别的任务吧。',
-            );
-          }
+            if (!snapshot.hasData || snapshot.data == null) {
+              return const _PdfStateMessage(
+                title: '这份教材还在准备中',
+                message: '老师还没有上传这一页的教材，先去完成别的任务吧。',
+              );
+            }
 
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final orientation = constraints.maxWidth > constraints.maxHeight
-                  ? Orientation.landscape
-                  : Orientation.portrait;
-              if (_lastOrientation != orientation) {
-                _lastOrientation = orientation;
-                _fitCurrentPage();
-              }
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final orientation = constraints.maxWidth > constraints.maxHeight
+                    ? Orientation.landscape
+                    : Orientation.portrait;
+                if (_lastOrientation != orientation) {
+                  _lastOrientation = orientation;
+                  _fitCurrentPage();
+                }
 
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: SfPdfViewer.memory(
-                      snapshot.data!,
-                      controller: _pdfController,
-                      canShowPaginationDialog: true,
-                      canShowScrollHead: !_isFullscreen,
-                      canShowScrollStatus: false,
-                      enableDoubleTapZooming: true,
-                      maxZoomLevel: 4.5,
-                      pageSpacing: _isFullscreen ? 6 : 12,
-                      pageLayoutMode: _prefersPortrait
-                          ? PdfPageLayoutMode.single
-                          : PdfPageLayoutMode.continuous,
-                      scrollDirection: _prefersPortrait
-                          ? PdfScrollDirection.horizontal
-                          : PdfScrollDirection.vertical,
-                      onZoomLevelChanged: (_) {
-                        if (mounted) {
-                          setState(() {});
-                        }
-                      },
-                      onPageChanged: (details) {
-                        if (mounted) {
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: SfPdfViewer.memory(
+                        snapshot.data!,
+                        controller: _pdfController,
+                        canShowPaginationDialog: true,
+                        canShowScrollHead: !_isFullscreen,
+                        canShowScrollStatus: false,
+                        enableDoubleTapZooming: true,
+                        maxZoomLevel: 4.5,
+                        pageSpacing: _isFullscreen ? 6 : 12,
+                        pageLayoutMode: _prefersPortrait
+                            ? PdfPageLayoutMode.single
+                            : PdfPageLayoutMode.continuous,
+                        scrollDirection: _prefersPortrait
+                            ? PdfScrollDirection.horizontal
+                            : PdfScrollDirection.vertical,
+                        onZoomLevelChanged: (_) {
+                          if (mounted) {
+                            setState(() {});
+                          }
+                        },
+                        onPageChanged: (details) {
+                          if (mounted) {
+                            setState(() {
+                              _currentPageNumber = details.newPageNumber;
+                            });
+                          }
+                        },
+                        onDocumentLoaded: (details) async {
+                          _documentReady = true;
+                          final pageCount = details.document.pages.count;
+                          final startPage = (task?.startPage ?? 1).clamp(
+                            1,
+                            pageCount == 0 ? 1 : pageCount,
+                          );
+                          _currentPageNumber = startPage;
+                          final pageSize =
+                              details.document.pages[startPage - 1].size;
+                          final prefersPortrait =
+                              pageSize.height >= pageSize.width;
+
+                          await _applyDocumentOrientation(prefersPortrait);
+                          if (!mounted) {
+                            return;
+                          }
                           setState(() {
-                            _currentPageNumber = details.newPageNumber;
+                            _prefersPortrait = prefersPortrait;
                           });
-                        }
-                      },
-                      onDocumentLoaded: (details) async {
-                        _documentReady = true;
-                        final pageCount = details.document.pages.count;
-                        final startPage = (task?.startPage ?? 1).clamp(
-                          1,
-                          pageCount == 0 ? 1 : pageCount,
-                        );
-                        _currentPageNumber = startPage;
-                        final pageSize =
-                            details.document.pages[startPage - 1].size;
-                        final prefersPortrait =
-                            pageSize.height >= pageSize.width;
-
-                        await _applyDocumentOrientation(prefersPortrait);
-                        if (!mounted) {
-                          return;
-                        }
-                        setState(() {
-                          _prefersPortrait = prefersPortrait;
-                        });
-                        _fitCurrentPage();
-                      },
+                          _fitCurrentPage();
+                        },
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    right: 12,
-                    child: SafeArea(
-                      bottom: false,
-                      child: Row(
-                        children: [
-                          _ReaderIconButton(
-                            icon: Icons.arrow_back_rounded,
-                            onTap: () => Navigator.of(context).pop(),
-                          ),
-                          if (!_isFullscreen) ...[
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.28),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                    ),
-                                    if (pageRangeLabel != null)
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      right: 12,
+                      child: SafeArea(
+                        bottom: false,
+                        child: Row(
+                          children: [
+                            if (!_isFullscreen) ...[
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.28),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
                                       Text(
-                                        pageRangeLabel,
+                                        title,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: Theme.of(context)
                                             .textTheme
-                                            .bodySmall
+                                            .titleMedium
                                             ?.copyWith(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.84,
-                                              ),
-                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w900,
                                             ),
                                       ),
-                                  ],
+                                      if (pageRangeLabel != null)
+                                        Text(
+                                          pageRangeLabel,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.84,
+                                                ),
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ),
+                            ] else
+                              const Spacer(),
+                            const SizedBox(width: 12),
+                            _ReaderIconButton(
+                              icon: _prefersPortrait
+                                  ? Icons.stay_current_portrait_rounded
+                                  : Icons.stay_current_landscape_rounded,
+                              onTap: null,
+                              active: true,
                             ),
-                          ] else
-                            const Spacer(),
-                          const SizedBox(width: 12),
-                          _ReaderIconButton(
-                            icon: _prefersPortrait
-                                ? Icons.stay_current_portrait_rounded
-                                : Icons.stay_current_landscape_rounded,
-                            onTap: null,
-                            active: true,
-                          ),
-                          const SizedBox(width: 8),
-                          _ReaderIconButton(
-                            icon: Icons.fit_screen_rounded,
-                            onTap: _fitCurrentPage,
-                          ),
-                          const SizedBox(width: 8),
-                          _ReaderIconButton(
-                            icon: Icons.remove_rounded,
-                            onTap: _zoomOut,
-                          ),
-                          const SizedBox(width: 8),
-                          _ReaderIconButton(
-                            icon: Icons.add_rounded,
-                            onTap: _zoomIn,
-                          ),
-                          const SizedBox(width: 8),
-                          _ReaderIconButton(
-                            icon: _isFullscreen
-                                ? Icons.fullscreen_exit_rounded
-                                : Icons.fullscreen_rounded,
-                            onTap: _toggleFullscreen,
-                            active: _isFullscreen,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: SafeArea(
-                      top: false,
-                      left: false,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.48),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          '$_currentPageNumber/${_pdfController.pageCount == 0 ? widget.activity.materialPageCount ?? 1 : _pdfController.pageCount}'
-                          '  ·  ${(100 * _pdfController.zoomLevel).round()}%',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                              ),
+                            const SizedBox(width: 8),
+                            _ReaderIconButton(
+                              icon: Icons.fit_screen_rounded,
+                              onTap: _fitCurrentPage,
+                            ),
+                            const SizedBox(width: 8),
+                            _ReaderIconButton(
+                              icon: Icons.remove_rounded,
+                              onTap: _zoomOut,
+                            ),
+                            const SizedBox(width: 8),
+                            _ReaderIconButton(
+                              icon: Icons.add_rounded,
+                              onTap: _zoomIn,
+                            ),
+                            const SizedBox(width: 8),
+                            _ReaderIconButton(
+                              icon: _isFullscreen
+                                  ? Icons.fullscreen_exit_rounded
+                                  : Icons.fullscreen_rounded,
+                              onTap: _toggleFullscreen,
+                              active: _isFullscreen,
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
+                    Positioned(
+                      right: 16,
+                      bottom: 16,
+                      child: SafeArea(
+                        top: false,
+                        left: false,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.48),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '$_currentPageNumber/${_pdfController.pageCount == 0 ? widget.activity.materialPageCount ?? 1 : _pdfController.pageCount}'
+                            '  ·  ${(100 * _pdfController.zoomLevel).round()}%',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

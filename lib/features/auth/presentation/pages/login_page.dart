@@ -562,11 +562,11 @@ class _AccountLoginFields extends StatelessWidget {
         TextFormField(
           controller: passwordController,
           obscureText: true,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          keyboardType: TextInputType.visiblePassword,
+          textInputAction: TextInputAction.done,
           decoration: const InputDecoration(
-            labelText: '数字密码',
-            helperText: '会调起系统数字键盘，减少孩子误触',
+            labelText: '登录密码',
+            helperText: '支持字母、数字或符号密码',
             prefixIcon: Icon(Icons.lock_outline),
           ),
           validator: (value) {

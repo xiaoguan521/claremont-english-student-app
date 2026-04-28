@@ -24,6 +24,20 @@ class ActivitiesPage extends ConsumerWidget {
     final schoolContext =
         ref.watch(schoolContextProvider).valueOrNull ??
         SchoolContext.fallback();
+    Future<void> refreshActivities() async {
+      ref.invalidate(portalActivitiesProvider);
+      ref.invalidate(activityCalendarDatesProvider);
+      ref.invalidate(visibleActivityDateProvider);
+      ref.invalidate(activitiesForSelectedDateProvider);
+      ref.invalidate(selectedDatePortalSummaryProvider);
+      await Future.wait([
+        ref.read(portalActivitiesProvider.future),
+        ref.read(activityCalendarDatesProvider.future),
+        ref.read(visibleActivityDateProvider.future),
+        ref.read(activitiesForSelectedDateProvider.future),
+        ref.read(selectedDatePortalSummaryProvider.future),
+      ]);
+    }
 
     final subtitle = summaryAsync.maybeWhen(
       data: (summary) {
@@ -129,6 +143,7 @@ class ActivitiesPage extends ConsumerWidget {
 
           if (isPortraitMobile) {
             return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
                 children: [
                   _HomeworkCalendarStrip(
@@ -163,10 +178,10 @@ class ActivitiesPage extends ConsumerWidget {
             );
           }
 
-          final railWidth = (localSize.width * (isLandscapePhone ? 0.28 : 0.24))
+          final railWidth = (localSize.width * (isLandscapePhone ? 0.24 : 0.24))
               .clamp(
-                isLandscapePhone ? 168.0 : 220.0,
-                isLandscapePhone ? 228.0 : 280.0,
+                isLandscapePhone ? 144.0 : 220.0,
+                isLandscapePhone ? 196.0 : 280.0,
               );
           final stageGap = isLandscapePhone ? 12.0 * visualScale : 20.0;
           final stagePadding = isLandscapePhone ? 14.0 * visualScale : 18.0;
@@ -175,10 +190,7 @@ class ActivitiesPage extends ConsumerWidget {
           final railCompact = isLandscapePhone || isShortViewport;
           final twoColumnList = activities.isEmpty
               ? list
-              : Scrollbar(
-                  radius: const Radius.circular(999),
-                  child: list,
-                );
+              : Scrollbar(radius: const Radius.circular(999), child: list);
 
           return Column(
             children: [
@@ -295,21 +307,20 @@ class ActivitiesPage extends ConsumerWidget {
       brandSubtitle: '学校学习入口',
       title: '我的作业',
       subtitle: subtitle,
-      actions: [
-        _TopToolButton(
-          icon: Icons.home_rounded,
-          label: '回首页',
-          onTap: () => context.go('/home'),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity < -520) {
+            context.go('/home');
+          }
+        },
+        child: RefreshIndicator(
+          onRefresh: refreshActivities,
+          edgeOffset: 8,
+          child: content,
         ),
-        const SizedBox(width: 12),
-        _TopToolButton(
-          icon: Icons.refresh_rounded,
-          label: '刷新',
-          isPrimary: true,
-          onTap: () => ref.invalidate(portalActivitiesProvider),
-        ),
-      ],
-      child: content,
+      ),
     );
   }
 }
@@ -339,12 +350,15 @@ class _ActionRail extends StatelessWidget {
     final completedLabel = '${summary.completedActivities} 份已完成';
 
     return Container(
-      padding: EdgeInsets.all((isCompact ? 14 : 18) * visualScale),
+      width: double.infinity,
+      clipBehavior: Clip.hardEdge,
+      padding: EdgeInsets.all((isCompact ? 10 : 18) * visualScale),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(isCompact ? 22 : 28),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _RailAction(
             icon: Icons.fact_check_outlined,
@@ -353,7 +367,7 @@ class _ActionRail extends StatelessWidget {
             isCompact: isCompact,
             visualScale: visualScale,
           ),
-          SizedBox(height: (isCompact ? 10 : 14) * visualScale),
+          SizedBox(height: (isCompact ? 8 : 14) * visualScale),
           _RailAction(
             icon: Icons.pending_actions_outlined,
             label: isToday ? '待完成' : '待补作业',
@@ -361,7 +375,7 @@ class _ActionRail extends StatelessWidget {
             isCompact: isCompact,
             visualScale: visualScale,
           ),
-          SizedBox(height: (isCompact ? 10 : 14) * visualScale),
+          SizedBox(height: (isCompact ? 8 : 14) * visualScale),
           _RailAction(
             icon: Icons.workspace_premium_outlined,
             label: '已完成',
@@ -369,17 +383,18 @@ class _ActionRail extends StatelessWidget {
             isCompact: isCompact,
             visualScale: visualScale,
           ),
-          SizedBox(height: (isCompact ? 10 : 14) * visualScale),
+          SizedBox(height: (isCompact ? 8 : 14) * visualScale),
           _StudyHintTile(
             title: isToday ? '今天先完成今天的作业' : '漏掉的作业也可以补做',
             subtitle: isToday
                 ? '想补做前几天的内容，可以在上面的日期条里切换。'
                 : '这一天的作业会单独显示，做完后再切回今天继续。',
             accent: isToday ? const Color(0xFF4FAE7F) : const Color(0xFFFF9B55),
+            isCompact: isCompact,
             visualScale: visualScale,
           ),
           if (onResetToToday != null) ...[
-            SizedBox(height: (isCompact ? 10 : 14) * visualScale),
+            SizedBox(height: (isCompact ? 8 : 14) * visualScale),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -414,11 +429,11 @@ class _HomeworkCalendarStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headerStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+    final headerStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
       color: const Color(0xFF64748B),
       fontWeight: FontWeight.w800,
     );
-    final dateStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+    final dateStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       color: const Color(0xFF1E293B),
       fontWeight: FontWeight.w900,
     );
@@ -428,7 +443,7 @@ class _HomeworkCalendarStrip extends StatelessWidget {
     );
 
     return SizedBox(
-      height: 108 * visualScale,
+      height: 82 * visualScale,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemBuilder: (context, index) {
@@ -442,16 +457,16 @@ class _HomeworkCalendarStrip extends StatelessWidget {
             borderRadius: BorderRadius.circular(26),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
-              width: 104 * visualScale,
+              width: 92 * visualScale,
               padding: EdgeInsets.symmetric(
-                horizontal: 14 * visualScale,
-                vertical: 12 * visualScale,
+                horizontal: 12 * visualScale,
+                vertical: 8 * visualScale,
               ),
               decoration: BoxDecoration(
                 color: isSelected
                     ? const Color(0xFF1E7D66)
                     : Colors.white.withValues(alpha: 0.72),
-                borderRadius: BorderRadius.circular(26),
+                borderRadius: BorderRadius.circular(22),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
@@ -475,7 +490,7 @@ class _HomeworkCalendarStrip extends StatelessWidget {
                           : const Color(0xFF64748B),
                     ),
                   ),
-                  SizedBox(height: 4 * visualScale),
+                  SizedBox(height: 2 * visualScale),
                   Expanded(
                     child: Align(
                       alignment: Alignment.centerLeft,
@@ -493,7 +508,7 @@ class _HomeworkCalendarStrip extends StatelessWidget {
                       ),
                     ),
                   ),
-                  SizedBox(height: 4 * visualScale),
+                  SizedBox(height: 2 * visualScale),
                   Text(
                     count > 0 ? '$count 份作业' : '暂无作业',
                     maxLines: 1,
@@ -567,7 +582,7 @@ class _RailAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = (isCompact ? 22.0 : 24.0) * visualScale;
+    final iconSize = (isCompact ? 20.0 : 24.0) * visualScale;
     final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       color: const Color(0xFF25324B),
       fontWeight: FontWeight.w800,
@@ -579,11 +594,11 @@ class _RailAction extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(
-        minHeight: (isCompact ? 76 : 92) * visualScale,
+        minHeight: (isCompact ? 62 : 92) * visualScale,
       ),
       padding: EdgeInsets.symmetric(
-        horizontal: (isCompact ? 14 : 16) * visualScale,
-        vertical: (isCompact ? 12 : 0) * visualScale,
+        horizontal: (isCompact ? 10 : 16) * visualScale,
+        vertical: (isCompact ? 8 : 0) * visualScale,
       ),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FBFF),
@@ -592,15 +607,25 @@ class _RailAction extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, color: const Color(0xFF4FAE7F), size: iconSize),
-          SizedBox(width: (isCompact ? 10 : 12) * visualScale),
+          SizedBox(width: (isCompact ? 8 : 12) * visualScale),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: titleStyle),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: titleStyle,
+                ),
                 SizedBox(height: (isCompact ? 2 : 4) * visualScale),
-                Text(value, style: valueStyle),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: valueStyle,
+                ),
               ],
             ),
           ),
@@ -615,19 +640,24 @@ class _StudyHintTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.accent,
+    this.isCompact = false,
     this.visualScale = 1,
   });
 
   final String title;
   final String subtitle;
   final Color accent;
+  final bool isCompact;
   final double visualScale;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isCompactPadding(context) * visualScale),
+      clipBehavior: Clip.hardEdge,
+      padding: EdgeInsets.all(
+        (isCompact ? 10 : isCompactPadding(context)) * visualScale,
+      ),
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(24),
@@ -638,19 +668,25 @@ class _StudyHintTile extends StatelessWidget {
         children: [
           Text(
             title,
+            maxLines: isCompact ? 1 : 2,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: const Color(0xFF1E293B),
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: const Color(0xFF475569),
-              fontWeight: FontWeight.w700,
+          if (!isCompact) ...[
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: const Color(0xFF475569),
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -738,6 +774,8 @@ class _ActivityRow extends ConsumerWidget {
               children: [
                 Text(
                   activity.title,
+                  maxLines: isPhone ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: const Color(0xFF1E293B),
                     fontWeight: FontWeight.w900,
@@ -746,6 +784,8 @@ class _ActivityRow extends ConsumerWidget {
                 const SizedBox(height: 6),
                 Text(
                   '${activity.className} · ${activity.dateLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: const Color(0xFF64748B),
                     fontWeight: FontWeight.w700,
@@ -754,6 +794,8 @@ class _ActivityRow extends ConsumerWidget {
                 const SizedBox(height: 10),
                 Text(
                   progressMessage,
+                  maxLines: isPhone ? 3 : 2,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: const Color(0xFF475569),
                     fontWeight: FontWeight.w700,
@@ -771,10 +813,17 @@ class _ActivityRow extends ConsumerWidget {
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    _InfoChip(label: '任务 ${activity.tasks.length} 项'),
-                    _InfoChip(label: progressLabel),
-                    _InfoChip(label: '老师反馈 ${activity.reviewCount} 条'),
-                    if (resumeLabel != null) _InfoChip(label: resumeLabel),
+                    _InfoChip(
+                      label: '任务 ${activity.tasks.length} 项',
+                      visualScale: visualScale,
+                    ),
+                    _InfoChip(label: progressLabel, visualScale: visualScale),
+                    _InfoChip(
+                      label: '老师反馈 ${activity.reviewCount} 条',
+                      visualScale: visualScale,
+                    ),
+                    if (resumeLabel != null)
+                      _InfoChip(label: resumeLabel, visualScale: visualScale),
                   ],
                 ),
               ],
@@ -790,6 +839,8 @@ class _ActivityRow extends ConsumerWidget {
                         progress.isCompleted
                             ? '点进去可以回听录音、看老师反馈，还能继续挑战更高分。'
                             : '点进去就能继续做句子练习、录音和提交。',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: const Color(0xFF64748B),
                           fontWeight: FontWeight.w700,
@@ -802,7 +853,11 @@ class _ActivityRow extends ConsumerWidget {
                           onPressed: () =>
                               context.go('/activities/${activity.id}'),
                           icon: const Icon(Icons.play_circle_fill_rounded),
-                          label: Text(nextStep),
+                          label: Text(
+                            nextStep,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ],
@@ -812,11 +867,20 @@ class _ActivityRow extends ConsumerWidget {
                     children: [
                       _StatusBadge(status: activity.status),
                       SizedBox(height: 18 * visualScale),
-                      FilledButton.icon(
-                        onPressed: () =>
-                            context.go('/activities/${activity.id}'),
-                        icon: const Icon(Icons.play_circle_fill_rounded),
-                        label: Text(nextStep),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: 160 * visualScale,
+                        ),
+                        child: FilledButton.icon(
+                          onPressed: () =>
+                              context.go('/activities/${activity.id}'),
+                          icon: const Icon(Icons.play_circle_fill_rounded),
+                          label: Text(
+                            nextStep,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ),
                     ],
                   );
@@ -873,23 +937,32 @@ class _ActivityRow extends ConsumerWidget {
 }
 
 class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.label});
+  const _InfoChip({required this.label, this.visualScale = 1});
 
   final String label;
+  final double visualScale;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: const Color(0xFF475569),
-          fontWeight: FontWeight.w700,
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: 190 * visualScale),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: 12 * visualScale,
+          vertical: 8 * visualScale,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: const Color(0xFF475569),
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );
@@ -917,6 +990,8 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
           color: color,
           fontWeight: FontWeight.w800,
@@ -1018,69 +1093,14 @@ class _ActivityProgressBar extends StatelessWidget {
               : completed == 0 && resumeTaskIndex != null
               ? '上次做到第 $resumeTaskIndex 句了，接着继续就好'
               : '再完成 ${total - completed} 句就能完成这份作业',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: const Color(0xFF64748B),
             fontWeight: FontWeight.w700,
           ),
         ),
       ],
-    );
-  }
-}
-
-class _TopToolButton extends StatelessWidget {
-  const _TopToolButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.isPrimary = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool isPrimary;
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final isTightLandscapePhone = size.width > size.height && size.height < 430;
-    final backgroundColor = isPrimary
-        ? const Color(0xFFFF8F4D)
-        : Colors.white.withValues(alpha: 0.18);
-    const foregroundColor = Colors.white;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isTightLandscapePhone ? 12 : 16,
-          vertical: isTightLandscapePhone ? 9 : 12,
-        ),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: foregroundColor,
-              size: isTightLandscapePhone ? 16 : 18,
-            ),
-            SizedBox(width: isTightLandscapePhone ? 6 : 8),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: foregroundColor,
-                fontWeight: FontWeight.w800,
-                fontSize: isTightLandscapePhone ? 13 : null,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

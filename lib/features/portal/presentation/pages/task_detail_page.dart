@@ -1738,79 +1738,264 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
         brandSubtitle: '学校学习入口',
         title: activity.title,
         subtitle: '${activity.className} · ${activity.dateLabel}',
-        actions: [
-          _HeaderAction(
-            icon: Icons.arrow_back_rounded,
-            label: '返回作业',
-            onTap: () => unawaited(
-              _confirmExitPractice(allTasksCompleted: allTasksCompleted),
-            ),
-          ),
-        ],
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isLandscapeLayout =
-                constraints.maxWidth > constraints.maxHeight;
-            final isLandscapePhone =
-                isLandscapeLayout && constraints.maxWidth < 1100;
-            final visualScale = isLandscapePhone
-                ? _taskDetailLandscapeVisualScale(
-                    constraints.maxWidth,
-                    constraints.maxHeight,
-                  )
-                : 1.0;
-            final textScale = isLandscapePhone
-                ? (MediaQuery.textScalerOf(context).scale(1) * visualScale)
-                      .clamp(0.82, 1.0)
-                : MediaQuery.textScalerOf(context).scale(1);
-            final stageCard = Hero(
-              tag: 'mainline-activity-${activity.id}',
-              transitionOnUserGestures: true,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  key: _textbookAnchorKey,
-                  child: _TextbookStageCard(
-                    activity: activity,
-                    tasks: activity.tasks,
-                    task: focusTask,
-                    focusedTaskId: focusedTaskId,
-                    taskIndex:
-                        activity.tasks.indexWhere(
-                          (task) => task.id == focusTask.id,
-                        ) +
-                        1,
-                    totalTasks: activity.tasks.length,
-                    onSelectTask: _setFocusedTask,
-                    onOpenFullScreen: () => _openReadingPage(
-                      activity,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: (details) {
+            final velocity = details.primaryVelocity ?? 0;
+            if (velocity < -520) {
+              unawaited(
+                _confirmExitPractice(allTasksCompleted: allTasksCompleted),
+              );
+            }
+          },
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isLandscapeLayout =
+                  constraints.maxWidth > constraints.maxHeight;
+              final isLandscapePhone =
+                  isLandscapeLayout && constraints.maxWidth < 1100;
+              final visualScale = isLandscapePhone
+                  ? _taskDetailLandscapeVisualScale(
+                      constraints.maxWidth,
+                      constraints.maxHeight,
+                    )
+                  : 1.0;
+              final textScale = isLandscapePhone
+                  ? (MediaQuery.textScalerOf(context).scale(1) * visualScale)
+                        .clamp(0.82, 1.0)
+                  : MediaQuery.textScalerOf(context).scale(1);
+              final stageCard = Hero(
+                tag: 'mainline-activity-${activity.id}',
+                transitionOnUserGestures: true,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    key: _textbookAnchorKey,
+                    child: _TextbookStageCard(
+                      activity: activity,
+                      tasks: activity.tasks,
                       task: focusTask,
-                      startFullscreen: true,
+                      focusedTaskId: focusedTaskId,
+                      taskIndex:
+                          activity.tasks.indexWhere(
+                            (task) => task.id == focusTask.id,
+                          ) +
+                          1,
+                      totalTasks: activity.tasks.length,
+                      onSelectTask: _setFocusedTask,
+                      onOpenFullScreen: () => _openReadingPage(
+                        activity,
+                        task: focusTask,
+                        startFullscreen: true,
+                      ),
+                      completedTaskIds: completedTaskIds,
+                      comboCount: _comboCount,
+                      earnedStars: _earnedStars,
+                      onCompleteHotspotTask: (task) =>
+                          _completeHotspotSelection(activity, task),
+                      compact: isLandscapePhone,
+                      visualScale: visualScale,
+                      expandedBottomSheet: isLandscapeLayout,
+                      fitToAvailableHeight: isLandscapeLayout,
+                      bottomSheet: _TextbookFloatingPanel(
+                        task: focusTask,
+                        submissionFlowStatus: activity.submissionFlowStatus,
+                        submissionStatusHint: activity.submissionStatusHint,
+                        isUnsupportedProtocol:
+                            focusTask.toPracticeProtocol().type ==
+                            PracticeTaskType.unsupported,
+                        requiresPracticeCompletion:
+                            focusTask.toPracticeProtocol().type ==
+                            PracticeTaskType.wordBank,
+                        isPracticeCompleted:
+                            focusedPracticeTaskState.isCompleted,
+                        selectedAudioLabel: _selectedAudio?.name,
+                        existingAudioLabel: activity.submissionAudioName,
+                        isSubmitting: _isSubmitting,
+                        isRecording: _isRecording,
+                        isSamplePlaying: focusTask.hasReferenceAudio
+                            ? _referenceAudioKey(
+                                    focusTask.referenceAudioPath!,
+                                  ) ==
+                                  _playingAudioKey
+                            : _speakingTaskId == _sampleSpeechKey(focusTask.id),
+                        isSampleLoading: focusTask.hasReferenceAudio
+                            ? _referenceAudioKey(
+                                    focusTask.referenceAudioPath!,
+                                  ) ==
+                                  _loadingAudioKey
+                            : false,
+                        isSelectedAudioPlaying:
+                            selectedAudioKey == _playingAudioKey,
+                        isSelectedAudioLoading:
+                            selectedAudioKey == _loadingAudioKey,
+                        isStoredAudioPlaying:
+                            storedAudioKey == _playingAudioKey,
+                        isStoredAudioLoading:
+                            storedAudioKey == _loadingAudioKey,
+                        practiceTaskState: focusedPracticeTaskState,
+                        showPracticeRenderer:
+                            isLandscapeLayout &&
+                            !isLandscapePhone &&
+                            featureFlags.practiceStageV2,
+                        onOpenReading: activity.materialPdfPath == null
+                            ? null
+                            : () => _openReadingPage(activity, task: focusTask),
+                        onSpeakSample: focusTask.hasReferenceAudio
+                            ? () => _toggleReferenceAudioPlayback(focusTask)
+                            : _sampleTextFor(focusTask) == null
+                            ? null
+                            : () => _speakSample(focusTask),
+                        onOpenVideo: focusTask.hasTeachingVideo
+                            ? () => _openTeachingVideo(focusTask)
+                            : null,
+                        onPickAudio: _isRecording ? null : _pickAudioFile,
+                        onRecordAudio: _toggleRecording,
+                        onClearSelectedAudio: _selectedAudio == null
+                            ? null
+                            : _clearSelectedAudio,
+                        onPlaySelectedAudio: _selectedAudio == null
+                            ? null
+                            : _togglePendingAudioPlayback,
+                        onPlayStoredAudio: storedAudioKey == null
+                            ? null
+                            : () => _toggleStoredAudioPlayback(activity),
+                        onWordBankChanged: (tokens) => _updateWordBankSelection(
+                          activity,
+                          focusTask,
+                          tokens,
+                        ),
+                        onListenChooseChanged: (value) =>
+                            _updateListenChooseSelection(
+                              activity,
+                              focusTask,
+                              value,
+                            ),
+                        onPrimaryAction: () => _handlePrimaryAction(activity),
+                      ),
                     ),
-                    completedTaskIds: completedTaskIds,
-                    comboCount: _comboCount,
-                    earnedStars: _earnedStars,
-                    onCompleteHotspotTask: (task) =>
-                        _completeHotspotSelection(activity, task),
-                    compact: isLandscapePhone,
-                    visualScale: visualScale,
-                    expandedBottomSheet: isLandscapeLayout,
-                    fitToAvailableHeight: isLandscapeLayout,
-                    bottomSheet: _TextbookFloatingPanel(
+                  ),
+                ),
+              );
+
+              if (isLandscapeLayout) {
+                return MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(textScale)),
+                  child: LayoutBuilder(
+                    builder: (context, landscapeConstraints) {
+                      final showSentenceStrip =
+                          !isLandscapePhone &&
+                          activity.tasks.length > 1 &&
+                          landscapeConstraints.maxHeight >=
+                              (isLandscapePhone ? 520 : 620);
+                      final showCompletionCard =
+                          allTasksCompleted &&
+                          landscapeConstraints.maxHeight >=
+                              (isLandscapePhone ? 620 : 720);
+                      return Column(
+                        children: [
+                          Expanded(child: stageCard),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            child: _autoAdvanceHint == null
+                                ? const SizedBox(
+                                    height: 0,
+                                    key: ValueKey('empty-hint'),
+                                  )
+                                : Padding(
+                                    key: ValueKey(_autoAdvanceHint),
+                                    padding: EdgeInsets.only(
+                                      top: 10 * visualScale,
+                                    ),
+                                    child: PracticeAutoAdvanceBanner(
+                                      message: _autoAdvanceHint!,
+                                    ),
+                                  ),
+                          ),
+                          if (showSentenceStrip) ...[
+                            SizedBox(height: 10 * visualScale),
+                            SizedBox(
+                              height: 132 * visualScale,
+                              child: PracticeSentenceSwitchStrip(
+                                tasks: activity.tasks,
+                                focusedTaskId: focusedTaskId,
+                                completedTaskIds: completedTaskIds,
+                                onSelectTask: _setFocusedTask,
+                              ),
+                            ),
+                          ],
+                          if (showCompletionCard) ...[
+                            SizedBox(height: 10 * visualScale),
+                            SizedBox(
+                              height: 156 * visualScale,
+                              child: PracticeCompletionShareCard(
+                                comboCount: _comboCount,
+                                earnedStars: _earnedStars,
+                                showGrowthRewards:
+                                    featureFlags.showGrowthRewards,
+                                onContactParent: () => context.go(
+                                  '/activities/${activity.id}/parent-contact',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                );
+              }
+
+              return ListView(
+                children: [
+                  stageCard,
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: _autoAdvanceHint == null
+                        ? const SizedBox(height: 0, key: ValueKey('empty-hint'))
+                        : Padding(
+                            key: ValueKey(_autoAdvanceHint),
+                            padding: const EdgeInsets.only(top: 14),
+                            child: PracticeAutoAdvanceBanner(
+                              message: _autoAdvanceHint!,
+                            ),
+                          ),
+                  ),
+                  if (activity.tasks.length > 1) ...[
+                    const SizedBox(height: 14),
+                    PracticeSentenceSwitchStrip(
+                      tasks: activity.tasks,
+                      focusedTaskId: focusedTaskId,
+                      completedTaskIds: completedTaskIds,
+                      onSelectTask: _setFocusedTask,
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  _SectionHeading(
+                    title: completedTaskIds.contains(focusTask.id)
+                        ? '这一句完成了'
+                        : '做这一句',
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    key: _focusedTaskAnchorKey,
+                    child: _TaskCard(
+                      index:
+                          activity.tasks.indexWhere(
+                            (task) => task.id == focusTask.id,
+                          ) +
+                          1,
                       task: focusTask,
                       submissionFlowStatus: activity.submissionFlowStatus,
                       submissionStatusHint: activity.submissionStatusHint,
-                      isUnsupportedProtocol:
-                          focusTask.toPracticeProtocol().type ==
-                          PracticeTaskType.unsupported,
-                      requiresPracticeCompletion:
-                          focusTask.toPracticeProtocol().type ==
-                          PracticeTaskType.wordBank,
-                      isPracticeCompleted: focusedPracticeTaskState.isCompleted,
                       selectedAudioLabel: _selectedAudio?.name,
                       existingAudioLabel: activity.submissionAudioName,
                       isSubmitting: _isSubmitting,
                       isRecording: _isRecording,
+                      isSpeaking:
+                          _speakingTaskId == _sampleSpeechKey(focusTask.id),
                       isSamplePlaying: focusTask.hasReferenceAudio
                           ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
                                 _playingAudioKey
@@ -1819,6 +2004,26 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                           ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
                                 _loadingAudioKey
                           : false,
+                      isEncouragementPlaying:
+                          (focusTask.review?.encouragement.trim().isNotEmpty ==
+                                  true &&
+                              _generatedSampleAudioKey(
+                                    _encouragementSpeechKey(focusTask.id),
+                                    schoolContext.schoolId ?? 'local',
+                                    focusTask.review!.encouragement,
+                                  ) ==
+                                  _playingAudioKey) ||
+                          _speakingTaskId ==
+                              _encouragementSpeechKey(focusTask.id),
+                      isEncouragementLoading:
+                          focusTask.review?.encouragement.trim().isNotEmpty ==
+                              true &&
+                          _generatedSampleAudioKey(
+                                _encouragementSpeechKey(focusTask.id),
+                                schoolContext.schoolId ?? 'local',
+                                focusTask.review!.encouragement,
+                              ) ==
+                              _loadingAudioKey,
                       isSelectedAudioPlaying:
                           selectedAudioKey == _playingAudioKey,
                       isSelectedAudioLoading:
@@ -1826,13 +2031,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                       isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
                       isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
                       practiceTaskState: focusedPracticeTaskState,
-                      showPracticeRenderer:
-                          isLandscapeLayout &&
-                          !isLandscapePhone &&
-                          featureFlags.practiceStageV2,
                       onOpenReading: activity.materialPdfPath == null
                           ? null
-                          : () => _openReadingPage(activity, task: focusTask),
+                          : _scrollTextbookIntoView,
                       onSpeakSample: focusTask.hasReferenceAudio
                           ? () => _toggleReferenceAudioPlayback(focusTask)
                           : _sampleTextFor(focusTask) == null
@@ -1852,6 +2053,9 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                       onPlayStoredAudio: storedAudioKey == null
                           ? null
                           : () => _toggleStoredAudioPlayback(activity),
+                      onPlayEncouragement: focusTask.review == null
+                          ? null
+                          : () => _playEncouragement(focusTask),
                       onWordBankChanged: (tokens) =>
                           _updateWordBankSelection(activity, focusTask, tokens),
                       onListenChooseChanged: (value) =>
@@ -1861,215 +2065,25 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                             value,
                           ),
                       onPrimaryAction: () => _handlePrimaryAction(activity),
+                      isFocusTask: true,
+                      showSubmissionSection: false,
                     ),
                   ),
-                ),
-              ),
-            );
-
-            if (isLandscapeLayout) {
-              return MediaQuery(
-                data: MediaQuery.of(
-                  context,
-                ).copyWith(textScaler: TextScaler.linear(textScale)),
-                child: LayoutBuilder(
-                  builder: (context, landscapeConstraints) {
-                    final showSentenceStrip =
-                        !isLandscapePhone &&
-                        activity.tasks.length > 1 &&
-                        landscapeConstraints.maxHeight >=
-                            (isLandscapePhone ? 520 : 620);
-                    final showCompletionCard =
-                        allTasksCompleted &&
-                        landscapeConstraints.maxHeight >=
-                            (isLandscapePhone ? 620 : 720);
-                    return Column(
-                      children: [
-                        Expanded(child: stageCard),
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 220),
-                          child: _autoAdvanceHint == null
-                              ? const SizedBox(
-                                  height: 0,
-                                  key: ValueKey('empty-hint'),
-                                )
-                              : Padding(
-                                  key: ValueKey(_autoAdvanceHint),
-                                  padding: EdgeInsets.only(
-                                    top: 10 * visualScale,
-                                  ),
-                                  child: PracticeAutoAdvanceBanner(
-                                    message: _autoAdvanceHint!,
-                                  ),
-                                ),
-                        ),
-                        if (showSentenceStrip) ...[
-                          SizedBox(height: 10 * visualScale),
-                          SizedBox(
-                            height: 132 * visualScale,
-                            child: PracticeSentenceSwitchStrip(
-                              tasks: activity.tasks,
-                              focusedTaskId: focusedTaskId,
-                              completedTaskIds: completedTaskIds,
-                              onSelectTask: _setFocusedTask,
-                            ),
-                          ),
-                        ],
-                        if (showCompletionCard) ...[
-                          SizedBox(height: 10 * visualScale),
-                          SizedBox(
-                            height: 156 * visualScale,
-                            child: PracticeCompletionShareCard(
-                              comboCount: _comboCount,
-                              earnedStars: _earnedStars,
-                              showGrowthRewards: featureFlags.showGrowthRewards,
-                              onContactParent: () => context.go(
-                                '/activities/${activity.id}/parent-contact',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    );
-                  },
-                ),
+                  if (allTasksCompleted) ...[
+                    const SizedBox(height: 16),
+                    PracticeCompletionShareCard(
+                      comboCount: _comboCount,
+                      earnedStars: _earnedStars,
+                      showGrowthRewards: featureFlags.showGrowthRewards,
+                      onContactParent: () => context.go(
+                        '/activities/${activity.id}/parent-contact',
+                      ),
+                    ),
+                  ],
+                ],
               );
-            }
-
-            return ListView(
-              children: [
-                stageCard,
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: _autoAdvanceHint == null
-                      ? const SizedBox(height: 0, key: ValueKey('empty-hint'))
-                      : Padding(
-                          key: ValueKey(_autoAdvanceHint),
-                          padding: const EdgeInsets.only(top: 14),
-                          child: PracticeAutoAdvanceBanner(
-                            message: _autoAdvanceHint!,
-                          ),
-                        ),
-                ),
-                if (activity.tasks.length > 1) ...[
-                  const SizedBox(height: 14),
-                  PracticeSentenceSwitchStrip(
-                    tasks: activity.tasks,
-                    focusedTaskId: focusedTaskId,
-                    completedTaskIds: completedTaskIds,
-                    onSelectTask: _setFocusedTask,
-                  ),
-                ],
-                const SizedBox(height: 16),
-                _SectionHeading(
-                  title: completedTaskIds.contains(focusTask.id)
-                      ? '这一句完成了'
-                      : '做这一句',
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  key: _focusedTaskAnchorKey,
-                  child: _TaskCard(
-                    index:
-                        activity.tasks.indexWhere(
-                          (task) => task.id == focusTask.id,
-                        ) +
-                        1,
-                    task: focusTask,
-                    submissionFlowStatus: activity.submissionFlowStatus,
-                    submissionStatusHint: activity.submissionStatusHint,
-                    selectedAudioLabel: _selectedAudio?.name,
-                    existingAudioLabel: activity.submissionAudioName,
-                    isSubmitting: _isSubmitting,
-                    isRecording: _isRecording,
-                    isSpeaking:
-                        _speakingTaskId == _sampleSpeechKey(focusTask.id),
-                    isSamplePlaying: focusTask.hasReferenceAudio
-                        ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
-                              _playingAudioKey
-                        : _speakingTaskId == _sampleSpeechKey(focusTask.id),
-                    isSampleLoading: focusTask.hasReferenceAudio
-                        ? _referenceAudioKey(focusTask.referenceAudioPath!) ==
-                              _loadingAudioKey
-                        : false,
-                    isEncouragementPlaying:
-                        (focusTask.review?.encouragement.trim().isNotEmpty ==
-                                true &&
-                            _generatedSampleAudioKey(
-                                  _encouragementSpeechKey(focusTask.id),
-                                  schoolContext.schoolId ?? 'local',
-                                  focusTask.review!.encouragement,
-                                ) ==
-                                _playingAudioKey) ||
-                        _speakingTaskId ==
-                            _encouragementSpeechKey(focusTask.id),
-                    isEncouragementLoading:
-                        focusTask.review?.encouragement.trim().isNotEmpty ==
-                            true &&
-                        _generatedSampleAudioKey(
-                              _encouragementSpeechKey(focusTask.id),
-                              schoolContext.schoolId ?? 'local',
-                              focusTask.review!.encouragement,
-                            ) ==
-                            _loadingAudioKey,
-                    isSelectedAudioPlaying:
-                        selectedAudioKey == _playingAudioKey,
-                    isSelectedAudioLoading:
-                        selectedAudioKey == _loadingAudioKey,
-                    isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
-                    isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
-                    practiceTaskState: focusedPracticeTaskState,
-                    onOpenReading: activity.materialPdfPath == null
-                        ? null
-                        : _scrollTextbookIntoView,
-                    onSpeakSample: focusTask.hasReferenceAudio
-                        ? () => _toggleReferenceAudioPlayback(focusTask)
-                        : _sampleTextFor(focusTask) == null
-                        ? null
-                        : () => _speakSample(focusTask),
-                    onOpenVideo: focusTask.hasTeachingVideo
-                        ? () => _openTeachingVideo(focusTask)
-                        : null,
-                    onPickAudio: _isRecording ? null : _pickAudioFile,
-                    onRecordAudio: _toggleRecording,
-                    onClearSelectedAudio: _selectedAudio == null
-                        ? null
-                        : _clearSelectedAudio,
-                    onPlaySelectedAudio: _selectedAudio == null
-                        ? null
-                        : _togglePendingAudioPlayback,
-                    onPlayStoredAudio: storedAudioKey == null
-                        ? null
-                        : () => _toggleStoredAudioPlayback(activity),
-                    onPlayEncouragement: focusTask.review == null
-                        ? null
-                        : () => _playEncouragement(focusTask),
-                    onWordBankChanged: (tokens) =>
-                        _updateWordBankSelection(activity, focusTask, tokens),
-                    onListenChooseChanged: (value) =>
-                        _updateListenChooseSelection(
-                          activity,
-                          focusTask,
-                          value,
-                        ),
-                    onPrimaryAction: () => _handlePrimaryAction(activity),
-                    isFocusTask: true,
-                    showSubmissionSection: false,
-                  ),
-                ),
-                if (allTasksCompleted) ...[
-                  const SizedBox(height: 16),
-                  PracticeCompletionShareCard(
-                    comboCount: _comboCount,
-                    earnedStars: _earnedStars,
-                    showGrowthRewards: featureFlags.showGrowthRewards,
-                    onContactParent: () =>
-                        context.go('/activities/${activity.id}/parent-contact'),
-                  ),
-                ],
-              ],
-            );
-          },
+            },
+          ),
         ),
       ),
     );
@@ -2306,8 +2320,14 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
   @override
   Widget build(BuildContext context) {
     final pageLabel = _pageRangeLabel(widget.task);
+    final usesSeparatedControlDock =
+        widget.fitToAvailableHeight &&
+        widget.expandedBottomSheet &&
+        widget.compact;
     final stageBottomInset =
-        (widget.expandedBottomSheet
+        (usesSeparatedControlDock
+            ? 0.0
+            : widget.expandedBottomSheet
             ? (widget.compact ? 230.0 : 310.0)
             : (widget.compact ? 154.0 : 184.0)) *
         widget.visualScale;
@@ -2339,7 +2359,11 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
           ),
           SizedBox(height: (widget.compact ? 12 : 16) * widget.visualScale),
           if (widget.fitToAvailableHeight)
-            Expanded(child: _buildStageViewport(context, stageBottomInset))
+            Expanded(
+              child: usesSeparatedControlDock
+                  ? _buildSeparatedStageAndDock(context)
+                  : _buildStageViewport(context, stageBottomInset),
+            )
           else
             _buildStageViewport(context, stageBottomInset),
         ],
@@ -2347,7 +2371,27 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
     );
   }
 
-  Widget _buildStageViewport(BuildContext context, double stageBottomInset) {
+  Widget _buildSeparatedStageAndDock(BuildContext context) {
+    final dockMaxHeight = (widget.compact ? 148.0 : 188.0) * widget.visualScale;
+    return Column(
+      children: [
+        Expanded(
+          child: _buildStageViewport(context, 0, showFloatingPanel: false),
+        ),
+        SizedBox(height: 8 * widget.visualScale),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: dockMaxHeight),
+          child: widget.bottomSheet,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStageViewport(
+    BuildContext context,
+    double stageBottomInset, {
+    bool showFloatingPanel = true,
+  }) {
     final focusedPageImagePath = widget.task.region?.pageImagePath;
     final pageTasks = focusedPageImagePath == null
         ? <PortalTask>[]
@@ -2506,12 +2550,13 @@ class _TextbookStageCardState extends State<_TextbookStageCard> {
                           ),
                         ),
                       ),
-                    Positioned(
-                      left: 16 * widget.visualScale,
-                      right: 16 * widget.visualScale,
-                      bottom: 16 * widget.visualScale,
-                      child: widget.bottomSheet,
-                    ),
+                    if (showFloatingPanel)
+                      Positioned(
+                        left: 16 * widget.visualScale,
+                        right: 16 * widget.visualScale,
+                        bottom: 16 * widget.visualScale,
+                        child: widget.bottomSheet,
+                      ),
                   ],
                 ),
               ),
@@ -2966,6 +3011,9 @@ class _TextbookFloatingPanel extends StatelessWidget {
           final isPhone =
               constraints.maxWidth < 760 ||
               MediaQuery.sizeOf(context).height < 560;
+          final shouldScrollPanel =
+              isLowHeightLandscape ||
+              (constraints.hasBoundedHeight && constraints.maxHeight < 220);
           final header = isPhone
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3070,40 +3118,6 @@ class _TextbookFloatingPanel extends StatelessWidget {
                   onTap: onOpenVideo,
                   iconOnly: true,
                 ),
-              if (selectedAudioLabel != null)
-                PracticeTaskInfoChip(
-                  icon: isSelectedAudioPlaying
-                      ? Icons.stop_circle_rounded
-                      : Icons.play_circle_outline_rounded,
-                  label: isSelectedAudioLoading
-                      ? '加载中'
-                      : isSelectedAudioPlaying
-                      ? '停止'
-                      : '试听',
-                  onTap: onPlaySelectedAudio,
-                  iconOnly: true,
-                ),
-              if (existingAudioLabel != null &&
-                  submissionFlowStatus != SubmissionFlowStatus.notStarted)
-                PracticeTaskInfoChip(
-                  icon: isStoredAudioPlaying
-                      ? Icons.stop_circle_rounded
-                      : Icons.play_circle_outline_rounded,
-                  label: isStoredAudioLoading
-                      ? '加载中'
-                      : isStoredAudioPlaying
-                      ? '停止'
-                      : '回听',
-                  onTap: onPlayStoredAudio,
-                  iconOnly: true,
-                ),
-              if (selectedAudioLabel != null && onClearSelectedAudio != null)
-                PracticeTaskInfoChip(
-                  icon: Icons.delete_outline_rounded,
-                  label: '删除',
-                  onTap: onClearSelectedAudio,
-                  iconOnly: true,
-                ),
             ],
           );
 
@@ -3164,7 +3178,7 @@ class _TextbookFloatingPanel extends StatelessWidget {
               submissionDock: submissionDock,
             ),
           };
-          if (!isLowHeightLandscape) {
+          if (!shouldScrollPanel) {
             return panelContent;
           }
           return SingleChildScrollView(
@@ -3794,65 +3808,6 @@ class _TaskCard extends StatelessWidget {
       case TaskKind.phonics:
         return Icons.spellcheck_rounded;
     }
-  }
-}
-
-class _HeaderAction extends StatelessWidget {
-  const _HeaderAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final iconOnly = size.width > size.height && size.height < 640;
-    final isTightLandscapePhone = size.width > size.height && size.height < 430;
-    return Tooltip(
-      message: label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: iconOnly
-                ? (isTightLandscapePhone ? 10 : 12)
-                : (isTightLandscapePhone ? 12 : 16),
-            vertical: isTightLandscapePhone ? 9 : 12,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: Colors.white,
-                size: isTightLandscapePhone ? 16 : 18,
-              ),
-              if (!iconOnly) ...[
-                SizedBox(width: isTightLandscapePhone ? 6 : 8),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: isTightLandscapePhone ? 13 : null,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 

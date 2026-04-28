@@ -106,19 +106,27 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
     };
   }
 
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/reviews');
+    }
+  }
+
+  void _handleSwipeBack(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -520) {
+      _goBack();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final heroCard = _ReviewHeroCard(
       title: widget.title,
       belongTo: widget.belongTo,
       teacher: widget.teacher,
-      onBack: () {
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go('/reviews');
-        }
-      },
     );
     final sentenceCard = _PronunciationSentenceCard(
       reviewId: widget.reviewId,
@@ -127,50 +135,54 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
     );
     const teacherCard = _TeacherMessageCard();
 
-    return TabletShell(
-      activeSection: TabletSection.teaching,
-      title: '查看点评',
-      subtitle: '听得见、看得懂的发音反馈',
-      theme: TabletShellTheme.k12Sky,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 760;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: _handleSwipeBack,
+      child: TabletShell(
+        activeSection: TabletSection.teaching,
+        title: '查看点评',
+        subtitle: '听得见、看得懂的发音反馈',
+        theme: TabletShellTheme.k12Sky,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 760;
 
-          if (isCompact) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
+            if (isCompact) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    SizedBox(height: 300, child: heroCard),
+                    const SizedBox(height: 16),
+                    SizedBox(height: 520, child: sentenceCard),
+                    const SizedBox(height: 16),
+                    const SizedBox(height: 300, child: teacherCard),
+                  ],
+                ),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
                 children: [
-                  SizedBox(height: 300, child: heroCard),
-                  const SizedBox(height: 16),
-                  SizedBox(height: 520, child: sentenceCard),
-                  const SizedBox(height: 16),
-                  const SizedBox(height: 300, child: teacherCard),
+                  Expanded(
+                    flex: 42,
+                    child: Column(
+                      children: [
+                        Expanded(child: heroCard),
+                        const SizedBox(height: 16),
+                        const Expanded(child: teacherCard),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 18),
+                  Expanded(flex: 58, child: sentenceCard),
                 ],
               ),
             );
-          }
-
-          return Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 42,
-                  child: Column(
-                    children: [
-                      Expanded(child: heroCard),
-                      const SizedBox(height: 16),
-                      const Expanded(child: teacherCard),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 18),
-                Expanded(flex: 58, child: sentenceCard),
-              ],
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -202,13 +214,11 @@ class _ReviewHeroCard extends StatelessWidget {
     required this.title,
     required this.belongTo,
     required this.teacher,
-    required this.onBack,
   });
 
   final String title;
   final String belongTo;
   final String teacher;
-  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -221,14 +231,6 @@ class _ReviewHeroCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              IconButton.filled(
-                onPressed: onBack,
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.82),
-                  foregroundColor: const Color(0xFF17335F),
-                ),
-                icon: const Icon(Icons.arrow_back_rounded),
-              ),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(

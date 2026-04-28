@@ -104,8 +104,8 @@ void main() {
     await pumpActivitiesPage(tester, viewport: const Size(390, 844));
 
     expect(find.text('我的作业'), findsOneWidget);
-    expect(find.text('回首页'), findsOneWidget);
-    expect(find.text('刷新'), findsOneWidget);
+    expect(find.text('回首页'), findsNothing);
+    expect(find.text('刷新'), findsNothing);
     expect(find.text('今日作业'), findsOneWidget);
     expect(find.text('待完成'), findsOneWidget);
     expect(find.text('已完成'), findsOneWidget);
@@ -128,8 +128,8 @@ void main() {
       for (final viewport in viewports) {
         await pumpActivitiesPage(tester, viewport: viewport);
 
-        expect(find.text('回首页'), findsOneWidget);
-        expect(find.text('刷新'), findsOneWidget);
+        expect(find.text('回首页'), findsNothing);
+        expect(find.text('刷新'), findsNothing);
         expect(find.text('今日作业'), findsOneWidget);
         expect(find.text('待完成'), findsOneWidget);
         expect(find.text('已完成'), findsOneWidget);

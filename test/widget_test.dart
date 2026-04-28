@@ -94,6 +94,7 @@ void main() {
     await pumpStudentHome(tester);
 
     expect(find.text('今日英语'), findsOneWidget);
+    expect(find.text('点评中心'), findsOneWidget);
     expect(find.text('今日主线'), findsOneWidget);
     expect(find.text('听说写玩'), findsOneWidget);
     expect(find.text('听'), findsOneWidget);
@@ -213,7 +214,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('拓展乐园稍后开放'), findsOneWidget);
-      expect(find.text('先去完成主线作业'), findsOneWidget);
+      expect(find.textContaining('先去完成主线作业'), findsOneWidget);
     },
   );
 }

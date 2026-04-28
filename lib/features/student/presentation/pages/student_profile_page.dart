@@ -10,6 +10,7 @@ import '../../../portal/presentation/providers/student_feature_flags_provider.da
 import '../../../portal/presentation/widgets/tablet_shell.dart';
 import '../providers/student_identity_provider.dart';
 import '../widgets/student_dashboard_dialog_widgets.dart';
+import '../widgets/student_page_gestures.dart';
 import '../widgets/student_ui_components.dart';
 
 class StudentProfilePage extends ConsumerWidget {
@@ -41,66 +42,69 @@ class StudentProfilePage extends ConsumerWidget {
         ? (parentSummary?.earnedStars ?? 0)
         : (dailyGrowth?.completedTasks ?? 0);
 
-    return TabletShell(
-      activeSection: TabletSection.management,
-      title: '个人中心',
-      subtitle: '只保留孩子最常用的工具',
-      theme: TabletShellTheme.k12Sky,
-      child: Padding(
-        padding: const EdgeInsets.all(AppUiTokens.spaceLg),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact =
-                constraints.maxWidth <
-                AppUiTokens.studentProfileCompactBreakpoint;
-            final profileCard = _ProfileOverviewCard(
-              displayName: displayName,
-              email: email ?? 'student@claremont.local',
-              stars: stars,
-              completedTasks: dailyGrowth?.completedTasks ?? 0,
-              bestCombo: dailyGrowth?.bestCombo ?? 0,
-            );
-            final tools = _ProfileToolsPanel(
-              stars: stars,
-              showGrowthRewards: flags.showGrowthRewards,
-              pendingMessages: summary?.pendingTasks ?? 0,
-              onMessages: () => context.go('/messages'),
-              onSettings: () => context.go('/settings'),
-              onAbout: () => _showAbout(context),
-            );
-
-            if (compact) {
-              return SingleChildScrollView(
-                child: Column(
-                  children: [
-                    SizedBox(
-                      height: AppUiTokens.studentProfileCompactCardHeight,
-                      child: profileCard,
-                    ),
-                    const SizedBox(height: AppUiTokens.spaceMd),
-                    SizedBox(
-                      height: AppUiTokens.studentProfileCompactToolsHeight,
-                      child: tools,
-                    ),
-                  ],
-                ),
+    return StudentPageGestures(
+      onSwipeBack: () => context.go('/home'),
+      child: TabletShell(
+        activeSection: TabletSection.management,
+        title: '个人中心',
+        subtitle: '只保留孩子最常用的工具',
+        theme: TabletShellTheme.k12Sky,
+        child: Padding(
+          padding: const EdgeInsets.all(AppUiTokens.spaceLg),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact =
+                  constraints.maxWidth <
+                  AppUiTokens.studentProfileCompactBreakpoint;
+              final profileCard = _ProfileOverviewCard(
+                displayName: displayName,
+                email: email ?? 'student@claremont.local',
+                stars: stars,
+                completedTasks: dailyGrowth?.completedTasks ?? 0,
+                bestCombo: dailyGrowth?.bestCombo ?? 0,
               );
-            }
+              final tools = _ProfileToolsPanel(
+                stars: stars,
+                showGrowthRewards: flags.showGrowthRewards,
+                pendingMessages: summary?.pendingTasks ?? 0,
+                onMessages: () => context.go('/messages'),
+                onSettings: () => context.go('/settings'),
+                onAbout: () => _showAbout(context),
+              );
 
-            return Row(
-              children: [
-                Expanded(
-                  flex: AppUiTokens.studentPrimaryPaneFlex,
-                  child: profileCard,
-                ),
-                const SizedBox(width: AppUiTokens.spaceLg),
-                Expanded(
-                  flex: AppUiTokens.studentSecondaryPaneFlex,
-                  child: tools,
-                ),
-              ],
-            );
-          },
+              if (compact) {
+                return SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: AppUiTokens.studentProfileCompactCardHeight,
+                        child: profileCard,
+                      ),
+                      const SizedBox(height: AppUiTokens.spaceMd),
+                      SizedBox(
+                        height: AppUiTokens.studentProfileCompactToolsHeight,
+                        child: tools,
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(
+                    flex: AppUiTokens.studentPrimaryPaneFlex,
+                    child: profileCard,
+                  ),
+                  const SizedBox(width: AppUiTokens.spaceLg),
+                  Expanded(
+                    flex: AppUiTokens.studentSecondaryPaneFlex,
+                    child: tools,
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

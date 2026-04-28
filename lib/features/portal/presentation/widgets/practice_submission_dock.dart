@@ -261,7 +261,13 @@ class PracticeSubmissionDock extends StatelessWidget {
         : null;
     final detailWidgets = <Widget>[
       if (selectedAudioLabel != null)
-        _SubmissionAudioCard(title: '录音已保存', fileName: selectedAudioLabel!),
+        _SubmissionAudioCard(
+          title: '录音已保存',
+          fileName: selectedAudioLabel!,
+          onAction: onPlaySelectedAudio,
+          isPlaying: isSelectedAudioPlaying,
+          isLoading: isSelectedAudioLoading,
+        ),
       if (existingAudioLabel != null &&
           submissionFlowStatus != SubmissionFlowStatus.notStarted)
         _SubmissionAudioCard(
@@ -278,10 +284,7 @@ class PracticeSubmissionDock extends StatelessWidget {
           _RecordedAudioActionRow(
             compact: compact,
             isSubmitting: isSubmitting,
-            isPlaying: isSelectedAudioPlaying,
-            isLoading: isSelectedAudioLoading,
             submitLabel: submitLabel,
-            onPlay: onPlaySelectedAudio,
             onRecordAgain: onRecordAudio,
             onDelete: onClearSelectedAudio,
             onSubmit: canSubmit ? onPrimaryAction : null,
@@ -400,51 +403,32 @@ class _RecordedAudioActionRow extends StatelessWidget {
   const _RecordedAudioActionRow({
     required this.compact,
     required this.isSubmitting,
-    required this.isPlaying,
-    required this.isLoading,
     required this.submitLabel,
     required this.onSubmit,
-    this.onPlay,
     this.onRecordAgain,
     this.onDelete,
   });
 
   final bool compact;
   final bool isSubmitting;
-  final bool isPlaying;
-  final bool isLoading;
   final String submitLabel;
   final VoidCallback? onSubmit;
-  final VoidCallback? onPlay;
   final VoidCallback? onRecordAgain;
   final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final playLabel = isLoading ? '加载' : (isPlaying ? '停止' : '试听');
     final secondaryHeight = compact
         ? AppUiTokens.compactChipHeight
         : AppUiTokens.chipHeight;
     final children = <Widget>[
-      if (onPlay != null)
-        _RecordedAudioPillButton(
-          label: playLabel,
-          icon: isLoading
-              ? null
-              : isPlaying
-              ? Icons.stop_circle_rounded
-              : Icons.play_circle_fill_rounded,
-          onPressed: isSubmitting ? null : onPlay,
-          isLoading: isLoading,
-          height: secondaryHeight,
-        ),
       _RecordedAudioPillButton(
         label: compact ? '重录' : '重录一次',
         icon: Icons.restart_alt_rounded,
         onPressed: isSubmitting ? null : onRecordAgain,
         height: secondaryHeight,
       ),
-      if (onDelete != null && !compact)
+      if (onDelete != null)
         _RecordedAudioPillButton(
           label: '删除',
           icon: Icons.delete_outline_rounded,
@@ -503,7 +487,6 @@ class _RecordedAudioPillButton extends StatelessWidget {
     required this.height,
     this.icon,
     this.onPressed,
-    this.isLoading = false,
     this.danger = false,
   });
 
@@ -511,7 +494,6 @@ class _RecordedAudioPillButton extends StatelessWidget {
   final double height;
   final IconData? icon;
   final VoidCallback? onPressed;
-  final bool isLoading;
   final bool danger;
 
   @override
@@ -531,16 +513,7 @@ class _RecordedAudioPillButton extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: AppUiTokens.spaceSm),
       ),
-      icon: isLoading
-          ? SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: AppUiTokens.progressStrokeSm,
-                color: foregroundColor,
-              ),
-            )
-          : Icon(icon, size: AppUiTokens.iconSm),
+      icon: Icon(icon, size: AppUiTokens.iconSm),
       label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
   }

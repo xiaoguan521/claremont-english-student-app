@@ -20,75 +20,85 @@ class _LearningSpacePageState extends State<LearningSpacePage> {
   @override
   Widget build(BuildContext context) {
     final content = _LearningSpaceContent.fromId(widget.spaceId);
-    return TabletShell(
-      activeSection: TabletSection.explore,
-      title: content.title,
-      subtitle: content.subtitle,
-      theme: TabletShellTheme.k12Sky,
-      child: Padding(
-        padding: const EdgeInsets.all(AppUiTokens.spaceLg),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact =
-                constraints.maxWidth <
-                AppUiTokens.studentLearningSpaceCompactBreakpoint;
-            final hero = _LearningSpaceHero(content: content);
-            final actions = _LearningSpaceActionPanel(
-              content: content,
-              selectedActionTitles: _selectedActionTitles,
-              onActionSelected: (action) {
-                setState(() {
-                  _selectedActionTitles.add(action.title);
-                });
-              },
-            );
-            final roadmap = _LearningSpaceRoadmap(content: content);
-
-            if (compact) {
-              return SingleChildScrollView(
-                child: Column(
-                  children: [
-                    SizedBox(
-                      height: AppUiTokens.studentLearningSpaceCompactHeroHeight,
-                      child: hero,
-                    ),
-                    const SizedBox(height: AppUiTokens.spaceMd),
-                    SizedBox(
-                      height:
-                          AppUiTokens.studentLearningSpaceCompactActionsHeight,
-                      child: actions,
-                    ),
-                    const SizedBox(height: AppUiTokens.spaceMd),
-                    SizedBox(
-                      height:
-                          AppUiTokens.studentLearningSpaceCompactRoadmapHeight,
-                      child: roadmap,
-                    ),
-                  ],
-                ),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity < -520) {
+          context.go('/home');
+        }
+      },
+      child: TabletShell(
+        activeSection: TabletSection.explore,
+        title: content.title,
+        subtitle: content.subtitle,
+        theme: TabletShellTheme.k12Sky,
+        child: Padding(
+          padding: const EdgeInsets.all(AppUiTokens.spaceLg),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact =
+                  constraints.maxWidth <
+                  AppUiTokens.studentLearningSpaceCompactBreakpoint;
+              final hero = _LearningSpaceHero(content: content);
+              final actions = _LearningSpaceActionPanel(
+                content: content,
+                selectedActionTitles: _selectedActionTitles,
+                onActionSelected: (action) {
+                  setState(() {
+                    _selectedActionTitles.add(action.title);
+                  });
+                },
               );
-            }
+              final roadmap = _LearningSpaceRoadmap(content: content);
 
-            return Row(
-              children: [
-                Expanded(
-                  flex: AppUiTokens.studentPrimaryPaneFlex,
+              if (compact) {
+                return SingleChildScrollView(
                   child: Column(
                     children: [
-                      Expanded(child: hero),
+                      SizedBox(
+                        height:
+                            AppUiTokens.studentLearningSpaceCompactHeroHeight,
+                        child: hero,
+                      ),
                       const SizedBox(height: AppUiTokens.spaceMd),
-                      Expanded(child: actions),
+                      SizedBox(
+                        height: AppUiTokens
+                            .studentLearningSpaceCompactActionsHeight,
+                        child: actions,
+                      ),
+                      const SizedBox(height: AppUiTokens.spaceMd),
+                      SizedBox(
+                        height: AppUiTokens
+                            .studentLearningSpaceCompactRoadmapHeight,
+                        child: roadmap,
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(width: AppUiTokens.spaceLg),
-                Expanded(
-                  flex: AppUiTokens.studentSecondaryPaneFlex,
-                  child: roadmap,
-                ),
-              ],
-            );
-          },
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(
+                    flex: AppUiTokens.studentPrimaryPaneFlex,
+                    child: Column(
+                      children: [
+                        Expanded(child: hero),
+                        const SizedBox(height: AppUiTokens.spaceMd),
+                        Expanded(child: actions),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppUiTokens.spaceLg),
+                  Expanded(
+                    flex: AppUiTokens.studentSecondaryPaneFlex,
+                    child: roadmap,
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -110,10 +120,6 @@ class _LearningSpaceHero extends StatelessWidget {
         children: [
           Row(
             children: [
-              IconButton.filled(
-                onPressed: () => context.go('/explore'),
-                icon: const Icon(Icons.arrow_back_rounded),
-              ),
               const Spacer(),
               StudentSectionPill(icon: content.icon, label: content.badge),
             ],

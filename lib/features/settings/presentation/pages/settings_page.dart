@@ -9,13 +9,14 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../portal/presentation/widgets/tablet_shell.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
 import '../../../student/presentation/providers/student_identity_provider.dart';
+import '../../../student/presentation/widgets/student_page_gestures.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeState = ref.watch(themeNotifierProvider);
+    final eyeComfortEnabled = ref.watch(eyeComfortModeProvider);
     final authState = ref.watch(authProvider);
     final currentUserEmail = ref.watch(currentUserEmailProvider);
     final appConfig = ref.watch(appConfigProvider);
@@ -23,179 +24,182 @@ class SettingsPage extends ConsumerWidget {
         ref.watch(schoolContextProvider).valueOrNull ??
         SchoolContext.fallback();
 
-    return TabletShell(
-      activeSection: TabletSection.management,
-      brandName: schoolContext.displayName,
-      brandLogoUrl: schoolContext.logoUrl,
-      brandSubtitle: '英语学习',
-      title: '系统设置',
-      subtitle: '账号、护眼、隐私和应用支持',
-      theme: TabletShellTheme.k12Sky,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isNarrow =
-              constraints.maxWidth <
-              AppUiTokens.studentSettingsCompactBreakpoint;
-          final leftColumn = Column(
-            children: [
-              _SettingsHeroCard(
-                email: currentUserEmail ?? 'student@claremont.local',
-                schoolName: schoolContext.displayName,
-                isAuthenticated: authState.isAuthenticated,
-              ),
-              const SizedBox(height: AppUiTokens.spaceMd),
-              _SettingsSectionCard(
-                title: '账号与学校',
-                subtitle: '管理学习身份和学校入口',
-                icon: Icons.school_rounded,
-                accent: AppUiTokens.studentAccentBlue,
-                children: [
-                  _SettingsActionTile(
-                    title: '当前账号',
-                    value: currentUserEmail ?? '未登录',
-                    icon: Icons.person_rounded,
-                  ),
-                  _SettingsActionTile(
-                    title: '学校学习入口',
-                    value: schoolContext.displayName,
-                    icon: Icons.auto_stories_rounded,
-                  ),
-                  _SettingsActionTile(
-                    title: '切换学校',
-                    value: '重新选择',
-                    icon: Icons.swap_horiz_rounded,
-                    onTap: () => context.go('/school-select'),
-                  ),
-                ],
-              ),
-            ],
-          );
-
-          final rightColumn = Column(
-            children: [
-              _SettingsSectionCard(
-                title: '学习保护',
-                subtitle: '把学习节奏调得更适合孩子',
-                icon: Icons.health_and_safety_rounded,
-                accent: AppUiTokens.studentAccentGreen,
-                children: [
-                  _SettingsSwitchTile(
-                    title: '柔和护眼模式',
-                    subtitle: '降低视觉刺激，适合晚上或长时间学习',
-                    value: themeState.themeMode != ThemeMode.dark,
-                    onChanged: (_) => ref
-                        .read(themeNotifierProvider.notifier)
-                        .setThemeMode(ThemeMode.light),
-                  ),
-                  const _SettingsActionTile(
-                    title: '专注休息提醒',
-                    value: '20 分钟提醒',
-                    icon: Icons.timer_rounded,
-                  ),
-                  const _SettingsActionTile(
-                    title: '麦克风权限',
-                    value: '用于跟读录音',
-                    icon: Icons.mic_rounded,
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppUiTokens.spaceMd),
-              const _SettingsSectionCard(
-                title: '隐私与支持',
-                subtitle: '儿童数据、版本和问题反馈',
-                icon: Icons.verified_user_rounded,
-                accent: AppUiTokens.studentAccentYellow,
-                children: [
-                  _SettingsActionTile(
-                    title: '儿童隐私政策',
-                    value: '查看',
-                    icon: Icons.child_care_rounded,
-                  ),
-                  _SettingsActionTile(
-                    title: '服务使用协议',
-                    value: '查看',
-                    icon: Icons.description_rounded,
-                  ),
-                  _SettingsActionTile(
-                    title: '上传日志',
-                    value: '帮助老师排查问题',
-                    icon: Icons.cloud_upload_rounded,
-                  ),
-                  _SettingsActionTile(
-                    title: '当前版本',
-                    value: '1.0.0+1',
-                    icon: Icons.info_rounded,
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppUiTokens.spaceMd),
-              _SettingsSectionCard(
-                title: '发布诊断',
-                subtitle: appConfig.canUseSupabase
-                    ? '当前使用真实学习数据'
-                    : '当前处于演示数据模式',
-                icon: Icons.science_rounded,
-                accent: AppUiTokens.studentAccentPurple,
-                children: [
-                  _SettingsActionTile(
-                    title: '数据模式',
-                    value: appConfig.dataMode == AppDataMode.supabase
-                        ? 'Supabase'
-                        : 'Mock',
-                    icon: Icons.storage_rounded,
-                  ),
-                  _SettingsActionTile(
-                    title: '学生端发布实验室',
-                    value: '内部诊断',
-                    icon: Icons.tune_rounded,
-                    onTap: () => context.go('/student-release-lab'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppUiTokens.spaceMd),
-              _LogoutButton(
-                isAuthenticated: authState.isAuthenticated,
-                onPressed: authState.isAuthenticated
-                    ? () async {
-                        await ref
-                            .read(selectedStudentProfileProvider.notifier)
-                            .clear();
-                        await ref.read(authProvider.notifier).logout();
-                        if (context.mounted) {
-                          context.go('/login');
-                        }
-                      }
-                    : () => context.go('/login'),
-              ),
-            ],
-          );
-
-          if (isNarrow) {
-            return ListView(
-              padding: const EdgeInsets.only(bottom: AppUiTokens.spaceXl),
+    return StudentPageGestures(
+      onSwipeBack: () => context.go('/home'),
+      child: TabletShell(
+        activeSection: TabletSection.management,
+        brandName: schoolContext.displayName,
+        brandLogoUrl: schoolContext.logoUrl,
+        brandSubtitle: '英语学习',
+        title: '系统设置',
+        subtitle: '账号、护眼、隐私和应用支持',
+        theme: TabletShellTheme.k12Sky,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow =
+                constraints.maxWidth <
+                AppUiTokens.studentSettingsCompactBreakpoint;
+            final leftColumn = Column(
               children: [
-                leftColumn,
+                _SettingsHeroCard(
+                  email: currentUserEmail ?? 'student@claremont.local',
+                  schoolName: schoolContext.displayName,
+                  isAuthenticated: authState.isAuthenticated,
+                ),
                 const SizedBox(height: AppUiTokens.spaceMd),
-                rightColumn,
+                _SettingsSectionCard(
+                  title: '账号与学校',
+                  subtitle: '管理学习身份和学校入口',
+                  icon: Icons.school_rounded,
+                  accent: AppUiTokens.studentAccentBlue,
+                  children: [
+                    _SettingsActionTile(
+                      title: '当前账号',
+                      value: currentUserEmail ?? '未登录',
+                      icon: Icons.person_rounded,
+                    ),
+                    _SettingsActionTile(
+                      title: '学校学习入口',
+                      value: schoolContext.displayName,
+                      icon: Icons.auto_stories_rounded,
+                    ),
+                    _SettingsActionTile(
+                      title: '切换学校',
+                      value: '重新选择',
+                      icon: Icons.swap_horiz_rounded,
+                      onTap: () => context.go('/school-select'),
+                    ),
+                  ],
+                ),
               ],
             );
-          }
 
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: AppUiTokens.studentPrimaryPaneFlex,
-                child: leftColumn,
-              ),
-              const SizedBox(width: AppUiTokens.spaceLg - 2),
-              Expanded(
-                flex: AppUiTokens.studentSecondaryPaneFlex,
-                child: ListView(children: [rightColumn]),
-              ),
-            ],
-          );
-        },
+            final rightColumn = Column(
+              children: [
+                _SettingsSectionCard(
+                  title: '学习保护',
+                  subtitle: '把学习节奏调得更适合孩子',
+                  icon: Icons.health_and_safety_rounded,
+                  accent: AppUiTokens.studentAccentGreen,
+                  children: [
+                    _SettingsSwitchTile(
+                      title: '柔和护眼模式',
+                      subtitle: '降低视觉刺激，适合晚上或长时间学习',
+                      value: eyeComfortEnabled,
+                      onChanged: (value) => ref
+                          .read(eyeComfortModeProvider.notifier)
+                          .setEnabled(value),
+                    ),
+                    const _SettingsActionTile(
+                      title: '专注休息提醒',
+                      value: '20 分钟提醒',
+                      icon: Icons.timer_rounded,
+                    ),
+                    const _SettingsActionTile(
+                      title: '麦克风权限',
+                      value: '用于跟读录音',
+                      icon: Icons.mic_rounded,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppUiTokens.spaceMd),
+                const _SettingsSectionCard(
+                  title: '隐私与支持',
+                  subtitle: '儿童数据、版本和问题反馈',
+                  icon: Icons.verified_user_rounded,
+                  accent: AppUiTokens.studentAccentYellow,
+                  children: [
+                    _SettingsActionTile(
+                      title: '儿童隐私政策',
+                      value: '查看',
+                      icon: Icons.child_care_rounded,
+                    ),
+                    _SettingsActionTile(
+                      title: '服务使用协议',
+                      value: '查看',
+                      icon: Icons.description_rounded,
+                    ),
+                    _SettingsActionTile(
+                      title: '上传日志',
+                      value: '帮助老师排查问题',
+                      icon: Icons.cloud_upload_rounded,
+                    ),
+                    _SettingsActionTile(
+                      title: '当前版本',
+                      value: '1.0.0+1',
+                      icon: Icons.info_rounded,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppUiTokens.spaceMd),
+                _SettingsSectionCard(
+                  title: '发布诊断',
+                  subtitle: appConfig.canUseSupabase
+                      ? '当前使用真实学习数据'
+                      : '当前处于演示数据模式',
+                  icon: Icons.science_rounded,
+                  accent: AppUiTokens.studentAccentPurple,
+                  children: [
+                    _SettingsActionTile(
+                      title: '数据模式',
+                      value: appConfig.dataMode == AppDataMode.supabase
+                          ? 'Supabase'
+                          : 'Mock',
+                      icon: Icons.storage_rounded,
+                    ),
+                    _SettingsActionTile(
+                      title: '学生端发布实验室',
+                      value: '内部诊断',
+                      icon: Icons.tune_rounded,
+                      onTap: () => context.go('/student-release-lab'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppUiTokens.spaceMd),
+                _LogoutButton(
+                  isAuthenticated: authState.isAuthenticated,
+                  onPressed: authState.isAuthenticated
+                      ? () async {
+                          await ref
+                              .read(selectedStudentProfileProvider.notifier)
+                              .clear();
+                          await ref.read(authProvider.notifier).logout();
+                          if (context.mounted) {
+                            context.go('/login');
+                          }
+                        }
+                      : () => context.go('/login'),
+                ),
+              ],
+            );
+
+            if (isNarrow) {
+              return ListView(
+                padding: const EdgeInsets.only(bottom: AppUiTokens.spaceXl),
+                children: [
+                  leftColumn,
+                  const SizedBox(height: AppUiTokens.spaceMd),
+                  rightColumn,
+                ],
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: AppUiTokens.studentPrimaryPaneFlex,
+                  child: leftColumn,
+                ),
+                const SizedBox(width: AppUiTokens.spaceLg - 2),
+                Expanded(
+                  flex: AppUiTokens.studentSecondaryPaneFlex,
+                  child: ListView(children: [rightColumn]),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

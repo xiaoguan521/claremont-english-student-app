@@ -88,7 +88,7 @@ void main() {
     addTearDown(tester.view.reset);
     await pumpTaskDetailPage(tester, viewport: const Size(430, 932));
 
-    expect(find.text('返回作业'), findsOneWidget);
+    expect(find.text('返回作业'), findsNothing);
     expect(find.text('Read after the teacher'), findsOneWidget);
     expect(find.byType(AudioRecordButton), findsWidgets);
     expect(tester.takeException(), isNull);

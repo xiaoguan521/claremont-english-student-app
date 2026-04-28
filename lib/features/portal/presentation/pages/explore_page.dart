@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../home/presentation/widgets/k12_dashboard_widgets.dart';
 import '../../../student/presentation/widgets/student_ui_components.dart';
+import '../../../student/presentation/widgets/student_page_gestures.dart';
 import '../providers/student_feature_flags_provider.dart';
 import '../widgets/tablet_shell.dart';
 
@@ -50,147 +51,143 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
   @override
   Widget build(BuildContext context) {
     final featureFlags = ref.watch(studentFeatureFlagsProvider);
-    return TabletShell(
-      activeSection: TabletSection.explore,
-      title: '学习地图',
-      subtitle: '补做、自然拼读、分级阅读和星币兑换都在这里',
-      theme: TabletShellTheme.k12Sky,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isPhone = constraints.maxWidth < 720;
-          final isLandscapePhone =
-              isPhone && constraints.maxWidth > constraints.maxHeight;
-          if (!featureFlags.showFunZonePromos) {
+    return StudentPageGestures(
+      onSwipeBack: () => context.go('/home'),
+      child: TabletShell(
+        activeSection: TabletSection.explore,
+        title: '学习地图',
+        subtitle: '补做、自然拼读、分级阅读和星币兑换都在这里',
+        theme: TabletShellTheme.k12Sky,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isPhone = constraints.maxWidth < 720;
+            final isLandscapePhone =
+                isPhone && constraints.maxWidth > constraints.maxHeight;
+            if (!featureFlags.showFunZonePromos) {
+              return K12PlayfulDashboardFrame(
+                padding: EdgeInsets.all(isPhone ? 14 : 20),
+                child: const _ExploreFallbackState(),
+              );
+            }
+            final mapItems = [
+              _ExploreMapItem(
+                title: '补星计划',
+                ribbonLabel: '3天内可补',
+                description: '找回最近三天没完成的作业，不让星星掉队。',
+                accent: const Color(0xFFFFB84D),
+                icon: Icons.history_toggle_off_rounded,
+                actionLabel: '去补做',
+                onTap: () => context.go('/activities'),
+              ),
+              _ExploreMapItem(
+                title: '自然拼读',
+                ribbonLabel: 'Phonics',
+                description: '从字母音、拼读规则到高频词，循序闯关。',
+                accent: const Color(0xFF73B7FF),
+                icon: Icons.abc_rounded,
+                actionLabel: '开始闯关',
+                onTap: () => context.go('/explore/phonics'),
+              ),
+              _ExploreMapItem(
+                title: '国家地理 PM',
+                ribbonLabel: '分级阅读',
+                description: '用真实图片和短篇阅读，拓展英语输入。',
+                accent: const Color(0xFF87D76A),
+                icon: Icons.public_rounded,
+                actionLabel: '去阅读',
+                onTap: () => context.go('/explore/national-geographic'),
+              ),
+              _ExploreMapItem(
+                title: '魔法商店',
+                ribbonLabel: '星币兑换',
+                description: featureFlags.showGrowthRewards
+                    ? '用星币兑换头像框、徽章和伴学宠物装扮。'
+                    : '成长奖励开启后，星币会在这里消费。',
+                accent: const Color(0xFFFFD447),
+                icon: Icons.card_giftcard_rounded,
+                actionLabel: '看看奖励',
+                onTap: () => context.go('/explore/magic-shop'),
+              ),
+            ];
+
+            final gymItems = [
+              _AbilityGymItem(
+                title: '听',
+                subtitle: '儿歌和绘本原声',
+                icon: Icons.headphones_rounded,
+                color: const Color(0xFF5DB9FF),
+                onTap: () => context.go('/explore/listen'),
+              ),
+              _AbilityGymItem(
+                title: '说',
+                subtitle: 'AI 情景对话',
+                icon: Icons.record_voice_over_rounded,
+                color: const Color(0xFFFFC941),
+                onTap: () => context.go('/explore/speak'),
+              ),
+              _AbilityGymItem(
+                title: '写',
+                subtitle: '作品上传和描红',
+                icon: Icons.edit_note_rounded,
+                color: const Color(0xFF78E55A),
+                onTap: () => context.go('/explore/write'),
+              ),
+              _AbilityGymItem(
+                title: '玩',
+                subtitle: '错词小游戏',
+                icon: Icons.extension_rounded,
+                color: const Color(0xFF55D9C5),
+                onTap: () => context.go('/explore/play'),
+              ),
+            ];
+
             return K12PlayfulDashboardFrame(
               padding: EdgeInsets.all(isPhone ? 14 : 20),
-              child: _ExploreFallbackState(
-                onStartMainline: () => context.go('/home'),
-              ),
-            );
-          }
-          final mapItems = [
-            _ExploreMapItem(
-              title: '补星计划',
-              ribbonLabel: '3天内可补',
-              description: '找回最近三天没完成的作业，不让星星掉队。',
-              accent: const Color(0xFFFFB84D),
-              icon: Icons.history_toggle_off_rounded,
-              actionLabel: '去补做',
-              onTap: () => context.go('/activities'),
-            ),
-            _ExploreMapItem(
-              title: '自然拼读',
-              ribbonLabel: 'Phonics',
-              description: '从字母音、拼读规则到高频词，循序闯关。',
-              accent: const Color(0xFF73B7FF),
-              icon: Icons.abc_rounded,
-              actionLabel: '开始闯关',
-              onTap: () => context.go('/explore/phonics'),
-            ),
-            _ExploreMapItem(
-              title: '国家地理 PM',
-              ribbonLabel: '分级阅读',
-              description: '用真实图片和短篇阅读，拓展英语输入。',
-              accent: const Color(0xFF87D76A),
-              icon: Icons.public_rounded,
-              actionLabel: '去阅读',
-              onTap: () => context.go('/explore/national-geographic'),
-            ),
-            _ExploreMapItem(
-              title: '魔法商店',
-              ribbonLabel: '星币兑换',
-              description: featureFlags.showGrowthRewards
-                  ? '用星币兑换头像框、徽章和伴学宠物装扮。'
-                  : '成长奖励开启后，星币会在这里消费。',
-              accent: const Color(0xFFFFD447),
-              icon: Icons.card_giftcard_rounded,
-              actionLabel: '看看奖励',
-              onTap: () => context.go('/explore/magic-shop'),
-            ),
-          ];
-
-          final gymItems = [
-            _AbilityGymItem(
-              title: '听',
-              subtitle: '儿歌和绘本原声',
-              icon: Icons.headphones_rounded,
-              color: const Color(0xFF5DB9FF),
-              onTap: () => context.go('/explore/listen'),
-            ),
-            _AbilityGymItem(
-              title: '说',
-              subtitle: 'AI 情景对话',
-              icon: Icons.record_voice_over_rounded,
-              color: const Color(0xFFFFC941),
-              onTap: () => context.go('/explore/speak'),
-            ),
-            _AbilityGymItem(
-              title: '写',
-              subtitle: '作品上传和描红',
-              icon: Icons.edit_note_rounded,
-              color: const Color(0xFF78E55A),
-              onTap: () => context.go('/explore/write'),
-            ),
-            _AbilityGymItem(
-              title: '玩',
-              subtitle: '错词小游戏',
-              icon: Icons.extension_rounded,
-              color: const Color(0xFF55D9C5),
-              onTap: () => context.go('/explore/play'),
-            ),
-          ];
-
-          return K12PlayfulDashboardFrame(
-            padding: EdgeInsets.all(isPhone ? 14 : 20),
-            child: isLandscapePhone
-                ? PageView(
-                    controller: _landscapePageController,
-                    children: _landscapePhonePages(
-                      context: context,
-                      mapItems: mapItems,
-                      gymItems: gymItems,
-                    ),
-                  )
-                : isPhone
-                ? SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: _phoneSections(
+              child: isLandscapePhone
+                  ? PageView(
+                      controller: _landscapePageController,
+                      children: _landscapePhonePages(
                         context: context,
                         mapItems: mapItems,
                         gymItems: gymItems,
                       ),
-                    ),
-                  )
-                : Column(
-                    children: [
-                      Expanded(
-                        flex: 58,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              flex: 36,
-                              child: _ExploreHero(
-                                onStartMainline: () => context.go('/home'),
-                              ),
-                            ),
-                            const SizedBox(width: 18),
-                            Expanded(
-                              flex: 64,
-                              child: _LearningMapGrid(items: mapItems),
-                            ),
-                          ],
+                    )
+                  : isPhone
+                  ? SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: _phoneSections(
+                          context: context,
+                          mapItems: mapItems,
+                          gymItems: gymItems,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        flex: 42,
-                        child: _AbilityGymGrid(items: gymItems),
-                      ),
-                    ],
-                  ),
-          );
-        },
+                    )
+                  : Column(
+                      children: [
+                        Expanded(
+                          flex: 58,
+                          child: Row(
+                            children: [
+                              const Expanded(flex: 36, child: _ExploreHero()),
+                              const SizedBox(width: 18),
+                              Expanded(
+                                flex: 64,
+                                child: _LearningMapGrid(items: mapItems),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          flex: 42,
+                          child: _AbilityGymGrid(items: gymItems),
+                        ),
+                      ],
+                    ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -204,10 +201,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
       padding: const EdgeInsets.only(right: 14),
       child: Row(
         children: [
-          Expanded(
-            flex: 34,
-            child: _ExploreHero(onStartMainline: () => context.go('/home')),
-          ),
+          const Expanded(flex: 34, child: _ExploreHero()),
           const SizedBox(width: 14),
           Expanded(flex: 66, child: _LearningMapGrid(items: mapItems)),
         ],
@@ -225,10 +219,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
     required List<_ExploreMapItem> mapItems,
     required List<_AbilityGymItem> gymItems,
   }) {
-    final heroSection = SizedBox(
-      height: 320,
-      child: _ExploreHero(onStartMainline: () => context.go('/home')),
-    );
+    const heroSection = SizedBox(height: 320, child: _ExploreHero());
     final mapSection = _LearningMapGrid(items: mapItems, isPhone: true);
     final abilitySection = SizedBox(
       height: 330,
@@ -255,9 +246,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
 }
 
 class _ExploreHero extends StatelessWidget {
-  const _ExploreHero({required this.onStartMainline});
-
-  final VoidCallback onStartMainline;
+  const _ExploreHero();
 
   @override
   Widget build(BuildContext context) {
@@ -304,16 +293,12 @@ class _ExploreHero extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onStartMainline,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFE36B),
-                  foregroundColor: const Color(0xFF195AB6),
-                ),
-                icon: const Icon(Icons.play_circle_fill_rounded),
-                label: const Text('回到今日主线'),
+            Text(
+              '完成主线后再来探索，左右滑动即可切换学习区域。',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.white.withValues(alpha: 0.86),
+                fontWeight: FontWeight.w800,
+                height: 1.35,
               ),
             ),
           ],
@@ -324,9 +309,7 @@ class _ExploreHero extends StatelessWidget {
 }
 
 class _ExploreFallbackState extends StatelessWidget {
-  const _ExploreFallbackState({required this.onStartMainline});
-
-  final VoidCallback onStartMainline;
+  const _ExploreFallbackState();
 
   @override
   Widget build(BuildContext context) {
@@ -371,12 +354,6 @@ class _ExploreFallbackState extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   height: 1.4,
                 ),
-              ),
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: onStartMainline,
-                icon: const Icon(Icons.play_circle_fill_rounded),
-                label: const Text('先去完成主线作业'),
               ),
             ],
           ),

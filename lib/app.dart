@@ -17,6 +17,7 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final themeState = ref.watch(themeNotifierProvider);
+    final eyeComfortEnabled = ref.watch(eyeComfortModeProvider);
     final locale = ref.watch(localeNotifierProvider);
 
     return ErrorBoundary(
@@ -47,13 +48,62 @@ class App extends ConsumerWidget {
         supportedLocales: SupportedLocales.locales,
         routerConfig: router,
         builder: (context, child) {
-          return AppSyncQueueListener(
+          final appChild = AppSyncQueueListener(
             child: SchoolLinkListener(
               router: router,
               child: child ?? const SizedBox.shrink(),
             ),
           );
+          return _EyeComfortScope(enabled: eyeComfortEnabled, child: appChild);
         },
+      ),
+    );
+  }
+}
+
+class _EyeComfortScope extends StatelessWidget {
+  const _EyeComfortScope({required this.enabled, required this.child});
+
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) {
+      return child;
+    }
+
+    final baseTheme = Theme.of(context);
+    final comfortTheme = baseTheme.copyWith(
+      scaffoldBackgroundColor: Color.alphaBlend(
+        const Color(0xFFFFF1C2).withValues(alpha: 0.12),
+        baseTheme.scaffoldBackgroundColor,
+      ),
+      colorScheme: baseTheme.colorScheme.copyWith(
+        surface: Color.alphaBlend(
+          const Color(0xFFFFF7D6).withValues(alpha: 0.1),
+          baseTheme.colorScheme.surface,
+        ),
+        primary: Color.alphaBlend(
+          const Color(0xFF7DBA71).withValues(alpha: 0.12),
+          baseTheme.colorScheme.primary,
+        ),
+      ),
+    );
+
+    return Theme(
+      data: comfortTheme,
+      child: Stack(
+        children: [
+          child,
+          IgnorePointer(
+            child: Positioned.fill(
+              child: ColoredBox(
+                color: const Color(0xFFFFF0BD).withValues(alpha: 0.08),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

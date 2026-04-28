@@ -9,6 +9,7 @@ import '../providers/student_feature_flags_provider.dart';
 import '../widgets/tablet_shell.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
 import '../../../student/presentation/widgets/student_dashboard_dialog_widgets.dart';
+import '../../../student/presentation/widgets/student_page_gestures.dart';
 
 class ReviewCenterPage extends ConsumerWidget {
   const ReviewCenterPage({super.key, this.activityTitle, this.className});
@@ -22,45 +23,48 @@ class ReviewCenterPage extends ConsumerWidget {
     final schoolContext = ref.watch(schoolContextProvider).valueOrNull;
     final featureFlags = ref.watch(studentFeatureFlagsProvider);
 
-    return TabletShell(
-      activeSection: TabletSection.teaching,
-      title: '点评中心',
-      subtitle: '听老师反馈，找到下一次更棒的读法',
-      brandName: schoolContext?.displayName ?? '',
-      brandLogoUrl: schoolContext?.logoUrl,
-      brandSubtitle: '英语',
-      theme: TabletShellTheme.k12Sky,
-      child: !featureFlags.reviewCenterV2
-          ? const _ReviewCenterStateMessage(
-              title: '点评中心稳定模式已开启',
-              message: '新点评流已临时收起，作业和录音数据仍会正常保存。',
-            )
-          : activityAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const _ReviewCenterStateMessage(
-                title: '点评暂时没有同步成功',
-                message: '请检查网络，或稍后再来看看老师的新反馈。',
-              ),
-              data: (activity) {
-                final rows = _reviewRows(
-                  context,
-                  activity: activity,
-                  activityTitle: activityTitle,
-                  className: className,
-                );
-                if (rows.isEmpty) {
-                  return const _ReviewCenterStateMessage(
-                    title: '还没有点评',
-                    message: '完成作业后，老师点评和 AI 诊断会出现在这里。',
+    return StudentPageGestures(
+      onSwipeBack: () => context.go('/home'),
+      child: TabletShell(
+        activeSection: TabletSection.teaching,
+        title: '点评中心',
+        subtitle: '听老师反馈，找到下一次更棒的读法',
+        brandName: schoolContext?.displayName ?? '',
+        brandLogoUrl: schoolContext?.logoUrl,
+        brandSubtitle: '英语',
+        theme: TabletShellTheme.k12Sky,
+        child: !featureFlags.reviewCenterV2
+            ? const _ReviewCenterStateMessage(
+                title: '点评中心稳定模式已开启',
+                message: '新点评流已临时收起，作业和录音数据仍会正常保存。',
+              )
+            : activityAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, __) => const _ReviewCenterStateMessage(
+                  title: '点评暂时没有同步成功',
+                  message: '请检查网络，或稍后再来看看老师的新反馈。',
+                ),
+                data: (activity) {
+                  final rows = _reviewRows(
+                    context,
+                    activity: activity,
+                    activityTitle: activityTitle,
+                    className: className,
                   );
-                }
+                  if (rows.isEmpty) {
+                    return const _ReviewCenterStateMessage(
+                      title: '还没有点评',
+                      message: '完成作业后，老师点评和 AI 诊断会出现在这里。',
+                    );
+                  }
 
-                return Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: StudentReviewFeed(items: rows),
-                );
-              },
-            ),
+                  return Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: StudentReviewFeed(items: rows),
+                  );
+                },
+              ),
+      ),
     );
   }
 

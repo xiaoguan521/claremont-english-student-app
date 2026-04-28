@@ -14,6 +14,7 @@ import '../providers/portal_providers.dart';
 import '../providers/student_feature_flags_provider.dart';
 import '../providers/sync_queue_providers.dart';
 import '../widgets/tablet_shell.dart';
+import '../../../student/presentation/widgets/student_page_gestures.dart';
 
 class ParentContactPage extends ConsumerStatefulWidget {
   const ParentContactPage({required this.activityId, super.key});
@@ -125,336 +126,347 @@ class _ParentContactPageState extends ConsumerState<ParentContactPage> {
         SchoolContext.fallback();
 
     if (!_parentSpaceUnlocked) {
-      return TabletShell(
-        activeSection: TabletSection.teaching,
-        brandName: schoolContext.displayName,
-        brandLogoUrl: schoolContext.logoUrl,
-        brandSubtitle: '学校学习入口',
-        title: '家长空间',
-        subtitle: '完成一个小验证后查看学习摘要',
-        child: Center(
-          child: _ParentSpaceUnlockCard(
-            controller: _parentUnlockController,
-            questionText: '$_parentUnlockLeft + $_parentUnlockRight = ?',
-            errorText: _parentUnlockError,
-            onSubmit: _submitParentUnlock,
+      return StudentPageGestures(
+        onSwipeBack: () => Navigator.of(context).maybePop(),
+        child: TabletShell(
+          activeSection: TabletSection.teaching,
+          brandName: schoolContext.displayName,
+          brandLogoUrl: schoolContext.logoUrl,
+          brandSubtitle: '学校学习入口',
+          title: '家长空间',
+          subtitle: '完成一个小验证后查看学习摘要',
+          child: Center(
+            child: _ParentSpaceUnlockCard(
+              controller: _parentUnlockController,
+              questionText: '$_parentUnlockLeft + $_parentUnlockRight = ?',
+              errorText: _parentUnlockError,
+              onSubmit: _submitParentUnlock,
+            ),
           ),
         ),
       );
     }
 
-    return TabletShell(
-      activeSection: TabletSection.teaching,
-      brandName: schoolContext.displayName,
-      brandLogoUrl: schoolContext.logoUrl,
-      brandSubtitle: '学校学习入口',
-      title: '联系家长',
-      subtitle: pendingSyncCount > 0 ? '最新学习记录还在继续整理中' : '把今天的学习情况清楚告诉家长',
-      child: summaryAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => const _ParentContactMessage(
-          title: '家长摘要暂时打不开',
-          message: '请稍后再试，或者先回到作业页继续今天的学习任务。',
-        ),
-        data: (summary) {
-          _syncReviewRefresh(activity);
-          if (summary == null) {
-            return _ParentContactMessage(
-              title: pendingSyncCount > 0 ? '学习摘要正在整理中' : '还没有找到今天的学习摘要',
-              message: pendingSyncCount > 0
-                  ? '这份作业的最新记录还在继续同步，稍后回来就能看到更完整的学习情况。'
-                  : '这份作业可能还没有形成可展示的学习摘要，可以先回到任务页继续完成今天的学习。',
-            );
-          }
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _HeroSummaryCard(summary: summary),
-                if (summary.isCachedFallback ||
-                    summary.isFeedbackPending ||
-                    pendingSyncCount > 0) ...[
-                  const SizedBox(height: 16),
-                  _InfoCard(
-                    title: '当前状态',
-                    icon: Icons.info_rounded,
-                    accent: const Color(0xFF0EA5E9),
-                    child: Text(
-                      summary.isCachedFallback
-                          ? '当前展示的是最近一次保存在本机上的学习摘要，等网络恢复后会自动更新。'
-                          : pendingSyncCount > 0
-                          ? '最新学习记录还在继续同步，家长现在先看到的是已经整理出来的部分内容。'
-                          : '当前以过程摘要为主，老师反馈或 AI 结果返回后，这里会继续补充。页面会自动刷新，不需要反复退出重进。',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: const Color(0xFF334155),
-                        fontWeight: FontWeight.w700,
-                        height: 1.45,
+    return StudentPageGestures(
+      onSwipeBack: () => Navigator.of(context).maybePop(),
+      child: TabletShell(
+        activeSection: TabletSection.teaching,
+        brandName: schoolContext.displayName,
+        brandLogoUrl: schoolContext.logoUrl,
+        brandSubtitle: '学校学习入口',
+        title: '联系家长',
+        subtitle: pendingSyncCount > 0 ? '最新学习记录还在继续整理中' : '把今天的学习情况清楚告诉家长',
+        child: summaryAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => const _ParentContactMessage(
+            title: '家长摘要暂时打不开',
+            message: '请稍后再试，或者先回到作业页继续今天的学习任务。',
+          ),
+          data: (summary) {
+            _syncReviewRefresh(activity);
+            if (summary == null) {
+              return _ParentContactMessage(
+                title: pendingSyncCount > 0 ? '学习摘要正在整理中' : '还没有找到今天的学习摘要',
+                message: pendingSyncCount > 0
+                    ? '这份作业的最新记录还在继续同步，稍后回来就能看到更完整的学习情况。'
+                    : '这份作业可能还没有形成可展示的学习摘要，可以先回到任务页继续完成今天的学习。',
+              );
+            }
+            return SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _HeroSummaryCard(summary: summary),
+                  if (summary.isCachedFallback ||
+                      summary.isFeedbackPending ||
+                      pendingSyncCount > 0) ...[
+                    const SizedBox(height: 16),
+                    _InfoCard(
+                      title: '当前状态',
+                      icon: Icons.info_rounded,
+                      accent: const Color(0xFF0EA5E9),
+                      child: Text(
+                        summary.isCachedFallback
+                            ? '当前展示的是最近一次保存在本机上的学习摘要，等网络恢复后会自动更新。'
+                            : pendingSyncCount > 0
+                            ? '最新学习记录还在继续同步，家长现在先看到的是已经整理出来的部分内容。'
+                            : '当前以过程摘要为主，老师反馈或 AI 结果返回后，这里会继续补充。页面会自动刷新，不需要反复退出重进。',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: const Color(0xFF334155),
+                          fontWeight: FontWeight.w700,
+                          height: 1.45,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isPhone = constraints.maxWidth < 860;
-                    final progressCard = _InfoCard(
-                      title: '今天完成了什么',
-                      icon: Icons.task_alt_rounded,
-                      accent: const Color(0xFF16A34A),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${summary.completedTasks}/${summary.totalTasks} 句已完成',
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  color: const Color(0xFF0F172A),
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            summary.submissionStatusLabel,
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  color: const Color(0xFF334155),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.45,
-                                ),
-                          ),
-                          const SizedBox(height: 12),
-                          _ProgressLine(
-                            completed: summary.completedTasks,
-                            total: summary.totalTasks,
-                          ),
-                        ],
-                      ),
-                    );
-                    final feedbackCard = _InfoCard(
-                      title: '结果和反馈',
-                      icon: Icons.rate_review_rounded,
-                      accent: const Color(0xFF2563EB),
-                      child: Text(
-                        summary.feedbackStatusLabel,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: const Color(0xFF334155),
-                          fontWeight: FontWeight.w700,
-                          height: 1.45,
-                        ),
-                      ),
-                    );
-                    final healthCard = _InfoCard(
-                      title: '健康提醒',
-                      icon: Icons.visibility_rounded,
-                      accent: const Color(0xFFF97316),
-                      child: Text(
-                        summary.healthSummary,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: const Color(0xFF334155),
-                          fontWeight: FontWeight.w700,
-                          height: 1.45,
-                        ),
-                      ),
-                    );
-
-                    if (isPhone) {
-                      return Column(
-                        children: [
-                          progressCard,
-                          const SizedBox(height: 14),
-                          feedbackCard,
-                          const SizedBox(height: 14),
-                          healthCard,
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: progressCard),
-                        const SizedBox(width: 14),
-                        Expanded(child: feedbackCard),
-                        const SizedBox(width: 14),
-                        Expanded(child: healthCard),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isPhone = constraints.maxWidth < 860;
-                    final rewardCard = _InfoCard(
-                      title: '学习表现',
-                      icon: Icons.star_rounded,
-                      accent: const Color(0xFFF59E0B),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: [
-                              _MetricChip(
-                                label: '星币 +${summary.earnedStars}',
-                                accent: const Color(0xFFF59E0B),
-                                icon: Icons.star_rounded,
-                              ),
-                              _MetricChip(
-                                label: '连对 ${summary.comboCount}',
-                                accent: const Color(0xFFEF4444),
-                                icon: Icons.local_fire_department_rounded,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            summary.earnedStars > 0
-                                ? '今天的过程奖励已经累计下来了，孩子每完成一步都会得到及时正反馈。'
-                                : '今天的过程奖励还在积累中，完成更多句子后会形成更明显的正反馈。',
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  color: const Color(0xFF334155),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.45,
-                                ),
-                          ),
-                        ],
-                      ),
-                    );
-                    final trustCard = _InfoCard(
-                      title: '专注与保护',
-                      icon: Icons.shield_rounded,
-                      accent: const Color(0xFF0EA5E9),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: [
-                              _MetricChip(
-                                label: '切后台 ${summary.backgroundSwitchCount} 次',
-                                accent: const Color(0xFF0EA5E9),
-                                icon: Icons.open_in_new_rounded,
-                              ),
-                              _MetricChip(
-                                label: '休息提醒 ${summary.breakReminderCount} 次',
-                                accent: const Color(0xFF16A34A),
-                                icon: Icons.visibility_rounded,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            '这些记录帮助家长判断孩子今天学习时是否保持专注，以及系统有没有及时提醒休息。',
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  color: const Color(0xFF334155),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.45,
-                                ),
-                          ),
-                        ],
-                      ),
-                    );
-
-                    final cards = <Widget>[
-                      if (featureFlags.showGrowthRewards) rewardCard,
-                      if (featureFlags.parentTrustSpace &&
-                          featureFlags.showEnhancedHealthInsights)
-                        trustCard,
-                    ];
-                    if (cards.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
-
-                    if (isPhone) {
-                      return Column(
-                        children: [
-                          for (
-                            var index = 0;
-                            index < cards.length;
-                            index++
-                          ) ...[
-                            if (index > 0) const SizedBox(height: 14),
-                            cards[index],
+                  ],
+                  const SizedBox(height: 16),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isPhone = constraints.maxWidth < 860;
+                      final progressCard = _InfoCard(
+                        title: '今天完成了什么',
+                        icon: Icons.task_alt_rounded,
+                        accent: const Color(0xFF16A34A),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${summary.completedTasks}/${summary.totalTasks} 句已完成',
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    color: const Color(0xFF0F172A),
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              summary.submissionStatusLabel,
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    color: const Color(0xFF334155),
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.45,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                            _ProgressLine(
+                              completed: summary.completedTasks,
+                              total: summary.totalTasks,
+                            ),
                           ],
-                        ],
+                        ),
                       );
-                    }
-
-                    if (cards.length == 1) {
-                      return cards.first;
-                    }
-
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: cards.first),
-                        const SizedBox(width: 14),
-                        Expanded(child: cards.last),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                _InfoCard(
-                  title: '建议家长关注',
-                  icon: Icons.favorite_rounded,
-                  accent: const Color(0xFFE11D48),
-                  child: summary.focusAreas.isEmpty
-                      ? Text(
-                          '今天的关键反馈还在整理中，可以先鼓励孩子把剩余句子完成。',
+                      final feedbackCard = _InfoCard(
+                        title: '结果和反馈',
+                        icon: Icons.rate_review_rounded,
+                        accent: const Color(0xFF2563EB),
+                        child: Text(
+                          summary.feedbackStatusLabel,
                           style: Theme.of(context).textTheme.bodyLarge
                               ?.copyWith(
                                 color: const Color(0xFF334155),
                                 fontWeight: FontWeight.w700,
                                 height: 1.45,
                               ),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: summary.focusAreas
-                              .map(
-                                (item) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        '• ',
-                                        style: TextStyle(
-                                          color: Color(0xFFE11D48),
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Text(
-                                          item,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyLarge
-                                              ?.copyWith(
-                                                color: const Color(0xFF334155),
-                                                fontWeight: FontWeight.w700,
-                                                height: 1.45,
-                                              ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                              .toList(),
                         ),
-                ),
-              ],
-            ),
-          );
-        },
+                      );
+                      final healthCard = _InfoCard(
+                        title: '健康提醒',
+                        icon: Icons.visibility_rounded,
+                        accent: const Color(0xFFF97316),
+                        child: Text(
+                          summary.healthSummary,
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
+                                color: const Color(0xFF334155),
+                                fontWeight: FontWeight.w700,
+                                height: 1.45,
+                              ),
+                        ),
+                      );
+
+                      if (isPhone) {
+                        return Column(
+                          children: [
+                            progressCard,
+                            const SizedBox(height: 14),
+                            feedbackCard,
+                            const SizedBox(height: 14),
+                            healthCard,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: progressCard),
+                          const SizedBox(width: 14),
+                          Expanded(child: feedbackCard),
+                          const SizedBox(width: 14),
+                          Expanded(child: healthCard),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isPhone = constraints.maxWidth < 860;
+                      final rewardCard = _InfoCard(
+                        title: '学习表现',
+                        icon: Icons.star_rounded,
+                        accent: const Color(0xFFF59E0B),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                _MetricChip(
+                                  label: '星币 +${summary.earnedStars}',
+                                  accent: const Color(0xFFF59E0B),
+                                  icon: Icons.star_rounded,
+                                ),
+                                _MetricChip(
+                                  label: '连对 ${summary.comboCount}',
+                                  accent: const Color(0xFFEF4444),
+                                  icon: Icons.local_fire_department_rounded,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              summary.earnedStars > 0
+                                  ? '今天的过程奖励已经累计下来了，孩子每完成一步都会得到及时正反馈。'
+                                  : '今天的过程奖励还在积累中，完成更多句子后会形成更明显的正反馈。',
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    color: const Color(0xFF334155),
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.45,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      );
+                      final trustCard = _InfoCard(
+                        title: '专注与保护',
+                        icon: Icons.shield_rounded,
+                        accent: const Color(0xFF0EA5E9),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                _MetricChip(
+                                  label:
+                                      '切后台 ${summary.backgroundSwitchCount} 次',
+                                  accent: const Color(0xFF0EA5E9),
+                                  icon: Icons.open_in_new_rounded,
+                                ),
+                                _MetricChip(
+                                  label: '休息提醒 ${summary.breakReminderCount} 次',
+                                  accent: const Color(0xFF16A34A),
+                                  icon: Icons.visibility_rounded,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              '这些记录帮助家长判断孩子今天学习时是否保持专注，以及系统有没有及时提醒休息。',
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    color: const Color(0xFF334155),
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.45,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      final cards = <Widget>[
+                        if (featureFlags.showGrowthRewards) rewardCard,
+                        if (featureFlags.parentTrustSpace &&
+                            featureFlags.showEnhancedHealthInsights)
+                          trustCard,
+                      ];
+                      if (cards.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+
+                      if (isPhone) {
+                        return Column(
+                          children: [
+                            for (
+                              var index = 0;
+                              index < cards.length;
+                              index++
+                            ) ...[
+                              if (index > 0) const SizedBox(height: 14),
+                              cards[index],
+                            ],
+                          ],
+                        );
+                      }
+
+                      if (cards.length == 1) {
+                        return cards.first;
+                      }
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: cards.first),
+                          const SizedBox(width: 14),
+                          Expanded(child: cards.last),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  _InfoCard(
+                    title: '建议家长关注',
+                    icon: Icons.favorite_rounded,
+                    accent: const Color(0xFFE11D48),
+                    child: summary.focusAreas.isEmpty
+                        ? Text(
+                            '今天的关键反馈还在整理中，可以先鼓励孩子把剩余句子完成。',
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  color: const Color(0xFF334155),
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.45,
+                                ),
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: summary.focusAreas
+                                .map(
+                                  (item) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          '• ',
+                                          style: TextStyle(
+                                            color: Color(0xFFE11D48),
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            item,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyLarge
+                                                ?.copyWith(
+                                                  color: const Color(
+                                                    0xFF334155,
+                                                  ),
+                                                  fontWeight: FontWeight.w700,
+                                                  height: 1.45,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
@@ -6,12 +7,17 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/portal/presentation/pages/activities_page.dart';
 import '../../features/portal/presentation/pages/explore_page.dart';
+import '../../features/portal/presentation/pages/message_center_page.dart';
 import '../../features/portal/presentation/pages/parent_contact_page.dart';
+import '../../features/portal/presentation/pages/review_center_page.dart';
+import '../../features/portal/presentation/pages/review_detail_page.dart';
 import '../../features/portal/presentation/pages/student_release_lab_page.dart';
 import '../../features/portal/presentation/pages/task_detail_page.dart';
 import '../../features/school/presentation/pages/school_entry_page.dart';
 import '../../features/school/presentation/pages/school_selection_page.dart';
 import '../../features/school/presentation/providers/school_context_provider.dart';
+import '../../features/student/presentation/pages/student_identity_selection_page.dart';
+import '../../features/student/presentation/providers/student_identity_provider.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/users/presentation/pages/users_page.dart';
 import '../../features/users/presentation/pages/user_detail_page.dart';
@@ -49,6 +55,9 @@ final routerProvider = Provider<GoRouter>((ref) {
   final schoolSelectionRequired = ref
       .watch(schoolSelectionRequiredProvider)
       .maybeWhen(data: (value) => value, orElse: () => false);
+  final studentIdentitySelectionRequired = ref
+      .watch(studentIdentitySelectionRequiredProvider)
+      .maybeWhen(data: (value) => value, orElse: () => false);
 
   // Initialize onboarding state from preferences
   ref.watch(_onboardingInitProvider);
@@ -65,6 +74,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isOnboardingRoute = state.matchedLocation == '/onboarding';
       final isSchoolEntryRoute = state.matchedLocation.startsWith('/s/');
       final isSchoolSelectionRoute = state.matchedLocation == '/school-select';
+      final isStudentSelectionRoute =
+          state.matchedLocation == '/student-select';
 
       // Check onboarding first for new users
       if (!onboardingCompleted && !isOnboardingRoute && !isSchoolEntryRoute) {
@@ -75,14 +86,29 @@ final routerProvider = Provider<GoRouter>((ref) {
           !isAuthenticated &&
           !isAuthRoute &&
           !isSchoolEntryRoute &&
-          !isSchoolSelectionRoute) {
+          !isSchoolSelectionRoute &&
+          !isStudentSelectionRoute) {
         return '/login';
+      }
+
+      if (isAuthenticated &&
+          studentIdentitySelectionRequired &&
+          !isStudentSelectionRoute &&
+          !isSchoolEntryRoute) {
+        return '/student-select';
+      }
+
+      if (isAuthenticated &&
+          !studentIdentitySelectionRequired &&
+          isStudentSelectionRoute) {
+        return '/home';
       }
 
       if (isAuthenticated &&
           schoolSelectionRequired &&
           !isSchoolSelectionRoute &&
-          !isSchoolEntryRoute) {
+          !isSchoolEntryRoute &&
+          !isStudentSelectionRoute) {
         return '/school-select';
       }
 
@@ -107,6 +133,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SchoolSelectionPage(),
       ),
       GoRoute(
+        path: '/student-select',
+        builder: (context, state) => const StudentIdentitySelectionPage(),
+      ),
+      GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingPage(),
       ),
@@ -123,10 +153,60 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ActivitiesPage(),
       ),
       GoRoute(
-        path: '/activities/:activityId',
+        path: '/messages',
+        builder: (context, state) => const MessageCenterPage(),
+      ),
+      GoRoute(
+        path: '/reviews',
         builder: (context, state) {
+          final query = state.uri.queryParameters;
+          return ReviewCenterPage(
+            activityTitle: query['activityTitle'],
+            className: query['className'],
+          );
+        },
+      ),
+      GoRoute(
+        path: '/reviews/:reviewId',
+        builder: (context, state) {
+          final reviewId = state.pathParameters['reviewId']!;
+          final query = state.uri.queryParameters;
+          return ReviewDetailPage(
+            reviewId: reviewId,
+            title: query['title'] ?? '查看点评',
+            belongTo: query['belongTo'] ?? '英语学习',
+            teacher: query['teacher'] ?? '老师',
+          );
+        },
+      ),
+      GoRoute(
+        path: '/activities/:activityId',
+        pageBuilder: (context, state) {
           final activityId = state.pathParameters['activityId']!;
-          return TaskDetailPage(activityId: activityId);
+          return CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: TaskDetailPage(activityId: activityId),
+            transitionDuration: const Duration(milliseconds: 420),
+            reverseTransitionDuration: const Duration(milliseconds: 260),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  final curved = CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeInOutCubic,
+                    reverseCurve: Curves.easeOutCubic,
+                  );
+                  return FadeTransition(
+                    opacity: curved,
+                    child: ScaleTransition(
+                      scale: Tween<double>(
+                        begin: 0.985,
+                        end: 1,
+                      ).animate(curved),
+                      child: child,
+                    ),
+                  );
+                },
+          );
         },
         routes: [
           GoRoute(
@@ -140,7 +220,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/explore',
-        builder: (context, state) => const ExplorePage(),
+        builder: (context, state) =>
+            ExplorePage(initialTab: state.uri.queryParameters['tab']),
       ),
       GoRoute(
         path: '/student-release-lab',

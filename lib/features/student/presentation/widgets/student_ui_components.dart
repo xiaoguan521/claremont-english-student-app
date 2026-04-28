@@ -216,6 +216,270 @@ class StudentPrimaryActionBar extends StatelessWidget {
   }
 }
 
+class StudentAbilityActionCard extends StatelessWidget {
+  const StudentAbilityActionCard({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.subtitle,
+    required this.color,
+    required this.icon,
+    required this.onTap,
+    this.isCompact = false,
+  });
+
+  final String title;
+  final String value;
+  final String subtitle;
+  final Color color;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTinyHeight = constraints.maxHeight < 70;
+        final tightCard =
+            constraints.maxWidth < 210 || constraints.maxHeight < 125;
+        final isNarrow =
+            tightCard ||
+            constraints.maxWidth < 220 ||
+            constraints.maxHeight < 90;
+        final padding = tightCard
+            ? 12.0
+            : isCompact
+            ? 14.0
+            : 18.0;
+        final iconSize = tightCard
+            ? 40.0
+            : isCompact
+            ? 46.0
+            : 54.0;
+        final decorSize = tightCard ? 56.0 : 76.0;
+        return InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(28),
+          child: Container(
+            padding: EdgeInsets.all(padding),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  color.withValues(alpha: 0.98),
+                  color.withValues(alpha: 0.82),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.68),
+                width: 1.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.28),
+                  blurRadius: 18,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: -10,
+                  right: -4,
+                  child: Container(
+                    width: decorSize,
+                    height: decorSize,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                if (isTinyHeight)
+                  Center(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: const Color(0xFF114178),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  )
+                else if (isNarrow)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: tightCard ? 34 : 40,
+                            height: tightCard ? 34 : 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.24),
+                              borderRadius: BorderRadius.circular(
+                                tightCard ? 12 : 14,
+                              ),
+                            ),
+                            child: Icon(
+                              icon,
+                              color: const Color(0xFF195AB6),
+                              size: tightCard ? 18 : 20,
+                            ),
+                          ),
+                          SizedBox(width: tightCard ? 8 : 10),
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFF114178),
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: tightCard ? 15 : null,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (!tightCard) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: const Color(0xFF124D7A),
+                                fontWeight: FontWeight.w700,
+                                height: 1.25,
+                              ),
+                        ),
+                      ],
+                      const Spacer(),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: tightCard ? 9 : 10,
+                          vertical: tightCard ? 6 : 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(
+                            tightCard ? 14 : 16,
+                          ),
+                        ),
+                        child: Text(
+                          value,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: const Color(0xFF114178),
+                                fontWeight: FontWeight.w900,
+                                fontSize: tightCard ? 14 : null,
+                              ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Container(
+                        width: iconSize,
+                        height: iconSize,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.24),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Icon(
+                          icon,
+                          color: const Color(0xFF195AB6),
+                          size: tightCard
+                              ? 21
+                              : isCompact
+                              ? 24
+                              : 28,
+                        ),
+                      ),
+                      SizedBox(
+                        width: tightCard
+                            ? 10
+                            : isCompact
+                            ? 12
+                            : 14,
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    color: const Color(0xFF114178),
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: tightCard ? 18 : null,
+                                  ),
+                            ),
+                            if (!tightCard) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: const Color(0xFF124D7A),
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.25,
+                                    ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: tightCard ? 6 : 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: tightCard ? 9 : 12,
+                          vertical: tightCard ? 7 : 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(
+                            tightCard ? 15 : 18,
+                          ),
+                        ),
+                        child: Text(
+                          value,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: const Color(0xFF114178),
+                                fontWeight: FontWeight.w900,
+                                fontSize: tightCard ? 15 : null,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class StudentGlassSectionStage extends StatelessWidget {
   const StudentGlassSectionStage({
     super.key,

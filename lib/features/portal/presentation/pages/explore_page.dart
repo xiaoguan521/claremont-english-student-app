@@ -2,373 +2,547 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/ui/app_breakpoints.dart';
 import '../../../home/presentation/widgets/k12_dashboard_widgets.dart';
-import '../../../home/presentation/widgets/k12_playful_widgets.dart';
+import '../../../student/presentation/widgets/student_ui_components.dart';
 import '../providers/student_feature_flags_provider.dart';
 import '../widgets/tablet_shell.dart';
 
-class ExplorePage extends ConsumerWidget {
-  const ExplorePage({super.key});
+class ExplorePage extends ConsumerStatefulWidget {
+  const ExplorePage({super.key, this.initialTab});
+
+  final String? initialTab;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExplorePage> createState() => _ExplorePageState();
+}
+
+class _ExplorePageState extends ConsumerState<ExplorePage> {
+  late PageController _landscapePageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _landscapePageController = _createLandscapePageController();
+  }
+
+  @override
+  void didUpdateWidget(covariant ExplorePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTab != widget.initialTab) {
+      _landscapePageController.dispose();
+      _landscapePageController = _createLandscapePageController();
+    }
+  }
+
+  @override
+  void dispose() {
+    _landscapePageController.dispose();
+    super.dispose();
+  }
+
+  PageController _createLandscapePageController() {
+    return PageController(
+      viewportFraction: 0.9,
+      initialPage: widget.initialTab == 'ability' ? 1 : 0,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final featureFlags = ref.watch(studentFeatureFlagsProvider);
     return TabletShell(
       activeSection: TabletSection.explore,
-      title: 'Fun Zone',
-      subtitle: featureFlags.showFunZonePromos
-          ? '拓展功能会陆续开放，英语乐园正在准备更多惊喜'
-          : '当前版本先聚焦主线作业，拓展功能会按计划逐步开放',
+      title: '学习地图',
+      subtitle: '补做、自然拼读、分级阅读和星币兑换都在这里',
       theme: TabletShellTheme.k12Sky,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isPhone = constraints.maxWidth < 720;
-          const items = [
-            _UpcomingItem(
-              title: '快乐听',
-              description: '跟着有趣音频完成轻松听力练习。',
-              accent: Color(0xFF62B7FF),
-              icon: Icons.podcasts_rounded,
+          final isLandscapePhone =
+              isPhone && constraints.maxWidth > constraints.maxHeight;
+          final mapItems = [
+            _ExploreMapItem(
+              title: '补星计划',
+              ribbonLabel: '3天内可补',
+              description: '找回最近三天没完成的作业，不让星星掉队。',
+              accent: const Color(0xFFFFB84D),
+              icon: Icons.history_toggle_off_rounded,
+              actionLabel: '去补做',
+              onTap: () => context.go('/activities'),
             ),
-            _UpcomingItem(
-              title: '视频配音',
-              description: '用短视频练节奏、语调和表达。',
-              accent: Color(0xFFFF85C2),
-              icon: Icons.mic_external_on_rounded,
+            _ExploreMapItem(
+              title: '自然拼读',
+              ribbonLabel: 'Phonics',
+              description: '从字母音、拼读规则到高频词，循序闯关。',
+              accent: const Color(0xFF73B7FF),
+              icon: Icons.abc_rounded,
+              actionLabel: '开始闯关',
+              onTap: () => _showFeatureHint(context, '自然拼读内容正在接入教材资源库。'),
             ),
-            _UpcomingItem(
-              title: 'AI 自习室',
-              description: '根据你的学习情况推荐专项练习。',
-              accent: Color(0xFFFFB347),
-              icon: Icons.smart_toy_rounded,
+            _ExploreMapItem(
+              title: '国家地理 PM',
+              ribbonLabel: '分级阅读',
+              description: '用真实图片和短篇阅读，拓展英语输入。',
+              accent: const Color(0xFF87D76A),
+              icon: Icons.public_rounded,
+              actionLabel: '去阅读',
+              onTap: () => _showFeatureHint(context, '国家地理 PM 分级阅读正在配置中。'),
             ),
-            _UpcomingItem(
-              title: '背单词',
-              description: '用小游戏方式记住今天的新单词。',
-              accent: Color(0xFF77D49A),
-              icon: Icons.spellcheck_rounded,
+            _ExploreMapItem(
+              title: '魔法商店',
+              ribbonLabel: '星币兑换',
+              description: featureFlags.showGrowthRewards
+                  ? '用星币兑换头像框、徽章和伴学宠物装扮。'
+                  : '成长奖励开启后，星币会在这里消费。',
+              accent: const Color(0xFFFFD447),
+              icon: Icons.card_giftcard_rounded,
+              actionLabel: '看看奖励',
+              onTap: () => _showFeatureHint(context, '星币兑换会和成长奖励一起开放。'),
+            ),
+          ];
+
+          final gymItems = [
+            _AbilityGymItem(
+              title: '听',
+              subtitle: '儿歌和绘本原声',
+              icon: Icons.headphones_rounded,
+              color: const Color(0xFF5DB9FF),
+              onTap: () => _showFeatureHint(context, '磨耳朵电台正在接入绘本和儿歌资源。'),
+            ),
+            _AbilityGymItem(
+              title: '说',
+              subtitle: 'AI 情景对话',
+              icon: Icons.record_voice_over_rounded,
+              color: const Color(0xFFFFC941),
+              onTap: () => _showFeatureHint(context, 'AI 情景对话会和口语 Agent 一起开放。'),
+            ),
+            _AbilityGymItem(
+              title: '写',
+              subtitle: '作品上传和描红',
+              icon: Icons.edit_note_rounded,
+              color: const Color(0xFF78E55A),
+              onTap: () => _showFeatureHint(context, '作品上传先开放，描红会放到三期。'),
+            ),
+            _AbilityGymItem(
+              title: '玩',
+              subtitle: '错词小游戏',
+              icon: Icons.extension_rounded,
+              color: const Color(0xFF55D9C5),
+              onTap: () => _showFeatureHint(context, '错词小游戏会读取你的错音本自动生成。'),
             ),
           ];
 
           return K12PlayfulDashboardFrame(
-            padding: EdgeInsets.all(isPhone ? 16 : 20),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!featureFlags.showFunZonePromos)
-                    Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.all(isPhone ? 18 : 24),
-                      decoration: k12PlasticPanelDecoration(
-                        accent: const Color(0xFF6AC5FF),
-                        radius: 34,
+            padding: EdgeInsets.all(isPhone ? 14 : 20),
+            child: isLandscapePhone
+                ? PageView(
+                    controller: _landscapePageController,
+                    children: _landscapePhonePages(
+                      context: context,
+                      mapItems: mapItems,
+                      gymItems: gymItems,
+                    ),
+                  )
+                : isPhone
+                ? SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _phoneSections(
+                        context: context,
+                        mapItems: mapItems,
+                        gymItems: gymItems,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '拓展乐园稍后开放',
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  color: const Color(0xFF1E293B),
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            '当前版本先保证每天的英语主线作业稳定完成。等主线体验全部跑稳后，背单词、配音、听力和 AI 自习室会按计划逐步开放。',
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  color: const Color(0xFF475569),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.45,
-                                ),
-                          ),
-                          const SizedBox(height: 16),
-                          FilledButton.icon(
-                            onPressed: () => context.go('/activities'),
-                            icon: const Icon(Icons.play_circle_fill_rounded),
-                            label: const Text('先去完成主线作业'),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.all(isPhone ? 18 : 24),
-                      decoration: k12PlasticPanelDecoration(
-                        accent: const Color(0xFF6AC5FF),
-                        radius: 34,
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF5DB9FF),
-                            Color(0xFF2D8DFF),
-                            Color(0xFF69D5FF),
+                    ),
+                  )
+                : Column(
+                    children: [
+                      Expanded(
+                        flex: 58,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 36,
+                              child: _ExploreHero(
+                                onStartMainline: () => context.go('/home'),
+                              ),
+                            ),
+                            const SizedBox(width: 18),
+                            Expanded(
+                              flex: 64,
+                              child: _LearningMapGrid(items: mapItems),
+                            ),
                           ],
                         ),
                       ),
-                      child: isPhone
-                          ? const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _ExploreHeroCopy(),
-                                SizedBox(height: 16),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 150,
-                                  child: K12CartoonHeroScene(),
-                                ),
-                                SizedBox(height: 16),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: [
-                                    K12StatusBadge(
-                                      icon: Icons.tips_and_updates_rounded,
-                                      label: '4 个功能排队上线',
-                                      color: Color(0xFFFFE36B),
-                                      foregroundColor: Color(0xFF8A4F00),
-                                      margin: EdgeInsets.zero,
-                                    ),
-                                    K12StatusBadge(
-                                      icon: Icons.auto_awesome_rounded,
-                                      label: '更多 AI 英语玩法',
-                                      color: Color(0xFF9AF07A),
-                                      foregroundColor: Color(0xFF155B2D),
-                                      margin: EdgeInsets.zero,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            )
-                          : LayoutBuilder(
-                              builder: (context, constraints) {
-                                final heroArtSize = responsiveWidthCap(
-                                  constraints.maxWidth,
-                                  fraction: 0.2,
-                                  min: 132.0,
-                                  max: 180.0,
-                                );
-                                return Row(
-                                  children: [
-                                    const Expanded(child: _ExploreHeroCopy()),
-                                    const SizedBox(width: 24),
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        SizedBox(
-                                          width: heroArtSize,
-                                          height: heroArtSize,
-                                          child: const K12CartoonHeroScene(),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        const Wrap(
-                                          spacing: 10,
-                                          runSpacing: 10,
-                                          children: [
-                                            K12StatusBadge(
-                                              icon: Icons
-                                                  .tips_and_updates_rounded,
-                                              label: '4 个功能排队上线',
-                                              color: Color(0xFFFFE36B),
-                                              foregroundColor: Color(
-                                                0xFF8A4F00,
-                                              ),
-                                              margin: EdgeInsets.zero,
-                                            ),
-                                            K12StatusBadge(
-                                              icon: Icons.auto_awesome_rounded,
-                                              label: '更多 AI 英语玩法',
-                                              color: Color(0xFF9AF07A),
-                                              foregroundColor: Color(
-                                                0xFF155B2D,
-                                              ),
-                                              margin: EdgeInsets.zero,
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                    ),
-                  if (featureFlags.showFunZonePromos) ...[
-                    const SizedBox(height: 18),
-                    if (isPhone)
-                      Column(
-                        children: items
-                            .map(
-                              (item) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _UpcomingCard(item: item),
-                              ),
-                            )
-                            .toList(),
-                      )
-                    else
-                      GridView.count(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisCount: constraints.maxWidth < 980 ? 2 : 4,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: constraints.maxWidth < 980
-                            ? 1.25
-                            : 1.05,
-                        children: items
-                            .map((item) => _UpcomingCard(item: item))
-                            .toList(),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        flex: 42,
+                        child: _AbilityGymGrid(items: gymItems),
                       ),
-                  ],
-                ],
-              ),
-            ),
+                    ],
+                  ),
           );
         },
       ),
     );
   }
+
+  void _showFeatureHint(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  List<Widget> _landscapePhonePages({
+    required BuildContext context,
+    required List<_ExploreMapItem> mapItems,
+    required List<_AbilityGymItem> gymItems,
+  }) {
+    final mapPage = Padding(
+      padding: const EdgeInsets.only(right: 14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 34,
+            child: _ExploreHero(onStartMainline: () => context.go('/home')),
+          ),
+          const SizedBox(width: 14),
+          Expanded(flex: 66, child: _LearningMapGrid(items: mapItems)),
+        ],
+      ),
+    );
+    final abilityPage = Padding(
+      padding: const EdgeInsets.only(left: 14),
+      child: _AbilityGymGrid(items: gymItems),
+    );
+    return [mapPage, abilityPage];
+  }
+
+  List<Widget> _phoneSections({
+    required BuildContext context,
+    required List<_ExploreMapItem> mapItems,
+    required List<_AbilityGymItem> gymItems,
+  }) {
+    final heroSection = SizedBox(
+      height: 320,
+      child: _ExploreHero(onStartMainline: () => context.go('/home')),
+    );
+    final mapSection = _LearningMapGrid(items: mapItems, isPhone: true);
+    final abilitySection = SizedBox(
+      height: 330,
+      child: _AbilityGymGrid(items: gymItems, isPhone: true),
+    );
+    final sections = [
+      heroSection,
+      const SizedBox(height: 16),
+      mapSection,
+      const SizedBox(height: 16),
+      abilitySection,
+    ];
+    if (widget.initialTab != 'ability') {
+      return sections;
+    }
+    return [
+      abilitySection,
+      const SizedBox(height: 16),
+      heroSection,
+      const SizedBox(height: 16),
+      mapSection,
+    ];
+  }
 }
 
-class _UpcomingItem {
-  final String title;
-  final String description;
-  final Color accent;
-  final IconData icon;
+class _ExploreHero extends StatelessWidget {
+  const _ExploreHero({required this.onStartMainline});
 
-  const _UpcomingItem({
-    required this.title,
-    required this.description,
-    required this.accent,
-    required this.icon,
-  });
-}
-
-class _UpcomingCard extends StatelessWidget {
-  final _UpcomingItem item;
-
-  const _UpcomingCard({required this.item});
+  final VoidCallback onStartMainline;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: k12PlasticPanelDecoration(
-        accent: item.accent,
-        radius: 28,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            item.accent.withValues(alpha: 0.96),
-            item.accent.withValues(alpha: 0.78),
+    return StudentBoundarylessSectionStage(
+      title: '学习地图',
+      icon: Icons.auto_stories_rounded,
+      hint: '主线之外的拓展学习',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF2D8DFF), Color(0xFF69D5FF)],
+          ),
+          borderRadius: BorderRadius.circular(34),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2D8DFF).withValues(alpha: 0.22),
+              blurRadius: 22,
+              offset: const Offset(0, 14),
+            ),
           ],
         ),
-      ),
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.28),
-              borderRadius: BorderRadius.circular(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '今天先完成主线，再来这里探索',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-            child: Icon(item.icon, color: const Color(0xFF195AB6), size: 28),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            item.title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: const Color(0xFF103F77),
-              fontWeight: FontWeight.w900,
+            const SizedBox(height: 10),
+            Text(
+              '学习地图负责长期路线：历史补做、自然拼读、分级阅读、积分兑换。听说写玩则负责短时兴趣练习。',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Colors.white.withValues(alpha: 0.92),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            item.description,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF124D7A),
-              fontWeight: FontWeight.w700,
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onStartMainline,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFE36B),
+                  foregroundColor: const Color(0xFF195AB6),
+                ),
+                icon: const Icon(Icons.play_circle_fill_rounded),
+                label: const Text('回到今日主线'),
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          const K12PlayToken(
-            icon: Icons.hourglass_top_rounded,
-            label: '即将开放',
-            color: Color(0xFFFFED8E),
-            foregroundColor: Color(0xFF8A4F00),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _ExploreHeroCopy extends StatelessWidget {
-  const _ExploreHeroCopy();
+class _LearningMapGrid extends StatelessWidget {
+  const _LearningMapGrid({required this.items, this.isPhone = false});
+
+  final List<_ExploreMapItem> items;
+  final bool isPhone;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'English Fun Zone',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final spacing = isPhone ? 12.0 : 16.0;
+        if (isPhone) {
+          return Column(
+            children: items
+                .map(
+                  (item) => Padding(
+                    padding: EdgeInsets.only(bottom: spacing),
+                    child: _ExploreMapCard(item: item, compact: isPhone),
+                  ),
+                )
+                .toList(),
+          );
+        }
+
+        return GridView.count(
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: constraints.maxWidth < 760 ? 2 : 4,
+          crossAxisSpacing: spacing,
+          mainAxisSpacing: spacing,
+          childAspectRatio: constraints.maxWidth < 760 ? 1.35 : 0.98,
+          children: items.map((item) => _ExploreMapCard(item: item)).toList(),
+        );
+      },
+    );
+  }
+}
+
+class _AbilityGymGrid extends StatelessWidget {
+  const _AbilityGymGrid({required this.items, this.isPhone = false});
+
+  final List<_AbilityGymItem> items;
+  final bool isPhone;
+
+  @override
+  Widget build(BuildContext context) {
+    return StudentGlassSectionStage(
+      title: '听说写玩',
+      icon: Icons.grid_view_rounded,
+      hint: '兴趣驱动的能力健身房',
+      child: GridView.count(
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: isPhone ? 2 : 4,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: isPhone ? 1.8 : 1.55,
+        children: items.map((item) => _AbilityGymCard(item: item)).toList(),
+      ),
+    );
+  }
+}
+
+class _ExploreMapItem {
+  const _ExploreMapItem({
+    required this.title,
+    required this.ribbonLabel,
+    required this.description,
+    required this.accent,
+    required this.icon,
+    required this.actionLabel,
+    required this.onTap,
+  });
+
+  final String title;
+  final String ribbonLabel;
+  final String description;
+  final Color accent;
+  final IconData icon;
+  final String actionLabel;
+  final VoidCallback onTap;
+}
+
+class _ExploreMapCard extends StatelessWidget {
+  const _ExploreMapCard({required this.item, this.compact = false});
+
+  final _ExploreMapItem item;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return StudentLearningMapCard(
+      title: item.title,
+      ribbonLabel: item.ribbonLabel,
+      statusLabel: item.actionLabel,
+      accent: item.accent,
+      compact: compact,
+      onTap: item.onTap,
+      cover: Container(
+        decoration: BoxDecoration(
+          color: item.accent.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(24),
         ),
-        const SizedBox(height: 10),
-        Text(
-          '这里会陆续开放背单词、配音、听力和 AI 自习室等趣味英语玩法。当前建议先完成老师布置的主线作业。',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: Colors.white.withValues(alpha: 0.95),
-            fontWeight: FontWeight.w700,
-            height: 1.35,
-          ),
-        ),
-        const SizedBox(height: 18),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
+        child: Stack(
           children: [
-            const K12HeroBadge(icon: Icons.stars_rounded, label: '趣味拓展内容'),
-            const K12HeroBadge(
-              icon: Icons.workspace_premium_rounded,
-              label: '成长奖励联动',
-            ),
-            FilledButton.icon(
-              onPressed: () => context.go('/activities'),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFFE36B),
-                foregroundColor: const Color(0xFF195AB6),
+            Positioned(
+              right: -12,
+              top: -14,
+              child: Icon(
+                item.icon,
+                size: compact ? 86 : 108,
+                color: item.accent.withValues(alpha: 0.36),
               ),
-              icon: const Icon(Icons.play_circle_fill_rounded),
-              label: const Text('去做今日作业'),
             ),
-            OutlinedButton.icon(
-              onPressed: () => context.go('/home'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
+            Positioned(
+              left: 16,
+              bottom: 16,
+              right: 16,
+              child: Text(
+                item.description,
+                maxLines: compact ? 2 : 3,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF124D7A),
+                  fontWeight: FontWeight.w800,
+                  height: 1.25,
+                ),
               ),
-              icon: const Icon(Icons.home_rounded),
-              label: const Text('回首页'),
             ),
           ],
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _AbilityGymItem {
+  const _AbilityGymItem({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+}
+
+class _AbilityGymCard extends StatelessWidget {
+  const _AbilityGymCard({required this.item});
+
+  final _AbilityGymItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(28),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: item.onTap,
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                item.color.withValues(alpha: 0.95),
+                item.color.withValues(alpha: 0.78),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.28),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(
+                  item.icon,
+                  color: const Color(0xFF195AB6),
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: const Color(0xFF103F77),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF124D7A),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

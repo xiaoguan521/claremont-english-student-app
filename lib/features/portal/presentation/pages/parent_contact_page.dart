@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/portal_models.dart';
 import '../../data/portal_repository.dart';
@@ -24,10 +26,18 @@ class ParentContactPage extends ConsumerStatefulWidget {
 
 class _ParentContactPageState extends ConsumerState<ParentContactPage> {
   Timer? _reviewRefreshTimer;
+  final TextEditingController _parentUnlockController = TextEditingController();
+  late final int _parentUnlockLeft;
+  late final int _parentUnlockRight;
+  bool _parentSpaceUnlocked = false;
+  String? _parentUnlockError;
 
   @override
   void initState() {
     super.initState();
+    final random = math.Random();
+    _parentUnlockLeft = 4 + random.nextInt(6);
+    _parentUnlockRight = 3 + random.nextInt(6);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -50,7 +60,23 @@ class _ParentContactPageState extends ConsumerState<ParentContactPage> {
   @override
   void dispose() {
     _reviewRefreshTimer?.cancel();
+    _parentUnlockController.dispose();
     super.dispose();
+  }
+
+  void _submitParentUnlock() {
+    final answer = _parentUnlockController.text.trim();
+    if (answer == '${_parentUnlockLeft + _parentUnlockRight}') {
+      setState(() {
+        _parentSpaceUnlocked = true;
+        _parentUnlockError = null;
+      });
+      return;
+    }
+    _parentUnlockController.clear();
+    setState(() {
+      _parentUnlockError = '答案不对哦，请家长再试一次';
+    });
   }
 
   void _syncReviewRefresh(PortalActivity? activity) {
@@ -97,6 +123,25 @@ class _ParentContactPageState extends ConsumerState<ParentContactPage> {
     final schoolContext =
         ref.watch(schoolContextProvider).valueOrNull ??
         SchoolContext.fallback();
+
+    if (!_parentSpaceUnlocked) {
+      return TabletShell(
+        activeSection: TabletSection.teaching,
+        brandName: schoolContext.displayName,
+        brandLogoUrl: schoolContext.logoUrl,
+        brandSubtitle: '学校学习入口',
+        title: '家长空间',
+        subtitle: '完成一个小验证后查看学习摘要',
+        child: Center(
+          child: _ParentSpaceUnlockCard(
+            controller: _parentUnlockController,
+            questionText: '$_parentUnlockLeft + $_parentUnlockRight = ?',
+            errorText: _parentUnlockError,
+            onSubmit: _submitParentUnlock,
+          ),
+        ),
+      );
+    }
 
     return TabletShell(
       activeSection: TabletSection.teaching,
@@ -408,6 +453,126 @@ class _ParentContactPageState extends ConsumerState<ParentContactPage> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _ParentSpaceUnlockCard extends StatelessWidget {
+  const _ParentSpaceUnlockCard({
+    required this.controller,
+    required this.questionText,
+    required this.onSubmit,
+    this.errorText,
+  });
+
+  final TextEditingController controller;
+  final String questionText;
+  final VoidCallback onSubmit;
+  final String? errorText;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 560),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFE9F8FF), Color(0xFFFFF4CC)],
+          ),
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.86)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF5DB9FF).withValues(alpha: 0.16),
+              blurRadius: 28,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 78,
+              height: 78,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: const Icon(
+                Icons.family_restroom_rounded,
+                color: Color(0xFF2D8DFF),
+                size: 42,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              '请家长完成验证',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: const Color(0xFF17335F),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '这里会展示孩子的学习表现和健康提醒，需要家长查看。',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF64748B),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              questionText,
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                color: const Color(0xFF17335F),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              textAlign: TextAlign.center,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onSubmitted: (_) => onSubmit(),
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: const Color(0xFF17335F),
+                fontWeight: FontWeight.w900,
+              ),
+              decoration: InputDecoration(
+                hintText: '输入答案',
+                errorText: errorText,
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.92),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onSubmit,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(56),
+                backgroundColor: const Color(0xFFFF8F4D),
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.lock_open_rounded),
+              label: const Text('进入家长空间'),
+            ),
+          ],
+        ),
       ),
     );
   }

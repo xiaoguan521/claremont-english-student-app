@@ -51,11 +51,11 @@ class PracticeSubmissionDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusLabel = switch (submissionFlowStatus) {
-      SubmissionFlowStatus.notStarted => isRecording ? '录音中' : '未提交',
-      SubmissionFlowStatus.queued => '已提交',
-      SubmissionFlowStatus.processing => '评分中',
-      SubmissionFlowStatus.failed => isRecording ? '录音中' : '重试',
-      SubmissionFlowStatus.completed => '已点评',
+      SubmissionFlowStatus.notStarted => isRecording ? '录音中' : '待录音',
+      SubmissionFlowStatus.queued => '已保存',
+      SubmissionFlowStatus.processing => 'AI在听',
+      SubmissionFlowStatus.failed => isRecording ? '录音中' : '再试试',
+      SubmissionFlowStatus.completed => '已点亮',
     };
     final statusColor = switch (submissionFlowStatus) {
       SubmissionFlowStatus.notStarted => const Color(0xFF2563EB),
@@ -96,12 +96,18 @@ class PracticeSubmissionDock extends StatelessWidget {
         const Color(0xFFDC2626),
         Icons.graphic_eq_rounded,
       ),
+      _ when isSubmitting => (
+        'AI 老师正在认真听你的发音哦，稍等一下就好。',
+        const Color(0xFFFFF2E4),
+        const Color(0xFFFF8F4D),
+        Icons.auto_awesome_rounded,
+      ),
       _ when hasSelectedAudio && !isSubmitting => (
         submissionFlowStatus == SubmissionFlowStatus.failed
-            ? '上一回没有立刻传上去，这段录音还在，点一下就能重新提交。'
+            ? '网络小精灵刚才迷路了，录音还在，点一下就能重新送给老师。'
             : submissionFlowStatus == SubmissionFlowStatus.completed
-            ? '这段录音已经准备好了，想挑战更高分的话可以再次提交。'
-            : '录音已经准备好了，先试听一下，再点提交这一句。',
+            ? '这一句已经点亮了，想挑战更棒的表现可以再读一次。'
+            : '录音已经准备好了，先听听自己，再交给 AI 老师。',
         const Color(0xFFEAFBF1),
         const Color(0xFF15803D),
         Icons.check_circle_rounded,
@@ -135,14 +141,14 @@ class PracticeSubmissionDock extends StatelessWidget {
         : hasSelectedAudio
         ? (isSubmitting
               ? (submissionFlowStatus == SubmissionFlowStatus.failed
-                    ? '重交中'
+                    ? '再听中'
                     : submissionFlowStatus == SubmissionFlowStatus.completed
-                    ? '再交中'
-                    : '提交中')
+                    ? '再听中'
+                    : 'AI在听')
               : (submissionFlowStatus == SubmissionFlowStatus.failed
                     ? (compact ? '重交' : '重新提交')
                     : submissionFlowStatus == SubmissionFlowStatus.completed
-                    ? (compact ? '再交' : '再次提交')
+                    ? (compact ? '挑战' : '再挑战一次')
                     : (compact ? '提交' : '提交这一句')))
         : (compact ? '录音' : '开始录音');
     final submitLabel = submissionFlowStatus == SubmissionFlowStatus.failed
@@ -188,22 +194,26 @@ class PracticeSubmissionDock extends StatelessWidget {
         !requiresPracticeFirst;
     final dockTitle = isRecording
         ? '正在听你读'
+        : isSubmitting
+        ? 'AI 老师在听'
         : hasSelectedAudio
-        ? '录音已保存'
+        ? '这一句已录好'
         : requiresPracticeFirst
         ? '先完成上面的练习'
         : isUnsupportedProtocol
         ? '这题先跳过'
-        : '读完点录音';
+        : '听完就开口';
     final dockSubtitle = isRecording
-        ? '再次点击结束，系统会保存这一句。'
+        ? '再次点击结束，系统会安全保存这一句。'
+        : isSubmitting
+        ? '不要离开这一题，小精灵正在把声音送给 AI 老师。'
         : hasSelectedAudio
-        ? '先试听，再提交生成 AI 点评结果。'
+        ? '先听听自己，再提交生成 AI 点评结果。'
         : requiresPracticeFirst
         ? '完成拼句后，录音按钮会自动亮起。'
         : isUnsupportedProtocol
         ? '系统会保留进度，不影响继续学习。'
-        : '一个长条按钮就够了，不需要找两个录音键。';
+        : '先听原音，再用一个大按钮完成录音。';
     final statusIcon = isRecording
         ? Icons.graphic_eq_rounded
         : hasSelectedAudio

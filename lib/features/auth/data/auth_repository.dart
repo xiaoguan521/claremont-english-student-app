@@ -5,6 +5,8 @@ import '../../../core/config/app_config.dart';
 
 abstract class AuthRepository {
   Future<bool> login(String email, String password);
+  Future<bool> requestPhoneCode(String phone);
+  Future<bool> verifyPhoneCode(String phone, String code);
   Future<bool> register(String email, String password);
   Future<void> logout();
   bool get isAuthenticated;
@@ -19,6 +21,19 @@ class MockAuthRepository implements AuthRepository {
   Future<bool> login(String email, String password) async {
     await Future.delayed(const Duration(seconds: 1));
     _isAuthenticated = email.isNotEmpty && password.isNotEmpty;
+    return _isAuthenticated;
+  }
+
+  @override
+  Future<bool> requestPhoneCode(String phone) async {
+    await Future.delayed(const Duration(milliseconds: 600));
+    return phone.trim().length >= 6;
+  }
+
+  @override
+  Future<bool> verifyPhoneCode(String phone, String code) async {
+    await Future.delayed(const Duration(seconds: 1));
+    _isAuthenticated = phone.trim().isNotEmpty && code.trim().isNotEmpty;
     return _isAuthenticated;
   }
 
@@ -39,7 +54,8 @@ class MockAuthRepository implements AuthRepository {
   bool get isAuthenticated => _isAuthenticated;
 
   @override
-  String? get currentUserEmail => _isAuthenticated ? 'demo@classroom.local' : null;
+  String? get currentUserEmail =>
+      _isAuthenticated ? 'demo@classroom.local' : null;
 
   @override
   Stream<bool> authStateChanges() => Stream<bool>.value(_isAuthenticated);
@@ -55,6 +71,22 @@ class SupabaseAuthRepository implements AuthRepository {
     final response = await _client.auth.signInWithPassword(
       email: email,
       password: password,
+    );
+    return response.session != null || response.user != null;
+  }
+
+  @override
+  Future<bool> requestPhoneCode(String phone) async {
+    await _client.auth.signInWithOtp(phone: phone);
+    return true;
+  }
+
+  @override
+  Future<bool> verifyPhoneCode(String phone, String code) async {
+    final response = await _client.auth.verifyOTP(
+      phone: phone,
+      token: code,
+      type: OtpType.sms,
     );
     return response.session != null || response.user != null;
   }

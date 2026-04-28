@@ -7,6 +7,7 @@ import '../../../../core/providers/theme_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../portal/presentation/widgets/tablet_shell.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
+import '../../../student/presentation/providers/student_identity_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -153,6 +154,9 @@ class SettingsPage extends ConsumerWidget {
                 isAuthenticated: authState.isAuthenticated,
                 onPressed: authState.isAuthenticated
                     ? () async {
+                        await ref
+                            .read(selectedStudentProfileProvider.notifier)
+                            .clear();
                         await ref.read(authProvider.notifier).logout();
                         if (context.mounted) {
                           context.go('/login');

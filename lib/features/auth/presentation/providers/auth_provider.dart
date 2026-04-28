@@ -31,7 +31,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> login(String email, String password) async {
     state = const AuthState(isLoading: true);
-    
+
     try {
       final success = await _repository.login(email, password);
       if (success) {
@@ -43,10 +43,41 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(error: e.toString());
     }
   }
-  
+
+  Future<bool> requestPhoneCode(String phone) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final success = await _repository.requestPhoneCode(phone);
+      state = state.copyWith(isLoading: false);
+      if (!success) {
+        state = state.copyWith(error: '验证码发送失败，请检查手机号');
+      }
+      return success;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<void> verifyPhoneCode(String phone, String code) async {
+    state = const AuthState(isLoading: true);
+
+    try {
+      final success = await _repository.verifyPhoneCode(phone, code);
+      if (success) {
+        state = const AuthState(isAuthenticated: true);
+      } else {
+        state = const AuthState(error: '验证码不正确或已过期');
+      }
+    } catch (e) {
+      state = AuthState(error: e.toString());
+    }
+  }
+
   Future<void> register(String email, String password) async {
     state = const AuthState(isLoading: true);
-    
+
     try {
       final success = await _repository.register(email, password);
       if (success) {
@@ -58,7 +89,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(error: e.toString());
     }
   }
-  
+
   Future<void> logout() async {
     await _repository.logout();
     state = const AuthState(isAuthenticated: false);

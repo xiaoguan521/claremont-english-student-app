@@ -33,6 +33,10 @@ class PracticeStageHeader extends StatelessWidget {
     final visibleStars = totalTasks.clamp(1, compact ? 6 : 10).toInt();
     final completedStars = completedCount.clamp(0, visibleStars).toInt();
     final material = (materialTitle ?? '').trim();
+    final remainingCount = (totalTasks - completedCount).clamp(0, totalTasks);
+    final progressLabel = completedCount >= totalTasks
+        ? '全部点亮'
+        : '还差 $remainingCount 句';
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -101,7 +105,7 @@ class PracticeStageHeader extends StatelessWidget {
           ),
           SizedBox(width: AppUiTokens.spaceSm * visualScale),
           Expanded(
-            flex: compact ? 2 : 3,
+            flex: compact ? 3 : 4,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -138,14 +142,33 @@ class PracticeStageHeader extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppUiTokens.space2xs),
-                Text(
-                  '第 $taskIndex/$totalTasks 句 · $pageLabel',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF475569),
-                    fontWeight: FontWeight.w800,
-                  ),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: AppUiTokens.spaceXs * visualScale,
+                  runSpacing: AppUiTokens.space2xs * visualScale,
+                  children: [
+                    Text(
+                      '当前第 $taskIndex/$totalTasks 句',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF475569),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    _PracticeHeaderMiniBadge(
+                      label: progressLabel,
+                      color: completedCount >= totalTasks
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFFFB020),
+                    ),
+                    if (!compact)
+                      _PracticeHeaderMiniBadge(
+                        label: pageLabel,
+                        color: const Color(0xFF3B82F6),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -204,6 +227,33 @@ class PracticeRewardCapsule extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PracticeHeaderMiniBadge extends StatelessWidget {
+  const _PracticeHeaderMiniBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }

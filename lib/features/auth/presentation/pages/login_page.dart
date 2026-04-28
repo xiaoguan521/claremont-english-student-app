@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -6,6 +7,8 @@ import '../../../../core/ui/app_breakpoints.dart';
 import '../../../../core/widgets/brand_avatar.dart';
 import '../providers/auth_provider.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
+
+enum _LoginMode { account, phone, wechat }
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -16,38 +19,54 @@ class LoginPage extends ConsumerStatefulWidget {
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   static const _lastLoginEmailKey = 'last_login_email';
+  static const _lastLoginPhoneKey = 'last_login_phone';
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _codeController = TextEditingController();
+  _LoginMode _loginMode = _LoginMode.account;
+  bool _codeRequested = false;
 
   @override
   void initState() {
     super.initState();
-    _restoreLastLoginEmail();
+    _restoreLastLoginIdentity();
   }
 
-  Future<void> _restoreLastLoginEmail() async {
+  Future<void> _restoreLastLoginIdentity() async {
     final preferences = await SharedPreferences.getInstance();
     final lastEmail = preferences.getString(_lastLoginEmailKey);
-    if (!mounted || lastEmail == null || lastEmail.trim().isEmpty) {
+    final lastPhone = preferences.getString(_lastLoginPhoneKey);
+    if (!mounted) {
       return;
     }
-    _emailController.text = lastEmail.trim();
+    if (lastEmail != null && lastEmail.trim().isNotEmpty) {
+      _emailController.text = lastEmail.trim();
+    }
+    if (lastPhone != null && lastPhone.trim().isNotEmpty) {
+      _phoneController.text = lastPhone.trim();
+    }
   }
 
-  Future<void> _saveLastLoginEmail() async {
+  Future<void> _saveLastLoginIdentity() async {
     final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      return;
-    }
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(_lastLoginEmailKey, email);
+    if (email.isNotEmpty) {
+      await preferences.setString(_lastLoginEmailKey, email);
+    }
+    final phone = _phoneController.text.trim();
+    if (phone.isNotEmpty) {
+      await preferences.setString(_lastLoginPhoneKey, phone);
+    }
   }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _phoneController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -66,7 +85,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       }
       if ((previous?.isAuthenticated ?? false) == false &&
           next.isAuthenticated) {
-        _saveLastLoginEmail();
+        _saveLastLoginIdentity();
       }
     });
 
@@ -119,8 +138,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                         formKey: _formKey,
                                         emailController: _emailController,
                                         passwordController: _passwordController,
+                                        phoneController: _phoneController,
+                                        codeController: _codeController,
+                                        loginMode: _loginMode,
+                                        codeRequested: _codeRequested,
                                         isLoading: authState.isLoading,
+                                        onModeChanged: _switchLoginMode,
                                         onLogin: _onLogin,
+                                        onRequestCode: _onRequestPhoneCode,
+                                        onWechatLogin: _onWechatLogin,
                                       ),
                                     ],
                                   )
@@ -140,8 +166,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                             emailController: _emailController,
                                             passwordController:
                                                 _passwordController,
+                                            phoneController: _phoneController,
+                                            codeController: _codeController,
+                                            loginMode: _loginMode,
+                                            codeRequested: _codeRequested,
                                             isLoading: authState.isLoading,
+                                            onModeChanged: _switchLoginMode,
                                             onLogin: _onLogin,
+                                            onRequestCode: _onRequestPhoneCode,
+                                            onWechatLogin: _onWechatLogin,
                                           ),
                                         ),
                                       ),
@@ -161,12 +194,54 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     );
   }
 
-  void _onLogin() {
+  void _switchLoginMode(_LoginMode mode) {
+    setState(() {
+      _loginMode = mode;
+    });
+  }
+
+  Future<void> _onLogin() async {
     if (_formKey.currentState!.validate()) {
+      if (_loginMode == _LoginMode.phone) {
+        await ref
+            .read(authProvider.notifier)
+            .verifyPhoneCode(
+              _phoneController.text.trim(),
+              _codeController.text.trim(),
+            );
+        return;
+      }
       ref
           .read(authProvider.notifier)
-          .login(_emailController.text, _passwordController.text);
+          .login(_emailController.text.trim(), _passwordController.text.trim());
     }
+  }
+
+  Future<void> _onRequestPhoneCode() async {
+    if (_phoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先输入手机号')));
+      return;
+    }
+    final success = await ref
+        .read(authProvider.notifier)
+        .requestPhoneCode(_phoneController.text.trim());
+    if (!mounted || !success) {
+      return;
+    }
+    setState(() {
+      _codeRequested = true;
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('验证码已发送，请查看家长手机')));
+  }
+
+  void _onWechatLogin() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('家长微信授权登录正在接入中，请先使用账号或验证码登录。')),
+    );
   }
 }
 
@@ -256,15 +331,29 @@ class _LoginForm extends StatelessWidget {
     required this.formKey,
     required this.emailController,
     required this.passwordController,
+    required this.phoneController,
+    required this.codeController,
+    required this.loginMode,
+    required this.codeRequested,
     required this.isLoading,
+    required this.onModeChanged,
     required this.onLogin,
+    required this.onRequestCode,
+    required this.onWechatLogin,
   });
 
   final GlobalKey<FormState> formKey;
   final TextEditingController emailController;
   final TextEditingController passwordController;
+  final TextEditingController phoneController;
+  final TextEditingController codeController;
+  final _LoginMode loginMode;
+  final bool codeRequested;
   final bool isLoading;
+  final ValueChanged<_LoginMode> onModeChanged;
   final VoidCallback onLogin;
+  final VoidCallback onRequestCode;
+  final VoidCallback onWechatLogin;
 
   @override
   Widget build(BuildContext context) {
@@ -289,51 +378,48 @@ class _LoginForm extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 28),
-          TextFormField(
-            controller: emailController,
-            decoration: const InputDecoration(
-              labelText: '邮箱',
-              prefixIcon: Icon(Icons.email_outlined),
-            ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return '请输入登录邮箱';
-              }
-              return null;
-            },
-          ),
+          _LoginModeSwitcher(selectedMode: loginMode, onChanged: onModeChanged),
           const SizedBox(height: 16),
-          TextFormField(
-            controller: passwordController,
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: '密码',
-              prefixIcon: Icon(Icons.lock_outline),
-            ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return '请输入登录密码';
-              }
-              return null;
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: switch (loginMode) {
+              _LoginMode.account => _AccountLoginFields(
+                key: const ValueKey('account-login'),
+                emailController: emailController,
+                passwordController: passwordController,
+              ),
+              _LoginMode.phone => _PhoneLoginFields(
+                key: const ValueKey('phone-login'),
+                phoneController: phoneController,
+                codeController: codeController,
+                codeRequested: codeRequested,
+                isLoading: isLoading,
+                onRequestCode: onRequestCode,
+              ),
+              _LoginMode.wechat => _WechatLoginPane(
+                key: const ValueKey('wechat-login'),
+                onWechatLogin: onWechatLogin,
+              ),
             },
           ),
           const SizedBox(height: 28),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: isLoading ? null : onLogin,
-              child: isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('登录'),
+          if (loginMode != _LoginMode.wechat)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: isLoading ? null : onLogin,
+                child: isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(loginMode == _LoginMode.phone ? '验证并登录' : '登录'),
+              ),
             ),
-          ),
           const SizedBox(height: 16),
           Text(
-            '账号由机构管理员统一创建，请联系老师或管理员开通。',
+            '账号由机构管理员统一创建；手机号和微信授权用于家长快速协助登录。',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: const Color(0xFF64748B),
@@ -342,12 +428,273 @@ class _LoginForm extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '如果这个账号同时属于多个学校，登录后系统会自动提示你选择。',
+            '若一个账号绑定多个孩子，登录后会先选择“我是谁”，再进入对应主页。',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: const Color(0xFF94A3B8),
               fontWeight: FontWeight.w600,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoginModeSwitcher extends StatelessWidget {
+  const _LoginModeSwitcher({
+    required this.selectedMode,
+    required this.onChanged,
+  });
+
+  final _LoginMode selectedMode;
+  final ValueChanged<_LoginMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      (mode: _LoginMode.account, icon: Icons.badge_rounded, label: '账号'),
+      (mode: _LoginMode.phone, icon: Icons.sms_rounded, label: '验证码'),
+      (mode: _LoginMode.wechat, icon: Icons.wechat_rounded, label: '家长微信'),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F7FF),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        children: [
+          for (final item in items)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: InkWell(
+                  onTap: () => onChanged(item.mode),
+                  borderRadius: BorderRadius.circular(999),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: selectedMode == item.mode
+                          ? Colors.white
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: selectedMode == item.mode
+                          ? [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF2E7BEF,
+                                ).withValues(alpha: 0.12),
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          item.icon,
+                          size: 18,
+                          color: selectedMode == item.mode
+                              ? const Color(0xFF2E7BEF)
+                              : const Color(0xFF64748B),
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            item.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  color: selectedMode == item.mode
+                                      ? const Color(0xFF17335F)
+                                      : const Color(0xFF64748B),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountLoginFields extends StatelessWidget {
+  const _AccountLoginFields({
+    super.key,
+    required this.emailController,
+    required this.passwordController,
+  });
+
+  final TextEditingController emailController;
+  final TextEditingController passwordController;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextFormField(
+          controller: emailController,
+          decoration: const InputDecoration(
+            labelText: '用户名 / 邮箱',
+            helperText: '会自动记住上次登录账号',
+            prefixIcon: Icon(Icons.account_circle_outlined),
+          ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return '请输入用户名或邮箱';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: passwordController,
+          obscureText: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(
+            labelText: '数字密码',
+            helperText: '会调起系统数字键盘，减少孩子误触',
+            prefixIcon: Icon(Icons.lock_outline),
+          ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return '请输入登录密码';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _PhoneLoginFields extends StatelessWidget {
+  const _PhoneLoginFields({
+    super.key,
+    required this.phoneController,
+    required this.codeController,
+    required this.codeRequested,
+    required this.isLoading,
+    required this.onRequestCode,
+  });
+
+  final TextEditingController phoneController;
+  final TextEditingController codeController;
+  final bool codeRequested;
+  final bool isLoading;
+  final VoidCallback onRequestCode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextFormField(
+          controller: phoneController,
+          keyboardType: TextInputType.phone,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(
+            labelText: '家长手机号',
+            helperText: '会自动记住上次使用的手机号',
+            prefixIcon: const Icon(Icons.phone_iphone_rounded),
+            suffixIcon: TextButton(
+              onPressed: isLoading ? null : onRequestCode,
+              child: Text(codeRequested ? '重新发送' : '发送验证码'),
+            ),
+          ),
+          validator: (value) {
+            if (value == null || value.trim().length < 6) {
+              return '请输入正确的手机号';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: codeController,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(
+            labelText: '验证码',
+            helperText: '使用系统数字键盘输入短信验证码',
+            prefixIcon: Icon(Icons.pin_rounded),
+          ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return '请输入验证码';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _WechatLoginPane extends StatelessWidget {
+  const _WechatLoginPane({super.key, required this.onWechatLogin});
+
+  final VoidCallback onWechatLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAFBF1),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFBDECCB)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: const Icon(
+              Icons.qr_code_2_rounded,
+              size: 58,
+              color: Color(0xFF16A34A),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            '请家长微信扫码授权',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: const Color(0xFF14532D),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '授权后如果绑定了多个孩子，会先出现大头像选择“我是谁”。',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF3F6B4D),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: onWechatLogin,
+            icon: const Icon(Icons.wechat_rounded),
+            label: const Text('生成授权二维码'),
           ),
         ],
       ),

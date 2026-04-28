@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppUiTokens {
+  static const Color studentInk = Color(0xFF17335F);
+  static const Color studentMuted = Color(0xFF64748B);
+  static const Color studentPanel = Color(0xE0FFFFFF);
+  static const Color studentPanelBlue = Color(0xFFEAF5FF);
+  static const Color studentSuccess = Color(0xFF15803D);
+  static const Color studentSuccessSoft = Color(0xFFEAFBF1);
+  static const Color studentAccentBlue = Color(0xFF2E7BEF);
+  static const Color studentAccentOrange = Color(0xFFFF8F4D);
+  static const Color studentAccentYellow = Color(0xFFFFD447);
+
   static const double space2xs = 4;
   static const double spaceXs = 8;
   static const double spaceSm = 12;

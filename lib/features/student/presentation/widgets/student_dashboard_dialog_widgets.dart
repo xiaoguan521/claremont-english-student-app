@@ -8,6 +8,7 @@ class StudentReviewFeedItem {
     required this.teacher,
     required this.dateLabel,
     this.highlighted = false,
+    this.onTap,
   });
 
   final String title;
@@ -16,6 +17,7 @@ class StudentReviewFeedItem {
   final String teacher;
   final String dateLabel;
   final bool highlighted;
+  final VoidCallback? onTap;
 }
 
 class StudentReviewFeed extends StatelessWidget {
@@ -416,6 +418,181 @@ class StudentInfoLine extends StatelessWidget {
   }
 }
 
+class StudentStarCoinLedgerRow extends StatelessWidget {
+  const StudentStarCoinLedgerRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.amount,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String amount;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF17335F),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF64748B),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              amount,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class StudentMessageCenterContent extends StatelessWidget {
+  const StudentMessageCenterContent({
+    super.key,
+    required this.pendingTasks,
+    this.activityTitle,
+    this.className,
+    this.onOpenReviewCenter,
+  });
+
+  final int pendingTasks;
+  final String? activityTitle;
+  final String? className;
+  final VoidCallback? onOpenReviewCenter;
+
+  static const List<String> _categories = [
+    '老师点评',
+    '学校通知',
+    '班级通知',
+    '任务提醒',
+    '课程提醒',
+    '请假提醒',
+    '其他消息',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final canOpenReviewCenter =
+        activityTitle != null &&
+        className != null &&
+        onOpenReviewCenter != null;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useStacked = constraints.maxWidth < 940;
+        final categoryRail = _MessageCategoryRail(
+          categories: _categories,
+          useStacked: useStacked,
+        );
+        final messageBody = Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFEAF5FF),
+            borderRadius: BorderRadius.all(Radius.circular(30)),
+          ),
+          child: canOpenReviewCenter
+              ? Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _TeacherReviewMessageCard(
+                        activityTitle: activityTitle!,
+                        className: className!,
+                        onTap: onOpenReviewCenter!,
+                      ),
+                      const SizedBox(height: 18),
+                      Expanded(
+                        child: _EmptyMessageState(pendingTasks: pendingTasks),
+                      ),
+                    ],
+                  ),
+                )
+              : Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: _EmptyMessageState(pendingTasks: pendingTasks),
+                  ),
+                ),
+        );
+
+        if (useStacked) {
+          return Column(
+            children: [
+              categoryRail,
+              const SizedBox(height: 16),
+              Expanded(child: messageBody),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            categoryRail,
+            const SizedBox(width: 18),
+            Expanded(child: messageBody),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _StudentProfileActionCard extends StatelessWidget {
   const _StudentProfileActionCard({required this.data});
 
@@ -471,6 +648,258 @@ class _StudentProfileActionCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MessageCategoryRail extends StatelessWidget {
+  const _MessageCategoryRail({
+    required this.categories,
+    required this.useStacked,
+  });
+
+  final List<String> categories;
+  final bool useStacked;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: useStacked ? double.infinity : 260,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 18),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.all(Radius.circular(30)),
+      ),
+      child: useStacked
+          ? Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: categories.asMap().entries.map((entry) {
+                return _MessageCategoryPill(
+                  label: entry.value,
+                  selected: entry.key == 0,
+                  compact: true,
+                );
+              }).toList(),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: categories.asMap().entries.map((entry) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _MessageCategoryPill(
+                    label: entry.value,
+                    selected: entry.key == 0,
+                  ),
+                );
+              }).toList(),
+            ),
+    );
+  }
+}
+
+class _MessageCategoryPill extends StatelessWidget {
+  const _MessageCategoryPill({
+    required this.label,
+    required this.selected,
+    this.compact = false,
+  });
+
+  final String label;
+  final bool selected;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 18 : 18,
+        vertical: compact ? 14 : 16,
+      ),
+      decoration: BoxDecoration(
+        color: selected
+            ? const Color(0xFFDCEBFF)
+            : compact
+            ? const Color(0xFFF4F8FF)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(compact ? 18 : 20),
+      ),
+      child: Text(
+        label,
+        style:
+            (compact
+                    ? Theme.of(context).textTheme.titleMedium
+                    : Theme.of(context).textTheme.titleLarge)
+                ?.copyWith(
+                  color: selected
+                      ? const Color(0xFF2160D4)
+                      : const Color(0xFF1E293B),
+                  fontWeight: FontWeight.w800,
+                ),
+      ),
+    );
+  }
+}
+
+class _TeacherReviewMessageCard extends StatelessWidget {
+  const _TeacherReviewMessageCard({
+    required this.activityTitle,
+    required this.className,
+    required this.onTap,
+  });
+
+  final String activityTitle;
+  final String className;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFF2E3), Color(0xFFEAF7FF)],
+            ),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.82),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFA24A).withValues(alpha: 0.16),
+                blurRadius: 22,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: const Icon(
+                  Icons.rate_review_rounded,
+                  color: Color(0xFFFF8A3D),
+                  size: 34,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '老师点评',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: const Color(0xFF17335F),
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '查看老师反馈、AI 诊断和发音建议',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$className · $activityTitle',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: const Color(0xFF2E7BEF),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6B4A),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '去查看',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyMessageState extends StatelessWidget {
+  const _EmptyMessageState({required this.pendingTasks});
+
+  final int pendingTasks;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: const Icon(
+              Icons.inventory_2_outlined,
+              color: Color(0xFFBCC8D9),
+              size: 44,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            '暂无学校通知',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: const Color(0xFF6B7A90),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '当前待完成任务 $pendingTasks 项，新的消息会在这里提醒你。',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: const Color(0xFF94A3B8),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -537,7 +966,7 @@ class _ReviewFeedCard extends StatelessWidget {
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(28),
           child: InkWell(
-            onTap: () {},
+            onTap: item.onTap,
             borderRadius: BorderRadius.circular(28),
             child: Container(
               padding: const EdgeInsets.all(16),

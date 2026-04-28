@@ -222,14 +222,23 @@ Future<SchoolContext?> _fetchBySlug(SupabaseClient client, String slug) async {
 
 SchoolContext _mapSchoolContext(Map<String, dynamic> row) {
   final brandName = (row['brand_name'] as String?)?.trim() ?? '';
+  final appDisplayName =
+      (row['app_display_name'] as String?)?.trim() ?? brandName;
+  final displayName = appDisplayName.isNotEmpty ? appDisplayName : brandName;
+  final welcomeTitle = (row['welcome_title'] as String?)?.trim();
+  final welcomeMessage = (row['welcome_message'] as String?)?.trim();
 
   return SchoolContext(
     schoolId: row['school_id'] as String?,
     slug: (row['slug'] as String?) ?? 'school',
     schoolName: brandName,
-    displayName: brandName,
-    welcomeTitle: _defaultWelcomeTitle(brandName),
-    welcomeMessage: '今天也要认真完成英语学习任务。',
+    displayName: displayName,
+    welcomeTitle: welcomeTitle == null || welcomeTitle.isEmpty
+        ? _defaultWelcomeTitle(displayName)
+        : welcomeTitle,
+    welcomeMessage: welcomeMessage == null || welcomeMessage.isEmpty
+        ? '今天也要认真完成英语学习任务。'
+        : welcomeMessage,
     themeKey: (row['theme_key'] as String?) ?? 'forest',
     logoUrl: (row['logo_url'] as String?)?.trim() ?? '',
   );
@@ -262,12 +271,13 @@ Future<List<SchoolContext>> _fetchAvailableSchools(
 
   return List<Map<String, dynamic>>.from(schoolResponse).map((row) {
     final slug = (row['code'] as String?) ?? 'school';
+    final schoolName = (row['name'] as String?)?.trim() ?? '';
     return SchoolContext(
       schoolId: row['id'] as String?,
       slug: slug,
-      schoolName: '',
-      displayName: '',
-      welcomeTitle: _defaultWelcomeTitle(''),
+      schoolName: schoolName,
+      displayName: schoolName,
+      welcomeTitle: _defaultWelcomeTitle(schoolName),
       welcomeMessage: '今天也要认真完成英语学习任务。',
       themeKey: 'forest',
       logoUrl: '',

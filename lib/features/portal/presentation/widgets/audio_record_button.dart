@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/ui/app_ui_tokens.dart';
+
 enum AudioRecordButtonState { idle, recording, processing, done }
 
 class AudioRecordButton extends StatefulWidget {
@@ -27,7 +29,7 @@ class _AudioRecordButtonState extends State<AudioRecordButton>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: AppUiTokens.motionPulse,
     );
     _syncAnimationState();
   }
@@ -66,25 +68,25 @@ class _AudioRecordButtonState extends State<AudioRecordButton>
       AudioRecordButtonState.idle => (
         widget.compact ? '录音' : '开始录音',
         Icons.mic_rounded,
-        const Color(0xFFFF8F4D),
+        AppUiTokens.studentAccentOrange,
         Colors.white,
       ),
       AudioRecordButtonState.recording => (
         widget.compact ? '停止' : '结束录音',
         Icons.stop_circle_rounded,
-        const Color(0xFFDC2626),
+        AppUiTokens.studentDanger,
         Colors.white,
       ),
       AudioRecordButtonState.processing => (
         widget.compact ? '处理中' : '处理中',
         null,
-        const Color(0xFF94A3B8),
+        AppUiTokens.studentDisabled,
         Colors.white,
       ),
       AudioRecordButtonState.done => (
         widget.compact ? '重录' : '重新录音',
         Icons.restart_alt_rounded,
-        const Color(0xFF2563EB),
+        AppUiTokens.studentInfo,
         Colors.white,
       ),
     };
@@ -92,13 +94,21 @@ class _AudioRecordButtonState extends State<AudioRecordButton>
     return FilledButton(
       onPressed: widget.onPressed,
       style: FilledButton.styleFrom(
-        minimumSize: Size.fromHeight(widget.compact ? 54 : 60),
+        minimumSize: Size.fromHeight(
+          widget.compact
+              ? AppUiTokens.recordButtonCompactHeight
+              : AppUiTokens.recordButtonHeight,
+        ),
         backgroundColor: backgroundColor,
         foregroundColor: foregroundColor,
         disabledBackgroundColor: backgroundColor.withValues(alpha: 0.52),
         disabledForegroundColor: foregroundColor.withValues(alpha: 0.8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        padding: const EdgeInsets.symmetric(horizontal: 18),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppUiTokens.spaceLg - 2,
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -106,10 +116,10 @@ class _AudioRecordButtonState extends State<AudioRecordButton>
         children: [
           if (widget.state == AudioRecordButtonState.processing)
             const SizedBox(
-              width: 18,
-              height: 18,
+              width: AppUiTokens.iconSm,
+              height: AppUiTokens.iconSm,
               child: CircularProgressIndicator(
-                strokeWidth: 2,
+                strokeWidth: AppUiTokens.progressStrokeSm,
                 color: Colors.white,
               ),
             )
@@ -117,7 +127,7 @@ class _AudioRecordButtonState extends State<AudioRecordButton>
             _RecordingPulseIcon(animation: _controller)
           else
             Icon(icon),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppUiTokens.spaceSm - 2),
           Flexible(
             child: Text(
               label,
@@ -147,15 +157,17 @@ class _RecordingPulseIcon extends StatelessWidget {
           children: List.generate(3, (index) {
             final delay = index * 0.18;
             final value = (animation.value - delay).clamp(0.0, 1.0);
-            final height = 8.0 + (value * 8);
+            final height = AppUiTokens.spaceXs + (value * AppUiTokens.spaceXs);
             return Padding(
-              padding: EdgeInsets.only(right: index == 2 ? 0 : 3),
+              padding: EdgeInsets.only(
+                right: index == 2 ? 0 : AppUiTokens.space2xs - 1,
+              ),
               child: Container(
-                width: 4,
+                width: AppUiTokens.space2xs,
                 height: height,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
                 ),
               ),
             );

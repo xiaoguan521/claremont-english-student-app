@@ -362,7 +362,9 @@ class _ParentContactPageState extends ConsumerState<ParentContactPage> {
 
                     final cards = <Widget>[
                       if (featureFlags.showGrowthRewards) rewardCard,
-                      if (featureFlags.showEnhancedHealthInsights) trustCard,
+                      if (featureFlags.parentTrustSpace &&
+                          featureFlags.showEnhancedHealthInsights)
+                        trustCard,
                     ];
                     if (cards.isEmpty) {
                       return const SizedBox.shrink();

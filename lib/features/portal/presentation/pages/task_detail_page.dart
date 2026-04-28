@@ -1826,7 +1826,8 @@ class _TaskDetailPageState extends ConsumerState<TaskDetailPage>
                       isStoredAudioPlaying: storedAudioKey == _playingAudioKey,
                       isStoredAudioLoading: storedAudioKey == _loadingAudioKey,
                       practiceTaskState: focusedPracticeTaskState,
-                      showPracticeRenderer: isLandscapeLayout,
+                      showPracticeRenderer:
+                          isLandscapeLayout && featureFlags.practiceStageV2,
                       onOpenReading: activity.materialPdfPath == null
                           ? null
                           : () => _openReadingPage(activity, task: focusTask),

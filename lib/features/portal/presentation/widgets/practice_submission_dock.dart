@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/ui/app_ui_tokens.dart';
 import '../../data/portal_models.dart';
 import 'audio_record_button.dart';
 import 'practice_control_dock.dart';
@@ -58,11 +59,11 @@ class PracticeSubmissionDock extends StatelessWidget {
       SubmissionFlowStatus.completed => '已点亮',
     };
     final statusColor = switch (submissionFlowStatus) {
-      SubmissionFlowStatus.notStarted => const Color(0xFF2563EB),
-      SubmissionFlowStatus.queued => const Color(0xFFF97316),
-      SubmissionFlowStatus.processing => const Color(0xFFFF8F4D),
-      SubmissionFlowStatus.failed => const Color(0xFFDC2626),
-      SubmissionFlowStatus.completed => const Color(0xFF16A34A),
+      SubmissionFlowStatus.notStarted => AppUiTokens.studentInfo,
+      SubmissionFlowStatus.queued => AppUiTokens.studentAccentOrange,
+      SubmissionFlowStatus.processing => AppUiTokens.studentAccentOrange,
+      SubmissionFlowStatus.failed => AppUiTokens.studentDanger,
+      SubmissionFlowStatus.completed => AppUiTokens.studentSuccess,
     };
     final requiresPracticeFirst =
         requiresPracticeCompletion && !isPracticeCompleted && !isRecording;
@@ -80,26 +81,26 @@ class PracticeSubmissionDock extends StatelessWidget {
     ) = switch (submissionFlowStatus) {
       _ when isUnsupportedProtocol => (
         '这道题型正在更新中，先点跳过继续下一句，系统会保留兜底能力。',
-        const Color(0xFFFFF7E8),
-        const Color(0xFFB45309),
+        AppUiTokens.studentWarningSoft,
+        AppUiTokens.studentWarning,
         Icons.auto_fix_high_rounded,
       ),
       _ when requiresPracticeFirst => (
         '先完成上面的拼句练习，再开始录音或提交这一句。',
-        const Color(0xFFFFF7E8),
-        const Color(0xFFB45309),
+        AppUiTokens.studentWarningSoft,
+        AppUiTokens.studentWarning,
         Icons.extension_rounded,
       ),
       _ when isRecording => (
         '读完后点结束录音，系统会自动帮你保存这一句。',
-        const Color(0xFFFFE4E6),
-        const Color(0xFFDC2626),
+        AppUiTokens.studentDangerSoft,
+        AppUiTokens.studentDanger,
         Icons.graphic_eq_rounded,
       ),
       _ when isSubmitting => (
         'AI 老师正在认真听你的发音哦，稍等一下就好。',
-        const Color(0xFFFFF2E4),
-        const Color(0xFFFF8F4D),
+        AppUiTokens.studentAccentOrangeSoft,
+        AppUiTokens.studentAccentOrange,
         Icons.auto_awesome_rounded,
       ),
       _ when hasSelectedAudio && !isSubmitting => (
@@ -108,26 +109,26 @@ class PracticeSubmissionDock extends StatelessWidget {
             : submissionFlowStatus == SubmissionFlowStatus.completed
             ? '这一句已经点亮了，想挑战更棒的表现可以再读一次。'
             : '录音已经准备好了，先听听自己，再交给 AI 老师。',
-        const Color(0xFFEAFBF1),
-        const Color(0xFF15803D),
+        AppUiTokens.studentSuccessSoft,
+        AppUiTokens.studentSuccess,
         Icons.check_circle_rounded,
       ),
       SubmissionFlowStatus.queued when trimmedStatusHint != null => (
         trimmedStatusHint,
-        const Color(0xFFFFF2E4),
-        const Color(0xFFEA580C),
+        AppUiTokens.studentAccentOrangeSoft,
+        AppUiTokens.studentAccentOrange,
         Icons.schedule_rounded,
       ),
       SubmissionFlowStatus.processing when trimmedStatusHint != null => (
         trimmedStatusHint,
-        const Color(0xFFFFF2E4),
-        const Color(0xFFFF8F4D),
+        AppUiTokens.studentAccentOrangeSoft,
+        AppUiTokens.studentAccentOrange,
         Icons.auto_awesome_rounded,
       ),
       SubmissionFlowStatus.completed when trimmedStatusHint != null => (
         trimmedStatusHint,
-        const Color(0xFFEAFBF1),
-        const Color(0xFF16A34A),
+        AppUiTokens.studentSuccessSoft,
+        AppUiTokens.studentSuccess,
         Icons.emoji_events_rounded,
       ),
       _ => (null, null, null, null),
@@ -224,16 +225,20 @@ class PracticeSubmissionDock extends StatelessWidget {
       return FilledButton.icon(
         onPressed: primaryAction,
         style: FilledButton.styleFrom(
-          minimumSize: Size.fromHeight(compactMode ? 50 : 52),
-          backgroundColor: const Color(0xFFFF8F4D),
+          minimumSize: Size.fromHeight(
+            compactMode
+                ? AppUiTokens.controlDockCompactButtonHeight
+                : AppUiTokens.chipHeight,
+          ),
+          backgroundColor: AppUiTokens.studentAccentOrange,
           foregroundColor: Colors.white,
         ),
         icon: isSubmitting
             ? const SizedBox(
-                width: 18,
-                height: 18,
+                width: AppUiTokens.iconSm,
+                height: AppUiTokens.iconSm,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
+                  strokeWidth: AppUiTokens.progressStrokeSm,
                   color: Colors.white,
                 ),
               )
@@ -291,7 +296,7 @@ class PracticeSubmissionDock extends StatelessWidget {
           ),
         if (!showSplitActions &&
             (isUnsupportedProtocol || requiresPracticeFirst)) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: AppUiTokens.spaceSm - 2),
           primaryButton(compactMode: compact),
         ],
       ],
@@ -329,15 +334,18 @@ class _SubmissionAudioCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppUiTokens.spaceSm + 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
+        color: AppUiTokens.studentCardSurface,
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusSm),
       ),
       child: Row(
         children: [
-          const Icon(Icons.audio_file_rounded, color: Color(0xFF2FA77D)),
-          const SizedBox(width: 10),
+          const Icon(
+            Icons.audio_file_rounded,
+            color: AppUiTokens.studentSuccess,
+          ),
+          const SizedBox(width: AppUiTokens.spaceSm - 2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,17 +353,17 @@ class _SubmissionAudioCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF64748B),
+                    color: AppUiTokens.studentMuted,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppUiTokens.space2xs / 2),
                 Text(
                   fileName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: const Color(0xFF1E293B),
+                    color: AppUiTokens.studentCardInk,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -363,7 +371,7 @@ class _SubmissionAudioCard extends StatelessWidget {
             ),
           ),
           if (onAction != null) ...[
-            const SizedBox(width: 10),
+            const SizedBox(width: AppUiTokens.spaceSm - 2),
             IconButton.filledTonal(
               onPressed: onAction,
               tooltip: isLoading ? '加载中' : (isPlaying ? '停止播放' : '播放录音'),
@@ -371,7 +379,9 @@ class _SubmissionAudioCard extends StatelessWidget {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: AppUiTokens.progressStrokeSm,
+                      ),
                     )
                   : Icon(
                       isPlaying
@@ -412,7 +422,9 @@ class _RecordedAudioActionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final playLabel = isLoading ? '加载' : (isPlaying ? '停止' : '试听');
-    final secondaryHeight = compact ? 48.0 : 52.0;
+    final secondaryHeight = compact
+        ? AppUiTokens.compactChipHeight
+        : AppUiTokens.chipHeight;
     final children = <Widget>[
       if (onPlay != null)
         _RecordedAudioPillButton(
@@ -445,22 +457,22 @@ class _RecordedAudioActionRow extends StatelessWidget {
     return Row(
       children: [
         for (var index = 0; index < children.length; index++) ...[
-          if (index > 0) const SizedBox(width: 8),
+          if (index > 0) const SizedBox(width: AppUiTokens.spaceXs),
           Flexible(child: children[index]),
         ],
-        const SizedBox(width: 10),
+        const SizedBox(width: AppUiTokens.spaceSm - 2),
         Expanded(
           flex: compact ? 2 : 3,
           child: FilledButton.icon(
             onPressed: isSubmitting ? null : onSubmit,
             style: FilledButton.styleFrom(
               minimumSize: Size.fromHeight(secondaryHeight),
-              backgroundColor: const Color(0xFFFF8F4D),
+              backgroundColor: AppUiTokens.studentAccentOrange,
               foregroundColor: Colors.white,
-              disabledBackgroundColor: const Color(0xFFFFC4A3),
+              disabledBackgroundColor: AppUiTokens.studentAccentOrangeMuted,
               disabledForegroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
               ),
             ),
             icon: isSubmitting
@@ -468,7 +480,7 @@ class _RecordedAudioActionRow extends StatelessWidget {
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                      strokeWidth: AppUiTokens.progressStrokeSm,
                       color: Colors.white,
                     ),
                   )
@@ -505,8 +517,8 @@ class _RecordedAudioPillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foregroundColor = danger
-        ? const Color(0xFFDC2626)
-        : const Color(0xFF2563EB);
+        ? AppUiTokens.studentDanger
+        : AppUiTokens.studentInfo;
     return OutlinedButton.icon(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
@@ -514,19 +526,21 @@ class _RecordedAudioPillButton extends StatelessWidget {
         foregroundColor: foregroundColor,
         backgroundColor: Colors.white,
         side: BorderSide(color: foregroundColor.withValues(alpha: 0.22)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: AppUiTokens.spaceSm),
       ),
       icon: isLoading
           ? SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
-                strokeWidth: 2,
+                strokeWidth: AppUiTokens.progressStrokeSm,
                 color: foregroundColor,
               ),
             )
-          : Icon(icon, size: 18),
+          : Icon(icon, size: AppUiTokens.iconSm),
       label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
   }
@@ -549,15 +563,18 @@ class _SubmissionHintBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppUiTokens.spaceSm + 2,
+        vertical: AppUiTokens.spaceSm,
+      ),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppUiTokens.spaceMd),
       ),
       child: Row(
         children: [
-          Icon(icon, color: foregroundColor, size: 18),
-          const SizedBox(width: 10),
+          Icon(icon, color: foregroundColor, size: AppUiTokens.iconSm),
+          const SizedBox(width: AppUiTokens.spaceSm - 2),
           Expanded(
             child: Text(
               message,

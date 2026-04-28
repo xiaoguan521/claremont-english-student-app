@@ -33,7 +33,7 @@ class PracticeControlDock extends StatelessWidget {
     );
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
+      duration: AppUiTokens.motionMedium,
       curve: Curves.easeOutCubic,
       width: double.infinity,
       padding: EdgeInsets.all(
@@ -45,17 +45,17 @@ class PracticeControlDock extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             Colors.white.withValues(alpha: 0.94),
-            const Color(0xFFFFF7E8).withValues(alpha: 0.9),
+            AppUiTokens.studentPanelWarm.withValues(alpha: 0.9),
           ],
         ),
         borderRadius: dockRadius,
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.82),
-          width: 1.4,
+          width: AppUiTokens.borderWidthMd,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF123A63).withValues(alpha: 0.1),
+            color: AppUiTokens.studentDockShadow,
             blurRadius: compact ? 18 : 26,
             offset: Offset(0, compact ? 8 : 14),
           ),
@@ -100,18 +100,18 @@ class PracticeControlDock extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: const Color(0xFF16213A),
+                        color: AppUiTokens.studentInk,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     if (!compact && subtitle != null) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: AppUiTokens.space2xs / 2),
                       Text(
                         subtitle!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF64748B),
+                          color: AppUiTokens.studentMuted,
                           fontWeight: FontWeight.w700,
                         ),
                       ),

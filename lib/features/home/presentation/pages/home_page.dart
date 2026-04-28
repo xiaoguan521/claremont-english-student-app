@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/ui/app_breakpoints.dart';
+import '../../../../core/ui/app_ui_tokens.dart';
 import '../../../../core/widgets/adaptive_dialog_scaffold.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../portal/data/portal_models.dart';
@@ -533,6 +534,7 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
                         hint: '补星、拼读、阅读和星币兑换都在这里',
                         child: _WideLearningShowcaseArea(
                           summary: widget.summary,
+                          featureFlags: widget.featureFlags,
                           compact: useCompactWideDensity,
                         ),
                       ),
@@ -567,6 +569,7 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
                         hint: '补星、拼读、阅读和星币兑换都在这里',
                         child: _WideLearningShowcaseArea(
                           summary: widget.summary,
+                          featureFlags: widget.featureFlags,
                           compact: useCompactWideDensity,
                         ),
                       ),
@@ -1651,17 +1654,109 @@ class _WideSideStage extends StatelessWidget {
   Widget build(BuildContext context) => child;
 }
 
+class _FeatureDisabledPanel extends StatelessWidget {
+  const _FeatureDisabledPanel({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.actionLabel,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String actionLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      padding: const EdgeInsets.all(AppUiTokens.spaceLg),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusXl),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: AppUiTokens.chipHeight + AppUiTokens.spaceLg,
+            height: AppUiTokens.chipHeight + AppUiTokens.spaceLg,
+            decoration: const BoxDecoration(
+              color: AppUiTokens.studentInfoSoft,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: AppUiTokens.studentAccentBlue,
+              size: AppUiTokens.space3xl,
+            ),
+          ),
+          const SizedBox(height: AppUiTokens.spaceMd),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppUiTokens.studentInk,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: AppUiTokens.spaceXs),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppUiTokens.studentMuted,
+              fontWeight: FontWeight.w700,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: AppUiTokens.spaceLg),
+          FilledButton.icon(
+            onPressed: onTap,
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: Text(actionLabel),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppUiTokens.chipHeight),
+              backgroundColor: AppUiTokens.studentAccentOrange,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _WideLearningShowcaseArea extends StatelessWidget {
   const _WideLearningShowcaseArea({
     required this.summary,
+    required this.featureFlags,
     this.compact = false,
   });
 
   final PortalSummary summary;
+  final StudentFeatureFlags featureFlags;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    if (!featureFlags.learningMapV2) {
+      return _FeatureDisabledPanel(
+        icon: Icons.map_outlined,
+        title: '学习地图暂时收起',
+        message: '为了稳定演示，探索路线已回滚。先完成今日主线，学习记录会正常保存。',
+        actionLabel: '回到今日主线',
+        onTap: () => context.go('/home'),
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final spacing = compact ? 12.0 : 18.0;
@@ -2170,6 +2265,16 @@ class _SummaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!featureFlags.abilityGym) {
+      return _FeatureDisabledPanel(
+        icon: Icons.dashboard_customize_outlined,
+        title: '听说写玩暂时收起',
+        message: '当前只保留今日主线，避免孩子分心。作业、录音和点评仍然正常使用。',
+        actionLabel: '继续今日主线',
+        onTap: () => context.go('/activities/$activityId'),
+      );
+    }
+
     final dailyStars = _dailyStarCoins(summary, dailyGrowth, parentSummary);
     final comboCount = dailyGrowth.bestCombo;
     final completedTasks = dailyGrowth.completedTasks;

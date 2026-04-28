@@ -33,6 +33,61 @@ class StudentReleaseLabPage extends ConsumerWidget {
             child: Column(
               children: [
                 _FlagTile(
+                  title: '新首页仪表盘',
+                  subtitle: '控制今日主线、听说写玩、学习地图这一套新首页体验。',
+                  value: flags.newHomeDashboard,
+                  onChanged: (value) => _updateFlags(
+                    ref,
+                    flags.copyWith(newHomeDashboard: value),
+                  ),
+                ),
+                _FlagTile(
+                  title: '今日主线 Hero 转场',
+                  subtitle: '控制首页大卡进入作业舞台的沉浸式过渡能力。',
+                  value: flags.mainlineHeroTransition,
+                  onChanged: (value) => _updateFlags(
+                    ref,
+                    flags.copyWith(mainlineHeroTransition: value),
+                  ),
+                ),
+                _FlagTile(
+                  title: '听说写玩能力健身房',
+                  subtitle: '控制首页右侧听、说、写、玩四类兴趣探索入口。',
+                  value: flags.abilityGym,
+                  onChanged: (value) =>
+                      _updateFlags(ref, flags.copyWith(abilityGym: value)),
+                ),
+                _FlagTile(
+                  title: '学习地图 V2',
+                  subtitle: '控制补星计划、自然拼读、国家地理 PM、魔法商店入口。',
+                  value: flags.learningMapV2,
+                  onChanged: (value) =>
+                      _updateFlags(ref, flags.copyWith(learningMapV2: value)),
+                ),
+                _FlagTile(
+                  title: '作业沉浸舞台 V2',
+                  subtitle: '控制听力、顺序跟读、热区点读、分页录音四种舞台组件。',
+                  value: flags.practiceStageV2,
+                  onChanged: (value) =>
+                      _updateFlags(ref, flags.copyWith(practiceStageV2: value)),
+                ),
+                _FlagTile(
+                  title: '点评中心 V2',
+                  subtitle: '控制点评列表卡片化、回放控制舱和 AI 诊断报告。',
+                  value: flags.reviewCenterV2,
+                  onChanged: (value) =>
+                      _updateFlags(ref, flags.copyWith(reviewCenterV2: value)),
+                ),
+                _FlagTile(
+                  title: '家长信任空间',
+                  subtitle: '控制联系家长页、学习证明和健康可信感内容。',
+                  value: flags.parentTrustSpace,
+                  onChanged: (value) => _updateFlags(
+                    ref,
+                    flags.copyWith(parentTrustSpace: value),
+                  ),
+                ),
+                _FlagTile(
                   title: '成长奖励展示',
                   subtitle: '控制首页和作业完成态里的星币、连对等强化包装。',
                   value: flags.showGrowthRewards,

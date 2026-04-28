@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../ui/app_ui_tokens.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
@@ -14,6 +15,7 @@ import '../../features/portal/presentation/pages/review_center_page.dart';
 import '../../features/portal/presentation/pages/review_detail_page.dart';
 import '../../features/portal/presentation/pages/student_release_lab_page.dart';
 import '../../features/portal/presentation/pages/task_detail_page.dart';
+import '../../features/portal/presentation/providers/student_feature_flags_provider.dart';
 import '../../features/school/presentation/pages/school_entry_page.dart';
 import '../../features/school/presentation/pages/school_selection_page.dart';
 import '../../features/school/presentation/providers/school_context_provider.dart';
@@ -60,6 +62,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final studentIdentitySelectionRequired = ref
       .watch(studentIdentitySelectionRequiredProvider)
       .maybeWhen(data: (value) => value, orElse: () => false);
+  final studentFeatureFlags = ref.watch(studentFeatureFlagsProvider);
 
   // Initialize onboarding state from preferences
   ref.watch(_onboardingInitProvider);
@@ -192,10 +195,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           return CustomTransitionPage<void>(
             key: state.pageKey,
             child: TaskDetailPage(activityId: activityId),
-            transitionDuration: const Duration(milliseconds: 420),
-            reverseTransitionDuration: const Duration(milliseconds: 260),
+            transitionDuration: studentFeatureFlags.mainlineHeroTransition
+                ? AppUiTokens.motionRouteHero
+                : AppUiTokens.motionFast,
+            reverseTransitionDuration:
+                studentFeatureFlags.mainlineHeroTransition
+                ? AppUiTokens.motionRouteReverse
+                : AppUiTokens.motionFast,
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
+                  if (!studentFeatureFlags.mainlineHeroTransition) {
+                    return child;
+                  }
                   final curved = CurvedAnimation(
                     parent: animation,
                     curve: Curves.easeInOutCubic,

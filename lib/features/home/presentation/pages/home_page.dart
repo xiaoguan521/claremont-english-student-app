@@ -257,151 +257,6 @@ void _showSchoolInfoDialog(BuildContext context, SchoolContext schoolContext) {
   );
 }
 
-void _showTaskCenterDialog(
-  BuildContext context, {
-  required String activityTitle,
-  required String className,
-}) {
-  final rows = [
-    StudentTaskCenterItem(
-      title: activityTitle,
-      target: '$className 周日2:30',
-      range: '04月19日-04月23日',
-      status: '可补做',
-      actionLabel: '补做',
-    ),
-    StudentTaskCenterItem(
-      title: '【Kid\'s Box 1 第二版 精装版】3天打卡活动',
-      target: '$className 周日2:30',
-      range: '04月12日-04月14日',
-      status: '已点评',
-      actionLabel: '查看',
-    ),
-    StudentTaskCenterItem(
-      title: '【Kid\'s Box 1 第二版 精装版】3天打卡活动',
-      target: '$className 周日2:30',
-      range: '04月05日-04月07日',
-      status: '已完成',
-      actionLabel: '回看',
-    ),
-    StudentTaskCenterItem(
-      title: '【Kid\'s Box 1 第二版 精装版】3天打卡活动',
-      target: '$className 周日2:30',
-      range: '03月29日-03月31日',
-      status: '已结束',
-      actionLabel: '查看',
-    ),
-  ];
-
-  _showDashboardContentDialog(
-    context,
-    title: '打卡活动    课堂任务',
-    trailing: const [
-      _DashboardHeaderChip(icon: Icons.filter_alt_outlined, label: '筛选'),
-    ],
-    child: StudentTaskCenterFeed(items: rows),
-  );
-}
-
-void _showDashboardContentDialog(
-  BuildContext context, {
-  required String title,
-  List<Widget> trailing = const [],
-  required Widget child,
-}) {
-  showDialog<void>(
-    context: context,
-    builder: (dialogContext) => AdaptiveDialogScaffold(
-      title: title,
-      trailing: trailing,
-      bodyBuilder: (context, _, __) => child,
-    ),
-  );
-}
-
-void _showProfileCenterDialog(
-  BuildContext context, {
-  required String? currentUserEmail,
-  required String studentDisplayName,
-  required String highlightedActivityTitle,
-  required String highlightedClassName,
-  required PortalSummary summary,
-  required DailyGrowthSummary dailyGrowth,
-  required ParentContactSummary? parentSummary,
-  required StudentFeatureFlags featureFlags,
-}) {
-  final stars = _dailyStarCoins(summary, dailyGrowth, parentSummary);
-  final coinLabel = featureFlags.showGrowthRewards ? '星币' : '积分';
-
-  showDialog<void>(
-    context: context,
-    builder: (dialogContext) => AdaptiveDialogScaffold(
-      title: '个人中心',
-      maxDialogWidth: 760,
-      maxDialogHeight: 520,
-      bodyBuilder: (dialogContext, screenType, dialogSize) {
-        final useStacked =
-            screenType == AppScreenType.mobile || dialogSize.width < 620;
-        final actions = [
-          StudentProfileAction(
-            icon: Icons.stars_rounded,
-            label: coinLabel,
-            value: '$stars',
-            accent: const Color(0xFFFFC83D),
-            onTap: () {
-              Navigator.of(dialogContext).pop();
-              _showStarCoinLedgerDialog(
-                context,
-                stars: stars,
-                showGrowthRewards: featureFlags.showGrowthRewards,
-              );
-            },
-          ),
-          StudentProfileAction(
-            icon: Icons.message_rounded,
-            label: '消息',
-            value: '${summary.pendingTasks} 条提醒',
-            accent: const Color(0xFF55BDF6),
-            onTap: () {
-              Navigator.of(dialogContext).pop();
-              context.go('/messages');
-            },
-          ),
-          StudentProfileAction(
-            icon: Icons.settings_rounded,
-            label: '设置',
-            value: '护眼与账号',
-            accent: const Color(0xFF70D85B),
-            onTap: () {
-              Navigator.of(dialogContext).pop();
-              _showSettingsDialog(context, currentUserEmail);
-            },
-          ),
-          StudentProfileAction(
-            icon: Icons.info_rounded,
-            label: '关于',
-            value: '版本与隐私',
-            accent: const Color(0xFF9D7CFF),
-            onTap: () {
-              Navigator.of(dialogContext).pop();
-              _showAboutStudentDialog(context);
-            },
-          ),
-        ];
-
-        return StudentProfileDialogContent(
-          displayName: studentDisplayName,
-          emailLabel: currentUserEmail ?? 'student@claremont.local',
-          progressLabel:
-              '今天完成 ${dailyGrowth.completedTasks} 项 · 最高连对 ${dailyGrowth.bestCombo}',
-          actions: actions,
-          useStacked: useStacked,
-        );
-      },
-    ),
-  );
-}
-
 void _showAboutStudentDialog(BuildContext context) {
   showDialog<void>(
     context: context,
@@ -478,378 +333,6 @@ void _showAboutStudentDialog(BuildContext context) {
       ),
     ),
   );
-}
-
-void _showSettingsDialog(BuildContext context, String? currentUserEmail) {
-  final sections = [
-    _SettingsDialogSectionData(
-      title: '账号与学校',
-      accent: const Color(0xFF4AA7FF),
-      icon: Icons.school_rounded,
-      items: [
-        _SettingsDialogItemData(
-          title: '当前账号',
-          value: currentUserEmail ?? 'student@claremont.local',
-          icon: Icons.person_rounded,
-        ),
-        const _SettingsDialogItemData(
-          title: '学校学习入口',
-          value: '已绑定',
-          icon: Icons.auto_stories_rounded,
-        ),
-      ],
-    ),
-    const _SettingsDialogSectionData(
-      title: '学习保护',
-      accent: Color(0xFF6BD85F),
-      icon: Icons.health_and_safety_rounded,
-      items: [
-        _SettingsDialogItemData(
-          title: '柔和护眼模式',
-          value: '已开启',
-          icon: Icons.visibility_rounded,
-        ),
-        _SettingsDialogItemData(
-          title: '专注休息提醒',
-          value: '20 分钟',
-          icon: Icons.timer_rounded,
-        ),
-      ],
-    ),
-    const _SettingsDialogSectionData(
-      title: '隐私与支持',
-      accent: Color(0xFFFFB84D),
-      icon: Icons.verified_user_rounded,
-      items: [
-        _SettingsDialogItemData(
-          title: '儿童隐私政策',
-          value: '查看',
-          icon: Icons.child_care_rounded,
-        ),
-        _SettingsDialogItemData(
-          title: '上传日志',
-          value: '帮助排查',
-          icon: Icons.cloud_upload_rounded,
-        ),
-      ],
-    ),
-  ];
-
-  showDialog<void>(
-    context: context,
-    builder: (context) => AdaptiveDialogScaffold(
-      title: '系统设置',
-      maxDialogWidth: 980,
-      maxDialogHeight: 660,
-      bodyBuilder: (context, screenType, dialogSize) {
-        final useGrid =
-            screenType != AppScreenType.mobile &&
-            dialogSize.width >= 760 &&
-            dialogSize.height >= 520;
-        final cards = sections
-            .map((section) => _SettingsDialogSection(section: section))
-            .toList();
-
-        return Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFE9F8FF), Color(0xFFFFF6CE)],
-                ),
-                borderRadius: BorderRadius.circular(28),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.82),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Icon(
-                      Icons.settings_rounded,
-                      color: Color(0xFF2E7BEF),
-                      size: 30,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '把学习环境调舒服一点',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: const Color(0xFF15325F),
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '账号、护眼、隐私和日志支持都在这里。',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: const Color(0xFF5A718A),
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: useGrid
-                  ? GridView.count(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 14,
-                      childAspectRatio: 1.7,
-                      children: cards,
-                    )
-                  : ListView.separated(
-                      itemCount: cards.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 14),
-                      itemBuilder: (context, index) => cards[index],
-                    ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      context.go('/student-release-lab');
-                    },
-                    icon: const Icon(Icons.science_rounded),
-                    label: const Text('发布诊断'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      context.go('/settings');
-                    },
-                    icon: const Icon(Icons.open_in_full_rounded),
-                    label: const Text('完整设置'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    ),
-  );
-}
-
-class _SettingsDialogSectionData {
-  const _SettingsDialogSectionData({
-    required this.title,
-    required this.accent,
-    required this.icon,
-    required this.items,
-  });
-
-  final String title;
-  final Color accent;
-  final IconData icon;
-  final List<_SettingsDialogItemData> items;
-}
-
-class _SettingsDialogItemData {
-  const _SettingsDialogItemData({
-    required this.title,
-    required this.value,
-    required this.icon,
-  });
-
-  final String title;
-  final String value;
-  final IconData icon;
-}
-
-class _SettingsDialogSection extends StatelessWidget {
-  const _SettingsDialogSection({required this.section});
-
-  final _SettingsDialogSectionData section;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: section.accent.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(section.icon, color: section.accent),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  section.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: const Color(0xFF15325F),
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...section.items.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _SettingsDialogItem(item: item),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-void _showStarCoinLedgerDialog(
-  BuildContext context, {
-  required int stars,
-  required bool showGrowthRewards,
-}) {
-  final coinLabel = showGrowthRewards ? '星币' : '积分';
-  final rows = [
-    const StudentStarCoinLedgerRow(
-      icon: Icons.play_circle_fill_rounded,
-      title: '完成今日主线',
-      subtitle: '优先完成老师布置的作业',
-      amount: '+50',
-      color: Color(0xFFFFB84D),
-    ),
-    const StudentStarCoinLedgerRow(
-      icon: Icons.headphones_rounded,
-      title: '听说写玩探索',
-      subtitle: '前 10 分钟有奖励，之后不刷币',
-      amount: '+10',
-      color: Color(0xFF5DB9FF),
-    ),
-    StudentStarCoinLedgerRow(
-      icon: Icons.card_giftcard_rounded,
-      title: '魔法商店',
-      subtitle: showGrowthRewards ? '兑换头像框和伴学宠物装扮' : '成长奖励开启后开放兑换',
-      amount: '消费',
-      color: const Color(0xFF8EEA78),
-    ),
-  ];
-
-  _showDashboardContentDialog(
-    context,
-    title: '$coinLabel账单',
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF4CC),
-            borderRadius: BorderRadius.circular(26),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.stars_rounded, color: Color(0xFFFF9F1C)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '当前拥有 $stars $coinLabel',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: const Color(0xFF17335F),
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        ...rows.map(
-          (row) =>
-              Padding(padding: const EdgeInsets.only(bottom: 10), child: row),
-        ),
-      ],
-    ),
-  );
-}
-
-class _SettingsDialogItem extends StatelessWidget {
-  const _SettingsDialogItem({required this.item});
-
-  final _SettingsDialogItemData item;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5FBFF),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Icon(item.icon, color: const Color(0xFF2C5E9E), size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              item.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF1E293B),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              item.value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF3377D6),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _WideHomeLayout extends StatefulWidget {
@@ -1031,11 +514,7 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
                       delay: const Duration(milliseconds: 80),
                       child: _WideSideStage(
                         child: _StudentUtilityDock(
-                          currentUserEmail: widget.currentUserEmail,
                           studentDisplayName: widget.studentDisplayName,
-                          highlightedActivityTitle:
-                              widget.highlightedActivityTitle,
-                          highlightedClassName: widget.highlightedClassName,
                           summary: widget.summary,
                           dailyGrowth: widget.dailyGrowth,
                           parentSummary: widget.parentSummary,
@@ -1054,9 +533,6 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
                         hint: '补星、拼读、阅读和星币兑换都在这里',
                         child: _WideLearningShowcaseArea(
                           summary: widget.summary,
-                          highlightedActivityTitle:
-                              widget.highlightedActivityTitle,
-                          highlightedClassName: widget.highlightedClassName,
                           compact: useCompactWideDensity,
                         ),
                       ),
@@ -1072,11 +548,7 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
                       delay: const Duration(milliseconds: 80),
                       child: _WideSideStage(
                         child: _StudentUtilityDock(
-                          currentUserEmail: widget.currentUserEmail,
                           studentDisplayName: widget.studentDisplayName,
-                          highlightedActivityTitle:
-                              widget.highlightedActivityTitle,
-                          highlightedClassName: widget.highlightedClassName,
                           summary: widget.summary,
                           dailyGrowth: widget.dailyGrowth,
                           parentSummary: widget.parentSummary,
@@ -1095,9 +567,6 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
                         hint: '补星、拼读、阅读和星币兑换都在这里',
                         child: _WideLearningShowcaseArea(
                           summary: widget.summary,
-                          highlightedActivityTitle:
-                              widget.highlightedActivityTitle,
-                          highlightedClassName: widget.highlightedClassName,
                           compact: useCompactWideDensity,
                         ),
                       ),
@@ -1139,40 +608,6 @@ class _WideHomeLayoutState extends State<_WideHomeLayout> {
                   )
                 : null,
             pageCount: pages.length,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DashboardHeaderChip extends StatelessWidget {
-  const _DashboardHeaderChip({this.icon, required this.label});
-
-  final IconData? icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, color: const Color(0xFFFFC52D), size: 28),
-            const SizedBox(width: 10),
-          ],
-          Text(
-            label,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: const Color(0xFF17335F),
-              fontWeight: FontWeight.w900,
-            ),
           ),
         ],
       ),
@@ -2141,20 +1576,14 @@ class _WidePageIndicator extends StatelessWidget {
 
 class _StudentUtilityDock extends StatelessWidget {
   const _StudentUtilityDock({
-    required this.currentUserEmail,
     required this.studentDisplayName,
-    required this.highlightedActivityTitle,
-    required this.highlightedClassName,
     required this.summary,
     required this.dailyGrowth,
     required this.parentSummary,
     required this.featureFlags,
   });
 
-  final String? currentUserEmail;
   final String studentDisplayName;
-  final String highlightedActivityTitle;
-  final String highlightedClassName;
   final PortalSummary summary;
   final DailyGrowthSummary dailyGrowth;
   final ParentContactSummary? parentSummary;
@@ -2168,17 +1597,7 @@ class _StudentUtilityDock extends StatelessWidget {
         icon: Icons.stars_rounded,
         label: featureFlags.showGrowthRewards ? '$stars 星币' : '$stars 积分',
         color: const Color(0xFFFFD447),
-        onTap: () => _showProfileCenterDialog(
-          context,
-          currentUserEmail: currentUserEmail,
-          studentDisplayName: studentDisplayName,
-          highlightedActivityTitle: highlightedActivityTitle,
-          highlightedClassName: highlightedClassName,
-          summary: summary,
-          dailyGrowth: dailyGrowth,
-          parentSummary: parentSummary,
-          featureFlags: featureFlags,
-        ),
+        onTap: () => context.go('/profile'),
       ),
       StudentUtilityDockAction(
         icon: Icons.message_rounded,
@@ -2190,7 +1609,7 @@ class _StudentUtilityDock extends StatelessWidget {
         icon: Icons.settings_rounded,
         label: '设置',
         color: const Color(0xFF8EEA78),
-        onTap: () => _showSettingsDialog(context, currentUserEmail),
+        onTap: () => context.go('/settings'),
       ),
       StudentUtilityDockAction(
         icon: Icons.info_rounded,
@@ -2235,14 +1654,10 @@ class _WideSideStage extends StatelessWidget {
 class _WideLearningShowcaseArea extends StatelessWidget {
   const _WideLearningShowcaseArea({
     required this.summary,
-    required this.highlightedActivityTitle,
-    required this.highlightedClassName,
     this.compact = false,
   });
 
   final PortalSummary summary;
-  final String highlightedActivityTitle;
-  final String highlightedClassName;
   final bool compact;
 
   @override
@@ -2262,11 +1677,7 @@ class _WideLearningShowcaseArea extends StatelessWidget {
               compact: compact,
             ),
             compact: compact,
-            onTap: () => _showTaskCenterDialog(
-              context,
-              activityTitle: highlightedActivityTitle,
-              className: highlightedClassName,
-            ),
+            onTap: () => context.go('/activities'),
           ),
           StudentLearningMapCard(
             title: '自然拼读',
@@ -2279,7 +1690,7 @@ class _WideLearningShowcaseArea extends StatelessWidget {
               compact: compact,
             ),
             compact: compact,
-            onTap: () => context.go('/explore'),
+            onTap: () => context.go('/explore/phonics'),
           ),
           StudentLearningMapCard(
             title: '国家地理PM',
@@ -2292,7 +1703,7 @@ class _WideLearningShowcaseArea extends StatelessWidget {
               compact: compact,
             ),
             compact: compact,
-            onTap: () => context.go('/explore'),
+            onTap: () => context.go('/explore/national-geographic'),
           ),
           StudentLearningMapCard(
             title: '魔法商店',
@@ -2305,7 +1716,7 @@ class _WideLearningShowcaseArea extends StatelessWidget {
               compact: compact,
             ),
             compact: compact,
-            onTap: () => context.go('/explore'),
+            onTap: () => context.go('/explore/magic-shop'),
           ),
         ];
 
@@ -2780,7 +2191,7 @@ class _SummaryGrid extends StatelessWidget {
             color: const Color(0xFF5DB9FF),
             icon: Icons.headphones_rounded,
             isCompact: isCompact,
-            onTap: () => context.go('/explore?tab=ability'),
+            onTap: () => context.go('/explore/listen'),
           ),
           StudentAbilityActionCard(
             title: '说',
@@ -2791,7 +2202,7 @@ class _SummaryGrid extends StatelessWidget {
             color: const Color(0xFFFFC941),
             icon: Icons.record_voice_over_rounded,
             isCompact: isCompact,
-            onTap: () => context.go('/explore?tab=ability'),
+            onTap: () => context.go('/explore/speak'),
           ),
           StudentAbilityActionCard(
             title: '写',
@@ -2800,7 +2211,7 @@ class _SummaryGrid extends StatelessWidget {
             color: const Color(0xFF78E55A),
             icon: Icons.edit_note_rounded,
             isCompact: isCompact,
-            onTap: () => context.go('/explore?tab=ability'),
+            onTap: () => context.go('/explore/write'),
           ),
           StudentAbilityActionCard(
             title: '玩',
@@ -2815,7 +2226,7 @@ class _SummaryGrid extends StatelessWidget {
             color: const Color(0xFF55D9C5),
             icon: Icons.extension_rounded,
             isCompact: isCompact,
-            onTap: () => context.go('/explore?tab=ability'),
+            onTap: () => context.go('/explore/play'),
           ),
         ];
 

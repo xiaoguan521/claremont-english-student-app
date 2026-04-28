@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/providers/theme_provider.dart';
+import '../../../../core/ui/app_ui_tokens.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../portal/presentation/widgets/tablet_shell.dart';
 import '../../../school/presentation/providers/school_context_provider.dart';
@@ -32,7 +33,9 @@ class SettingsPage extends ConsumerWidget {
       theme: TabletShellTheme.k12Sky,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isNarrow = constraints.maxWidth < 920;
+          final isNarrow =
+              constraints.maxWidth <
+              AppUiTokens.studentSettingsCompactBreakpoint;
           final leftColumn = Column(
             children: [
               _SettingsHeroCard(
@@ -40,12 +43,12 @@ class SettingsPage extends ConsumerWidget {
                 schoolName: schoolContext.displayName,
                 isAuthenticated: authState.isAuthenticated,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppUiTokens.spaceMd),
               _SettingsSectionCard(
                 title: '账号与学校',
                 subtitle: '管理学习身份和学校入口',
                 icon: Icons.school_rounded,
-                accent: const Color(0xFF4AA7FF),
+                accent: AppUiTokens.studentAccentBlue,
                 children: [
                   _SettingsActionTile(
                     title: '当前账号',
@@ -74,7 +77,7 @@ class SettingsPage extends ConsumerWidget {
                 title: '学习保护',
                 subtitle: '把学习节奏调得更适合孩子',
                 icon: Icons.health_and_safety_rounded,
-                accent: const Color(0xFF6BD85F),
+                accent: AppUiTokens.studentAccentGreen,
                 children: [
                   _SettingsSwitchTile(
                     title: '柔和护眼模式',
@@ -96,12 +99,12 @@ class SettingsPage extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppUiTokens.spaceMd),
               const _SettingsSectionCard(
                 title: '隐私与支持',
                 subtitle: '儿童数据、版本和问题反馈',
                 icon: Icons.verified_user_rounded,
-                accent: Color(0xFFFFB84D),
+                accent: AppUiTokens.studentAccentYellow,
                 children: [
                   _SettingsActionTile(
                     title: '儿童隐私政策',
@@ -125,14 +128,14 @@ class SettingsPage extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppUiTokens.spaceMd),
               _SettingsSectionCard(
                 title: '发布诊断',
                 subtitle: appConfig.canUseSupabase
                     ? '当前使用真实学习数据'
                     : '当前处于演示数据模式',
                 icon: Icons.science_rounded,
-                accent: const Color(0xFF8B5CF6),
+                accent: AppUiTokens.studentAccentPurple,
                 children: [
                   _SettingsActionTile(
                     title: '数据模式',
@@ -149,7 +152,7 @@ class SettingsPage extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppUiTokens.spaceMd),
               _LogoutButton(
                 isAuthenticated: authState.isAuthenticated,
                 onPressed: authState.isAuthenticated
@@ -169,17 +172,27 @@ class SettingsPage extends ConsumerWidget {
 
           if (isNarrow) {
             return ListView(
-              padding: const EdgeInsets.only(bottom: 24),
-              children: [leftColumn, const SizedBox(height: 16), rightColumn],
+              padding: const EdgeInsets.only(bottom: AppUiTokens.spaceXl),
+              children: [
+                leftColumn,
+                const SizedBox(height: AppUiTokens.spaceMd),
+                rightColumn,
+              ],
             );
           }
 
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 42, child: leftColumn),
-              const SizedBox(width: 18),
-              Expanded(flex: 58, child: ListView(children: [rightColumn])),
+              Expanded(
+                flex: AppUiTokens.studentPrimaryPaneFlex,
+                child: leftColumn,
+              ),
+              const SizedBox(width: AppUiTokens.spaceLg - 2),
+              Expanded(
+                flex: AppUiTokens.studentSecondaryPaneFlex,
+                child: ListView(children: [rightColumn]),
+              ),
             ],
           );
         },
@@ -207,15 +220,15 @@ class _SettingsHeroCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFFFFFF), Color(0xFFEAF8FF)],
+          colors: [Colors.white, AppUiTokens.studentPanelBlue],
         ),
-        borderRadius: BorderRadius.circular(34),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusXl),
         border: Border.all(color: Colors.white.withValues(alpha: 0.82)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x1F2C84D2),
-            blurRadius: 24,
-            offset: Offset(0, 14),
+            color: AppUiTokens.studentHeroShadow,
+            blurRadius: AppUiTokens.spaceXl,
+            offset: Offset(0, AppUiTokens.spaceMd - 2),
           ),
         ],
       ),
@@ -229,9 +242,12 @@ class _SettingsHeroCard extends StatelessWidget {
                 height: 76,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF8EDBFF), Color(0xFF75E28A)],
+                    colors: [
+                      AppUiTokens.studentAvatarBlue,
+                      AppUiTokens.studentAccentGreen,
+                    ],
                   ),
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(AppUiTokens.space2xl),
                 ),
                 child: const Icon(
                   Icons.person_rounded,
@@ -239,7 +255,7 @@ class _SettingsHeroCard extends StatelessWidget {
                   size: 44,
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: AppUiTokens.spaceMd),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,17 +266,17 @@ class _SettingsHeroCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(
-                            color: const Color(0xFF15325F),
+                            color: AppUiTokens.studentInk,
                             fontWeight: FontWeight.w900,
                           ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: AppUiTokens.spaceXs - 2),
                     Text(
                       email,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: const Color(0xFF5A718A),
+                        color: AppUiTokens.studentMuted,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -269,7 +285,7 @@ class _SettingsHeroCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: AppUiTokens.radiusMd),
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -277,7 +293,7 @@ class _SettingsHeroCard extends StatelessWidget {
               _StatusPill(
                 icon: Icons.school_rounded,
                 label: schoolName,
-                color: const Color(0xFF4AA7FF),
+                color: AppUiTokens.studentAccentBlue,
               ),
               _StatusPill(
                 icon: isAuthenticated
@@ -285,8 +301,8 @@ class _SettingsHeroCard extends StatelessWidget {
                     : Icons.login_rounded,
                 label: isAuthenticated ? '已登录' : '未登录',
                 color: isAuthenticated
-                    ? const Color(0xFF34C759)
-                    : const Color(0xFFFFB84D),
+                    ? AppUiTokens.studentSuccess
+                    : AppUiTokens.studentAccentYellow,
               ),
             ],
           ),
@@ -317,7 +333,7 @@ class _SettingsSectionCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusLg + 2),
         border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
       ),
       child: Column(
@@ -330,11 +346,11 @@ class _SettingsSectionCard extends StatelessWidget {
                 height: 50,
                 decoration: BoxDecoration(
                   color: accent.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(AppUiTokens.radiusSm),
                 ),
                 child: Icon(icon, color: accent),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppUiTokens.spaceSm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,17 +358,17 @@ class _SettingsSectionCard extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: const Color(0xFF15325F),
+                        color: AppUiTokens.studentInk,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: AppUiTokens.space2xs - 1),
                     Text(
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF64748B),
+                        color: AppUiTokens.studentMuted,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -361,11 +377,11 @@ class _SettingsSectionCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppUiTokens.spaceMd),
           ...children.expand((child) sync* {
             yield child;
             if (child != children.last) {
-              yield const SizedBox(height: 10);
+              yield const SizedBox(height: AppUiTokens.spaceSm - 2);
             }
           }),
         ],
@@ -393,20 +409,20 @@ class _SettingsActionTile extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF2C5E9E)),
-          const SizedBox(width: 12),
+          Icon(icon, color: AppUiTokens.studentAccentBlue),
+          const SizedBox(width: AppUiTokens.spaceSm),
           Expanded(
             child: Text(
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF17233F),
+                color: AppUiTokens.studentInk,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppUiTokens.spaceSm - 2),
           Flexible(
             child: Text(
               value,
@@ -414,14 +430,17 @@ class _SettingsActionTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF3377D6),
+                color: AppUiTokens.studentAccentBlue,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ),
           if (onTap != null) ...[
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFF3377D6)),
+            const SizedBox(width: AppUiTokens.spaceXs - 2),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppUiTokens.studentAccentBlue,
+            ),
           ],
         ],
       ),
@@ -447,8 +466,11 @@ class _SettingsSwitchTile extends StatelessWidget {
     return _SettingsTileSurface(
       child: Row(
         children: [
-          const Icon(Icons.visibility_rounded, color: Color(0xFF2C5E9E)),
-          const SizedBox(width: 12),
+          const Icon(
+            Icons.visibility_rounded,
+            color: AppUiTokens.studentAccentBlue,
+          ),
+          const SizedBox(width: AppUiTokens.spaceSm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,17 +478,17 @@ class _SettingsSwitchTile extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: const Color(0xFF17233F),
+                    color: AppUiTokens.studentInk,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppUiTokens.space2xs - 2),
                 Text(
                   subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF64748B),
+                    color: AppUiTokens.studentMuted,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -491,9 +513,9 @@ class _SettingsTileSurface extends StatelessWidget {
     final surface = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5FBFF),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE0F2FE)),
+        color: AppUiTokens.studentTileSoft,
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusMd),
+        border: Border.all(color: AppUiTokens.studentTileBorder),
       ),
       child: child,
     );
@@ -506,7 +528,7 @@ class _SettingsTileSurface extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusMd),
         child: surface,
       ),
     );
@@ -530,17 +552,17 @@ class _StatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppUiTokens.radiusPill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: color, size: 18),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppUiTokens.spaceXs - 2),
           Text(
             label,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF15325F),
+              color: AppUiTokens.studentInk,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -563,12 +585,12 @@ class _LogoutButton extends StatelessWidget {
       child: FilledButton.icon(
         style: FilledButton.styleFrom(
           backgroundColor: isAuthenticated
-              ? const Color(0xFFFF8F4D)
-              : const Color(0xFF4AA7FF),
+              ? AppUiTokens.studentAccentOrange
+              : AppUiTokens.studentAccentBlue,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: AppUiTokens.spaceMd),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(AppUiTokens.spaceXl),
           ),
         ),
         onPressed: onPressed,

@@ -520,7 +520,7 @@ class _ParentSpaceUnlockCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '这里会展示孩子的学习表现和健康提醒，需要家长查看。',
+              '家长空间包含今日开口表现、AI 评审摘要和护眼提醒，仅家长可查看。',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: const Color(0xFF64748B),

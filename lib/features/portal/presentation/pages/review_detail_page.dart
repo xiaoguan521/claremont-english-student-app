@@ -116,7 +116,7 @@ class _ReviewDetailPageState extends State<ReviewDetailPage> {
         if (context.canPop()) {
           context.pop();
         } else {
-          context.go('/home');
+          context.go('/reviews');
         }
       },
     );

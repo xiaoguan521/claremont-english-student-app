@@ -3,6 +3,7 @@ import 'dart:io';
 const _pageRoots = [
   'lib/features/home/presentation/pages',
   'lib/features/portal/presentation/pages',
+  'lib/features/settings/presentation/pages',
   'lib/features/student/presentation/pages',
 ];
 
@@ -29,6 +30,9 @@ final _hardcodedColorPattern = RegExp(r'Color\(0x[0-9A-Fa-f]{8}\)');
 final _magicSizedBoxPattern = RegExp(
   r'SizedBox\((?:width|height):\s*(?!AppUiTokens)[0-9]+(?:\.[0-9]+)?',
 );
+final _magicClampPattern = RegExp(
+  r'\.clamp\(\s*(?!AppUiTokens)[0-9]+(?:\.[0-9]+)?',
+);
 
 void main() {
   final violations = <String>[];
@@ -51,6 +55,9 @@ void main() {
       }
       if (_magicSizedBoxPattern.hasMatch(content)) {
         violations.add('$normalized uses literal SizedBox dimensions.');
+      }
+      if (_magicClampPattern.hasMatch(content)) {
+        violations.add('$normalized uses literal clamp dimensions.');
       }
     }
   }

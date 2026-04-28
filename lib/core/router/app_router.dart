@@ -7,6 +7,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/portal/presentation/pages/activities_page.dart';
 import '../../features/portal/presentation/pages/explore_page.dart';
+import '../../features/portal/presentation/pages/learning_space_page.dart';
 import '../../features/portal/presentation/pages/message_center_page.dart';
 import '../../features/portal/presentation/pages/parent_contact_page.dart';
 import '../../features/portal/presentation/pages/review_center_page.dart';
@@ -17,6 +18,7 @@ import '../../features/school/presentation/pages/school_entry_page.dart';
 import '../../features/school/presentation/pages/school_selection_page.dart';
 import '../../features/school/presentation/providers/school_context_provider.dart';
 import '../../features/student/presentation/pages/student_identity_selection_page.dart';
+import '../../features/student/presentation/pages/student_profile_page.dart';
 import '../../features/student/presentation/providers/student_identity_provider.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/users/presentation/pages/users_page.dart';
@@ -149,6 +151,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
       GoRoute(
+        path: '/profile',
+        builder: (context, state) => const StudentProfilePage(),
+      ),
+      GoRoute(
         path: '/activities',
         builder: (context, state) => const ActivitiesPage(),
       ),
@@ -222,6 +228,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/explore',
         builder: (context, state) =>
             ExplorePage(initialTab: state.uri.queryParameters['tab']),
+      ),
+      GoRoute(
+        path: '/explore/:spaceId',
+        builder: (context, state) =>
+            LearningSpacePage(spaceId: state.pathParameters['spaceId']!),
       ),
       GoRoute(
         path: '/student-release-lab',

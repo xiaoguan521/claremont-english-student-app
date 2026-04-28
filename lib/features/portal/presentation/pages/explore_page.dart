@@ -77,7 +77,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
               accent: const Color(0xFF73B7FF),
               icon: Icons.abc_rounded,
               actionLabel: '开始闯关',
-              onTap: () => _showFeatureHint(context, '自然拼读内容正在接入教材资源库。'),
+              onTap: () => context.go('/explore/phonics'),
             ),
             _ExploreMapItem(
               title: '国家地理 PM',
@@ -86,7 +86,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
               accent: const Color(0xFF87D76A),
               icon: Icons.public_rounded,
               actionLabel: '去阅读',
-              onTap: () => _showFeatureHint(context, '国家地理 PM 分级阅读正在配置中。'),
+              onTap: () => context.go('/explore/national-geographic'),
             ),
             _ExploreMapItem(
               title: '魔法商店',
@@ -97,7 +97,7 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
               accent: const Color(0xFFFFD447),
               icon: Icons.card_giftcard_rounded,
               actionLabel: '看看奖励',
-              onTap: () => _showFeatureHint(context, '星币兑换会和成长奖励一起开放。'),
+              onTap: () => context.go('/explore/magic-shop'),
             ),
           ];
 
@@ -107,28 +107,28 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
               subtitle: '儿歌和绘本原声',
               icon: Icons.headphones_rounded,
               color: const Color(0xFF5DB9FF),
-              onTap: () => _showFeatureHint(context, '磨耳朵电台正在接入绘本和儿歌资源。'),
+              onTap: () => context.go('/explore/listen'),
             ),
             _AbilityGymItem(
               title: '说',
               subtitle: 'AI 情景对话',
               icon: Icons.record_voice_over_rounded,
               color: const Color(0xFFFFC941),
-              onTap: () => _showFeatureHint(context, 'AI 情景对话会和口语 Agent 一起开放。'),
+              onTap: () => context.go('/explore/speak'),
             ),
             _AbilityGymItem(
               title: '写',
               subtitle: '作品上传和描红',
               icon: Icons.edit_note_rounded,
               color: const Color(0xFF78E55A),
-              onTap: () => _showFeatureHint(context, '作品上传先开放，描红会放到三期。'),
+              onTap: () => context.go('/explore/write'),
             ),
             _AbilityGymItem(
               title: '玩',
               subtitle: '错词小游戏',
               icon: Icons.extension_rounded,
               color: const Color(0xFF55D9C5),
-              onTap: () => _showFeatureHint(context, '错词小游戏会读取你的错音本自动生成。'),
+              onTap: () => context.go('/explore/play'),
             ),
           ];
 
@@ -185,12 +185,6 @@ class _ExplorePageState extends ConsumerState<ExplorePage> {
         },
       ),
     );
-  }
-
-  void _showFeatureHint(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   List<Widget> _landscapePhonePages({
